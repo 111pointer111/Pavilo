@@ -178,19 +178,20 @@ limits:
   throwsMatch(() => parseConfig(`
 version: 1
 limits:
-  maxJsonBytes: 3000000
-  maxWebSocketFrameBytes: 2999999
+  maxJsonBytes: 600000
+  maxWebSocketFrameBytes: 599999
 `), /limits\.maxWebSocketFrameBytes/);
   throwsMatch(() => parseConfig(`
 version: 1
 limits:
-  maxJsonBytes: 3000000
-  maxWritableBytes: 3000000
+  maxJsonBytes: 600000
+  maxWebSocketFrameBytes: 600000
+  maxWritableBytes: 600000
 `), /limits\.maxWritableBytes/);
   throwsMatch(() => parseConfig(`
 version: 1
 limits:
-  maxChannelBytes: 1000000
+  maxChannelBytes: 100000
 `), /limits\.maxChannelBytes/);
 });
 

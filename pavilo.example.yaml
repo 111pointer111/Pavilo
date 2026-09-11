@@ -46,14 +46,19 @@ channels:
 limits:
   maxMessagesPerChannel: 300
   maxTextLength: 2000
-  maxImageBytes: 1500000
-  maxImageDimension: 4096
-  maxImagePixels: 16000000
+  # 单图上限直接决定频道能留住多少张图，也会连带决定下面三项的取值。
+  # 客户端会先把长边降到 1600 px，所以手机原图通常远小于这个值。
+  maxImageBytes: 300000
+  # 这条只约束不降采样的 GIF；普通图片由客户端统一降到 1600 px。
+  maxImageDimension: 1600
+  # 降采样前的像素上限，限制单次上传的解码开销，不是频道存储量。
+  maxImagePixels: 4000000
   # 以下值须能容纳最大图片的 base64、文字、成员列表和 WebSocket 帧开销。
-  maxJsonBytes: 2500000
-  maxWebSocketFrameBytes: 4000000
+  # 调大 maxImageBytes 后，这三项和 maxChannelBytes 都要跟着复核。
+  maxJsonBytes: 524288
+  maxWebSocketFrameBytes: 1572864
   maxChannelBytes: 33554432
-  maxWritableBytes: 5242880
+  maxWritableBytes: 2097152
   maxDedupeEntries: 512
 
 timeouts:

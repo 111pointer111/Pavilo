@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 
-const { createChatServer, PROTOCOL_VERSION } = require('../server');
+const { createChatServer, PROTOCOL_VERSION, DEFAULTS } = require('../server');
 const { openWebSocket } = require('./helpers/raw-websocket');
 
 async function startServer(t, options = {}) {
@@ -490,6 +490,44 @@ test('room-info only advertises LAN addresses when the deployment asks for it', 
   // The rest of the metadata still has to work, or the page cannot boot.
   assert.equal(hiddenInfo.roomTitle, exposed.app.config.roomTitle);
   assert.ok(hiddenInfo.channels.length >= 1);
+});
+
+test('the default image budget keeps a channel holding many pictures', (t) => {
+  // These numbers are a product decision, not an accident: one oversized photo
+  // used to consume ~5% of a channel's entire byte budget, so a busy room fell
+  // back to "oldest message evicted" after a handful of images.
+  const envelope = Math.ceil(DEFAULTS.maxImageBytes / 3) * 4 + DEFAULTS.maxTextLength * 4 + 16 * 1024;
+  assert.ok(DEFAULTS.maxImageBytes <= 400_000, 'a single default image should stay well under half a megabyte');
+  assert.ok(DEFAULTS.maxRoomBytes / envelope >= 60, 'a full channel should hold at least 60 default-sized images');
+  // The envelope chain has to stay internally consistent, or uploads that pass
+  // the client check fail somewhere deeper in the write path.
+  assert.ok(DEFAULTS.maxJsonBytes >= envelope, 'maxJsonBytes must fit a largest-message envelope');
+  assert.ok(DEFAULTS.maxWsFrameBytes >= DEFAULTS.maxJsonBytes, 'a JSON frame must fit in one WebSocket frame');
+  assert.ok(DEFAULTS.maxWritableBytes >= DEFAULTS.maxJsonBytes + 14, 'the write buffer must hold a frame plus its header');
+});
+
+test('rejects an image whose declared size exceeds the configured budget', async (t) => {
+  const { port } = await startServer(t, { maxImageBytes: 200, maxImageDimension: 64, maxImagePixels: 4096 });
+  const client = await openWebSocket({ port });
+  await join(client);
+
+  // A real 4x4 PNG padded past the byte budget: the magic and dimensions are
+  // valid, so only the size rule can be what rejects it.
+  const png = Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    Buffer.alloc(24),
+    Buffer.alloc(400, 7)
+  ]);
+  png.writeUInt32BE(4, 16);
+  png.writeUInt32BE(4, 20);
+  client.sendJson({
+    type: 'message',
+    clientMessageId: 'message-image-too-big',
+    kind: 'image',
+    image: { src: `data:image/png;base64,${png.toString('base64')}`, width: 4, height: 4 }
+  });
+  const error = await client.nextJson((payload) => payload.type === 'error');
+  assert.equal(error.code, 'INVALID_IMAGE');
 });
 
 test('serves the vendored Lucide icon set used by the interface', async (t) => {

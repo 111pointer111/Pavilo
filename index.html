@@ -1235,11 +1235,18 @@
   <script src="/vendor/lucide/index.js"></script>
   <script>
     (() => {
-      let MAX_IMAGE_BYTES = 1_500_000;
-      let MAX_IMAGE_DIMENSION = 4096;
-      let MAX_IMAGE_PIXELS = 16_000_000;
+      let MAX_IMAGE_BYTES = 300_000;
+      let MAX_IMAGE_PIXELS = 4_000_000;
+      // Animated GIFs are sent untouched, so this is the only dimension cap they get.
+      let MAX_GIF_DIMENSION = 1600;
       const MAX_PENDING = 32;
       const MAX_PENDING_IMAGE_BYTES = 4_000_000;
+      // Photos keep far more detail than a chat bubble ever shows. Shrinking them
+      // before they reach the room is what keeps a channel holding dozens of
+      // pictures instead of a handful.
+      const IMAGE_TARGET_DIMENSION = 1600;
+      const MAX_IMAGE_QUALITY = .82;
+      const MIN_IMAGE_QUALITY = .5;
       let MAX_MESSAGES = 300;
       const ACK_TIMEOUT = 8_000;
       const TYPING_INTERVAL = 900;
@@ -1466,7 +1473,7 @@
         roomInfo = info;
         roomChannels = channels;
         MAX_IMAGE_BYTES = positiveLimit(info.limits?.maxImageBytes, MAX_IMAGE_BYTES);
-        MAX_IMAGE_DIMENSION = positiveLimit(info.limits?.maxImageDimension, MAX_IMAGE_DIMENSION);
+        MAX_GIF_DIMENSION = positiveLimit(info.limits?.maxImageDimension, MAX_GIF_DIMENSION);
         MAX_IMAGE_PIXELS = positiveLimit(info.limits?.maxImagePixels, MAX_IMAGE_PIXELS);
         MAX_MESSAGES = positiveLimit(info.limits?.maxMessages, MAX_MESSAGES);
         composerText.maxLength = positiveLimit(info.limits?.maxTextLength, composerText.maxLength);
@@ -2840,34 +2847,65 @@
         });
       }
 
+      // Canvas gives us the encoded size only after the fact, so the quality that
+      // fits has to be searched for rather than computed. Each attempt is a full
+      // re-encode, so the search is a short bisection instead of a linear scan.
+      function encodeWithinBudget(canvas, mime) {
+        const encode = (quality) => {
+          const src = canvas.toDataURL(mime, quality);
+          const payload = src.split(',')[1] || '';
+          return { src, bytes: Math.ceil(payload.length * 3 / 4) };
+        };
+        let best = encode(MAX_IMAGE_QUALITY);
+        if (best.bytes <= MAX_IMAGE_BYTES) return best;
+        let low = MIN_IMAGE_QUALITY;
+        let high = MAX_IMAGE_QUALITY;
+        for (let attempt = 0; attempt < 4; attempt += 1) {
+          const quality = (low + high) / 2;
+          const result = encode(quality);
+          if (result.bytes <= MAX_IMAGE_BYTES) {
+            best = result;
+            low = quality;
+          } else {
+            high = quality;
+          }
+        }
+        // Quality alone may not be enough for a dense image; reporting the last
+        // candidate lets the caller turn this into a real error instead of
+        // sending something the room will reject.
+        const floor = encode(MIN_IMAGE_QUALITY);
+        return floor.bytes < best.bytes ? floor : best;
+      }
+
       async function prepareImage(file) {
         const source = await fileToDataUrl(file);
         const image = await loadImage(source);
-        const pixels = image.naturalWidth * image.naturalHeight;
-        if (!image.naturalWidth || !image.naturalHeight || pixels > MAX_IMAGE_PIXELS) throw new Error('too large');
+        // Checked before any downscaling: this bounds the decode work a single
+        // upload can cost the sender, not what the room ends up storing.
+        const sourcePixels = image.naturalWidth * image.naturalHeight;
+        if (!image.naturalWidth || !image.naturalHeight || sourcePixels > MAX_IMAGE_PIXELS) throw new Error('too large');
+        // GIFs keep their animation; a canvas round-trip would flatten a still
+        // frame. They are only size-checked.
         if (file.type === 'image/gif') {
-          if (file.size > MAX_IMAGE_BYTES || image.naturalWidth > MAX_IMAGE_DIMENSION || image.naturalHeight > MAX_IMAGE_DIMENSION) throw new Error('too large');
+          if (file.size > MAX_IMAGE_BYTES || image.naturalWidth > MAX_GIF_DIMENSION || image.naturalHeight > MAX_GIF_DIMENSION) throw new Error('too large');
           return { src: source, width: image.naturalWidth, height: image.naturalHeight, bytes: file.size };
         }
-        const scale = Math.min(1, MAX_IMAGE_DIMENSION / image.naturalWidth, MAX_IMAGE_DIMENSION / image.naturalHeight, Math.sqrt(MAX_IMAGE_PIXELS / pixels));
+        const scale = Math.min(1, IMAGE_TARGET_DIMENSION / image.naturalWidth, IMAGE_TARGET_DIMENSION / image.naturalHeight);
         const width = Math.max(1, Math.round(image.naturalWidth * scale));
         const height = Math.max(1, Math.round(image.naturalHeight * scale));
-        if (scale === 1 && file.size <= MAX_IMAGE_BYTES) return { src: source, width, height, bytes: file.size };
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
         const context = canvas.getContext('2d', { alpha: file.type === 'image/png' });
         if (!context) throw new Error('canvas unavailable');
         context.drawImage(image, 0, 0, width, height);
-        const mime = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
-        let result = canvas.toDataURL(mime, .82);
-        let bytes = Math.ceil((result.split(',')[1]?.length || 0) * 3 / 4);
-        if (bytes > MAX_IMAGE_BYTES && mime === 'image/jpeg') {
-          result = canvas.toDataURL(mime, .68);
-          bytes = Math.ceil((result.split(',')[1]?.length || 0) * 3 / 4);
-        }
-        if (!bytes || bytes > MAX_IMAGE_BYTES) throw new Error('too large');
-        return { src: result, width, height, bytes };
+        // PNG keeps transparency but is a poor format for photographs. Only hold
+        // on to it when the source is already small enough; otherwise the canvas
+        // has an opaque backdrop and JPEG is the honest choice.
+        const mime = file.type === 'image/png' && file.size <= MAX_IMAGE_BYTES ? 'image/png' : 'image/jpeg';
+        const encoded = encodeWithinBudget(canvas, mime);
+        if (!encoded.bytes || encoded.bytes > MAX_IMAGE_BYTES) throw new Error('too large');
+        return { src: encoded.src, width, height, bytes: encoded.bytes };
       }
 
       async function sendImage(file) {
@@ -2879,8 +2917,7 @@
           toast('连接或频道切换尚未完成，暂时不能发送图片。', true);
           return;
         }
-        const pendingImageBytes = [...pending.values()].reduce((total, item) => total + (item.image?.bytes || 0), 0);
-        if (pending.size >= MAX_PENDING || pendingImageBytes + file.size > MAX_PENDING_IMAGE_BYTES) {
+        if (pending.size >= MAX_PENDING) {
           toast('待确认的图片较多，请稍后再试。', true);
           return;
         }
@@ -2890,6 +2927,15 @@
         try {
           const sourceChannelId = currentChannelId;
           const image = await prepareImage(file);
+          // The budget is spent on what the room will actually store, not on the
+          // file the user picked. A phone photo is routinely several megabytes on
+          // disk and a couple hundred kilobytes once it has been downscaled, so
+          // comparing the raw size here would turn away pictures that fit easily.
+          const pendingImageBytes = [...pending.values()].reduce((total, item) => total + (item.image?.bytes || 0), 0);
+          if (pendingImageBytes + image.bytes > MAX_PENDING_IMAGE_BYTES) {
+            toast('待确认的图片较多，请稍后再试。', true);
+            return;
+          }
           if (switchingChannel || currentChannelId !== sourceChannelId || !isSocketReady()) {
             toast('图片处理完成，但频道状态已变化，请重新选择后发送。', true);
             return;
