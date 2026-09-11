@@ -28,6 +28,17 @@ async function join(client, {
   return { stateStart, history, historyEnd };
 }
 
+// `app.state()` reflects socket teardown, which lands a tick or two after the
+// client observes the close frame. Wait for the room to actually settle.
+async function waitForState(app, predicate, attempts = 20) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const state = app.state();
+    if (predicate(state)) return state;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  return app.state();
+}
+
 test('serves the room, health, and room metadata over GET and HEAD', async (t) => {
   const { app, baseUrl, port } = await startServer(t);
 
@@ -35,8 +46,15 @@ test('serves the room, health, and room metadata over GET and HEAD', async (t) =
   const indexBody = await index.text();
   assert.equal(index.status, 200);
   assert.match(index.headers.get('content-type'), /^text\/html;/);
-  assert.match(index.headers.get('cache-control'), /no-store/);
+  assert.match(index.headers.get('cache-control'), /no-cache/);
+  assert.ok(index.headers.get('etag'), 'index.html should expose an ETag so reloads can revalidate');
   assert.ok(indexBody.length > 100);
+
+  // `/chat` is the address members keep in their history; a reload must land back
+  // in the room rather than on a 404.
+  const chat = await fetch(`${baseUrl}/chat`);
+  assert.equal(chat.status, 200);
+  assert.equal(await chat.text(), indexBody);
 
   const indexHead = await fetch(`${baseUrl}/index.html`, { method: 'HEAD' });
   assert.equal(indexHead.status, 200);
@@ -198,6 +216,125 @@ test('reconnecting with a clientSessionId retains the same public identity', asy
   assert.equal(app.state().sessions, 1);
 });
 
+test('a resume token brings a reloaded page back as the same member', async (t) => {
+  const { app, port } = await startServer(t);
+  const clientSessionId = 'session-reload-0001';
+  const first = await openWebSocket({ port });
+  const firstState = await join(first, { username: 'Reloader', clientSessionId, avatarSeed: 4242 });
+  const resumeToken = firstState.stateStart.resumeToken;
+  assert.equal(typeof resumeToken, 'string');
+  assert.equal(resumeToken, clientSessionId, 'the session key doubles as the resume token');
+  await first.destroy();
+
+  const second = await openWebSocket({ port });
+  second.sendJson({
+    type: 'join',
+    protocolVersion: PROTOCOL_VERSION,
+    username: 'Reloader',
+    clientSessionId: 'session-reload-0002',
+    resumeToken,
+    avatarSeed: 999
+  });
+  const secondState = await second.nextJson();
+  assert.equal(secondState.type, 'stateStart');
+  assert.deepEqual(secondState.self, firstState.stateStart.self, 'identity survives the reload');
+  assert.equal(secondState.resumeToken, resumeToken, 'the token carries forward');
+  await second.nextJson((payload) => payload.type === 'history');
+  await second.nextJson((payload) => payload.type === 'historyEnd');
+  assert.equal(app.state().sessions, 1);
+});
+
+test('a member still on the roster wins its name over a name-only claim', async (t) => {
+  const { port } = await startServer(t);
+  const member = await openWebSocket({ port });
+  await join(member, { username: 'Present', clientSessionId: 'session-present-0001' });
+
+  const impostor = await openWebSocket({ port });
+  impostor.sendJson({
+    type: 'join',
+    protocolVersion: PROTOCOL_VERSION,
+    username: 'Present',
+    clientSessionId: 'session-present-0002'
+  });
+  const error = await impostor.nextJson((payload) => payload.type === 'error');
+  assert.equal(error.code, 'NAME_TAKEN');
+});
+
+test('a name cannot be taken while its session is only leased', async (t) => {
+  const { app, port } = await startServer(t, { sessionLeaseMs: 60_000 });
+  const clientSessionId = 'session-leaver-0001';
+  const first = await openWebSocket({ port });
+  const firstState = await join(first, { username: 'Leaver', clientSessionId });
+  first.sendJson({ type: 'leave' });
+  await first.waitForClose();
+  await first.destroy();
+  // The socket is gone but the member still holds the name, so nobody else can claim
+  // it and a stale "you left" presence is not announced yet.
+  const settled = await waitForState(app, (state) => state.clients === 0);
+  assert.equal(settled.sessions, 0);
+  assert.equal(settled.clients, 0);
+
+  const stranger = await openWebSocket({ port });
+  stranger.sendJson({ type: 'join', protocolVersion: PROTOCOL_VERSION, username: 'Leaver', clientSessionId: 'session-stranger-01' });
+  const error = await stranger.nextJson((payload) => payload.type === 'error');
+  assert.equal(error.code, 'NAME_TAKEN');
+  await stranger.destroy();
+
+  // Reloading that same page comes back as the same member, not a new one.
+  const second = await openWebSocket({ port });
+  second.sendJson({
+    type: 'join',
+    protocolVersion: PROTOCOL_VERSION,
+    username: 'Leaver',
+    clientSessionId,
+    resumeToken: firstState.stateStart.resumeToken
+  });
+  const secondState = await second.nextJson();
+  assert.equal(secondState.type, 'stateStart');
+  assert.deepEqual(secondState.self, firstState.stateStart.self, 'a reload is the same member');
+  assert.equal(secondState.resumeToken, firstState.stateStart.resumeToken);
+});
+
+test('a known token with a different name is refused instead of silently restarting', async (t) => {
+  const { port } = await startServer(t);
+  const clientSessionId = 'session-conflict-0001';
+  const first = await openWebSocket({ port });
+  await join(first, { username: 'Original', clientSessionId });
+
+  const other = await openWebSocket({ port });
+  other.sendJson({
+    type: 'join',
+    protocolVersion: PROTOCOL_VERSION,
+    username: 'SomeoneElse',
+    clientSessionId,
+    resumeToken: clientSessionId
+  });
+  const error = await other.nextJson((payload) => payload.type === 'error');
+  assert.equal(error.code, 'SESSION_CONFLICT');
+});
+
+test('two tabs of the same member do not break each other', async (t) => {
+  const { app, port } = await startServer(t);
+  const clientSessionId = 'session-tabs-0001';
+  const first = await openWebSocket({ port });
+  const firstState = await join(first, { username: 'TwoTabs', clientSessionId, avatarSeed: 77 });
+
+  const second = await openWebSocket({ port });
+  second.sendJson({
+    type: 'join',
+    protocolVersion: PROTOCOL_VERSION,
+    username: 'TwoTabs',
+    clientSessionId,
+    resumeToken: firstState.stateStart.resumeToken,
+    avatarSeed: 77
+  });
+  const secondState = await second.nextJson();
+  assert.equal(secondState.type, 'stateStart');
+  assert.deepEqual(secondState.self, firstState.stateStart.self);
+  assert.equal(app.state().sessions, 1, 'the roster keeps one entry for the member');
+  assert.equal(app.state().clients, 2, 'both sockets stay open until the older one closes');
+});
+
 test('reaction updates are idempotent and expose canonical counts', async (t) => {
   const { port } = await startServer(t);
   const client = await openWebSocket({ port });
@@ -293,6 +430,39 @@ test('serves vendored emoji picker assets without path traversal', async (t) => 
 
   const missing = await fetch(`${baseUrl}/vendor/emoji-picker/nope.js`);
   assert.equal(missing.status, 404);
+});
+
+test('serves the vendored Lucide icon set used by the interface', async (t) => {
+  const { baseUrl } = await startServer(t);
+
+  const module = await fetch(`${baseUrl}/vendor/lucide/index.js`);
+  assert.equal(module.status, 200);
+  assert.match(module.headers.get('content-type'), /^text\/javascript/);
+  const source = await module.text();
+
+  // Load the delivered module the way the browser does, then confirm the icons the
+  // interface asks for actually produce drawable shapes.
+  const context = { module: { exports: {} } };
+  const load = new Function('module', 'globalThis', `${source}\nreturn module.exports;`);
+  const createIcon = load(context.module, context.module.exports);
+  assert.equal(typeof createIcon, 'function');
+  assert.ok(createIcon.names.length > 1000, `expected a full icon set, got ${createIcon.names.length}`);
+
+  const used = [...new Set([...source.matchAll(/data-icon="([a-z0-9-]+)"/g)].map((match) => match[1]))];
+  const index = await fetch(`${baseUrl}/`);
+  const indexBody = await index.text();
+  const requested = [...new Set([...indexBody.matchAll(/data-icon="([a-z0-9-]+)"/g), ...indexBody.matchAll(/iconMarkup\('([a-z0-9-]+)'/g)].map((match) => match[1]))];
+  assert.ok(requested.length >= 15, `expected the interface to use Lucide icons, saw ${requested.length}`);
+  for (const name of requested) {
+    const markup = createIcon(name);
+    assert.ok(markup.includes('<'), `icon "${name}" renders nothing`);
+    assert.match(markup, /^<(path|circle|rect|line|ellipse|polyline|polygon)\b/, `icon "${name}" uses an unsupported element`);
+  }
+  assert.deepEqual(used, [], 'the icon module itself should not declare data-icon hosts');
+
+  const license = await fetch(`${baseUrl}/vendor/lucide/LICENSE`);
+  assert.equal(license.status, 200);
+  assert.match(await license.text(), /ISC License/);
 });
 
 test('rejects WebSocket upgrades from a foreign Origin', async (t) => {

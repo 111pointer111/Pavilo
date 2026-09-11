@@ -14,6 +14,7 @@ const DEFAULTS = Object.freeze({
   maxTextLength: 2000,
   maxImageBytes: 1_500_000,
   maxJsonBytes: 2_500_000,
+  maxWsFrameBytes: 4_000_000,
   maxRoomBytes: 32 * 1024 * 1024,
   maxClients: 80,
   maxClientsPerIp: 12,
@@ -23,6 +24,7 @@ const DEFAULTS = Object.freeze({
   heartbeatTimeoutMs: 75_000,
   typingTtlMs: 4_000,
   sessionLeaseMs: 15_000,
+  resumeLeaseMs: 8_000,
   dedupeTtlMs: 10 * 60_000,
   maxDedupeEntries: 512,
   allowNoOrigin: true
@@ -35,6 +37,7 @@ const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon'
@@ -43,6 +46,13 @@ const vendorEtagCache = new Map();
 
 function randomId(prefix) {
   return `${prefix}_${crypto.randomBytes(8).toString('hex')}`;
+}
+
+// Resume tokens are random, so joining with one proves the caller previously held
+// this room session. That is what lets a page come back as the same member after a
+// reload instead of walking back through the name box.
+function randomResumeToken() {
+  return crypto.randomBytes(9).toString('base64url');
 }
 
 function getAddress(socket) {
@@ -93,12 +103,29 @@ function createChatServer(options = {}) {
 
   function rosterUsers() {
     const active = new Map();
-    for (const session of sessions.values()) active.set(session.token, session);
+    for (const [token, session] of sessions) active.set(token, session);
     const now = Date.now();
     for (const [token, lease] of leasedSessions) {
       if (lease.expiresAt > now) active.set(token, lease.session);
     }
     return [...active.values()].map(publicUser);
+  }
+
+  function nameIsFree(nameKey) {
+    const now = Date.now();
+    for (const session of sessions.values()) {
+      if (session.nameKey === nameKey) return false;
+    }
+    for (const lease of leasedSessions.values()) {
+      if (lease.expiresAt > now && lease.session.nameKey === nameKey) return false;
+    }
+    return true;
+  }
+
+  function freshResumeToken() {
+    let candidate = randomResumeToken();
+    while (sessions.has(candidate) || leasedSessions.has(candidate)) candidate = randomResumeToken();
+    return candidate;
   }
 
   function publicMessage(message) {
@@ -406,7 +433,7 @@ function createChatServer(options = {}) {
     }
   }
 
-  function sendInitialState(client, session) {
+  function sendInitialState(client, session, resumeToken) {
     client.syncing = true;
     client.syncQueue.length = 0;
     refreshSyncTimeout(client);
@@ -431,6 +458,7 @@ function createChatServer(options = {}) {
       roomEpoch,
       roomStartedAt,
       latestSeq: snapshotSeq,
+      resumeToken: resumeToken || null,
       self: publicUser(session),
       users: rosterUsers()
     }];
@@ -461,6 +489,60 @@ function createChatServer(options = {}) {
     return typeof value === 'string' && CLIENT_ID_RE.test(value);
   }
 
+  function handOffSession(session) {
+    const oldClient = session.client;
+    if (oldClient) {
+      closeClient(oldClient, 1000, 'reconnected');
+      oldClient.session = null;
+      session.client = null;
+    }
+    // A page reload closes the previous socket before the new one joins. Keep the
+    // session in a short lease so the reopen can adopt it instead of waiting for
+    // the old socket's close event to place it there.
+    const current = leasedSessions.get(session.token);
+    if (current) clearTimeout(current.timer);
+    const lease = { session, expiresAt: Date.now() + config.resumeLeaseMs, timer: null };
+    lease.timer = setTimeout(() => {
+      if (leasedSessions.get(session.token) !== lease) return;
+      leasedSessions.delete(session.token);
+      broadcast({ type: 'presence', action: 'leave', userId: session.id, username: session.username, users: rosterUsers() });
+    }, config.resumeLeaseMs);
+    lease.timer.unref?.();
+    leasedSessions.set(session.token, lease);
+  }
+
+  function resolveJoin(command) {
+    const nameKey = command.username.toLocaleLowerCase();
+    // `resumeToken` is the room-issued secret. Falling back to the caller-chosen
+    // `clientSessionId` keeps protocol v2 clients able to reconnect as themselves.
+    const offered = typeof command.resumeToken === 'string' && CLIENT_ID_RE.test(command.resumeToken)
+      ? command.resumeToken
+      : command.clientSessionId;
+    if (validateClientId(offered)) {
+      const lease = leasedSessions.get(offered);
+      if (lease && lease.expiresAt > Date.now()) {
+        if (lease.session.nameKey !== nameKey) return { error: 'SESSION_CONFLICT' };
+        clearTimeout(lease.timer);
+        leasedSessions.delete(offered);
+        return { nameKey, token: offered, session: lease.session };
+      }
+      // A live session is adopted whatever name it is asked for: the token is the
+      // identity, and the reconnect path relies on it to carry a lease hand-off.
+      const session = sessions.get(offered);
+      if (session) {
+        if (session.nameKey !== nameKey) return { error: 'SESSION_CONFLICT' };
+        return { nameKey, token: offered, session };
+      }
+    }
+    // A token that no longer matches falls through to a fresh join, which is what
+    // makes "leave" final: the name is free again and a reload sees the login.
+    if (!nameIsFree(nameKey)) return { error: 'NAME_TAKEN' };
+    // Holding on to the caller's own key keeps protocol v2 clients able to reconnect
+    // as themselves. The name is free here, so no live session can share this token.
+    const token = validateClientId(offered) && !leasedSessions.has(offered) ? offered : freshResumeToken();
+    return { nameKey, token, session: null };
+  }
+
   function handleJoin(client, command) {
     if (client.joined) return;
     const username = cleanUsername(command.username);
@@ -469,58 +551,38 @@ function createChatServer(options = {}) {
       return;
     }
     client.protocolVersion = Number(command.protocolVersion) || 1;
-    const token = validateClientId(command.clientSessionId) ? command.clientSessionId : randomId('legacy');
-    const nameKey = username.toLocaleLowerCase();
-    let lease = leasedSessions.get(token);
-    if (lease && lease.expiresAt <= Date.now()) {
-      clearTimeout(lease.timer);
-      leasedSessions.delete(token);
-      lease = null;
-    }
-    const existing = sessions.get(token) || lease?.session;
-
-    if (!existing) {
-      for (const session of sessions.values()) {
-        if (session.nameKey === nameKey) {
-          sendError(client, 'NAME_TAKEN', '这个用户名已经在频道里了。换一个试试。');
-          return;
-        }
-      }
-      for (const pendingLease of leasedSessions.values()) {
-        if (pendingLease.session.nameKey === nameKey && pendingLease.expiresAt > Date.now()) {
-          sendError(client, 'NAME_TAKEN', '这个用户名正在重新连接，请稍后再试。');
-          return;
-        }
-      }
-    } else if (existing.nameKey !== nameKey) {
+    const request = resolveJoin({ username, resumeToken: command.resumeToken, clientSessionId: command.clientSessionId });
+    if (request.error === 'SESSION_CONFLICT') {
       sendError(client, 'SESSION_CONFLICT', '本页会话与用户名不匹配。');
+      return;
+    }
+    if (request.error) {
+      sendError(client, 'NAME_TAKEN', '这个用户名已经在频道里了。换一个试试。');
       return;
     }
 
     const rawSeed = Number(command.avatarSeed);
-    const avatarSeed = Number.isFinite(rawSeed) ? (Math.abs(Math.trunc(rawSeed)) >>> 0) : crypto.randomInt(0, 0x7fffffff);
-    const session = existing || {
+    const requestedSeed = Number.isFinite(rawSeed) ? (Math.abs(Math.trunc(rawSeed)) >>> 0) : null;
+    const session = request.session || {
       id: randomId('u'),
       username,
-      nameKey,
+      nameKey: request.nameKey,
       ip: getAddress(client.socket),
-      avatarSeed,
+      avatarSeed: requestedSeed ?? crypto.randomInt(0, 0x7fffffff),
       joinedAt: Date.now(),
-      token
+      token: request.token
     };
-    const oldClient = session.client;
-    if (oldClient && oldClient !== client) closeClient(oldClient, 1012, 'reconnected');
-    if (lease?.timer) clearTimeout(lease.timer);
-    leasedSessions.delete(token);
+    session.username = username;
+    handOffSession(session);
     session.client = client;
     session.ip = getAddress(client.socket);
     client.session = session;
     client.joined = true;
     if (client.joinTimer) clearTimeout(client.joinTimer);
-    sessions.set(token, session);
+    sessions.set(request.token, session);
 
-    sendInitialState(client, session);
-    broadcast({ type: 'presence', action: existing ? 'reconnect' : 'join', user: publicUser(session), users: rosterUsers() }, client);
+    sendInitialState(client, session, request.token);
+    broadcast({ type: 'presence', action: request.session ? 'reconnect' : 'join', user: publicUser(session), users: rosterUsers() }, client);
   }
 
   function handleMessage(client, command) {
@@ -705,7 +767,7 @@ function createChatServer(options = {}) {
       } else if (length === 127) {
         if (client.buffer.length < 10) return;
         const longLength = client.buffer.readBigUInt64BE(2);
-        if (longLength > BigInt(config.maxJsonBytes)) {
+        if (longLength > BigInt(config.maxWsFrameBytes)) {
           closeClient(client, 1009, 'payload too large');
           return;
         }
@@ -716,7 +778,7 @@ function createChatServer(options = {}) {
         closeClient(client, 1002, 'control frame too large');
         return;
       }
-      if (length > config.maxJsonBytes) {
+      if (length > config.maxWsFrameBytes) {
         closeClient(client, 1009, 'payload too large');
         return;
       }
@@ -853,8 +915,10 @@ function createChatServer(options = {}) {
       response.writeHead(200, {
         'Content-Type': MIME_TYPES['.html'],
         'Content-Length': data.length,
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
-        Pragma: 'no-cache',
+        // Revalidate on every load so redeployments are picked up, while still
+        // allowing a 304 — reloads keep the page they are already showing.
+        'Cache-Control': 'no-cache',
+        ETag: `"html-${data.length.toString(16)}-${crypto.createHash('sha1').update(data).digest('hex').slice(0, 16)}"`,
         'X-Content-Type-Options': 'nosniff',
         'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:;"
       });
@@ -907,7 +971,7 @@ function createChatServer(options = {}) {
       }, isHead);
       return;
     }
-    if ((request.method === 'GET' || isHead) && (requestUrl.pathname === '/' || requestUrl.pathname === '/index.html')) {
+    if ((request.method === 'GET' || isHead) && (requestUrl.pathname === '/' || requestUrl.pathname === '/index.html' || requestUrl.pathname === '/chat')) {
       serveIndex(request, response, isHead);
       return;
     }
