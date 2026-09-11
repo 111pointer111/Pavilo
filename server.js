@@ -5,6 +5,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
+const zlib = require('node:zlib');
+const { promisify } = require('node:util');
 const { DEFAULTS, loadConfig } = require('./config');
 
 const ROOT = __dirname;
@@ -21,7 +23,43 @@ const MIME_TYPES = {
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon'
 };
+// The interface, the icon set and the emoji data are large text assets that are
+// fetched on every reload, and Pavilo is usually reached over Wi-Fi — where the
+// wire is the slow part, not the CPU that compresses it. Bodies are small enough
+// to compress whole and hold in memory, so there is no streaming path here.
+const COMPRESSIBLE_TYPE = /^(?:text\/|application\/(?:json|javascript))/;
+const COMPRESSION_MIN_BYTES = 1024;
+const gzipAsync = promisify(zlib.gzip);
 const vendorEtagCache = new Map();
+// Content with a stable request-independent body: index.html plus everything
+// under vendor/. Keyed by entity tag; see encodedBodyFor.
+const compressedBodyCache = new Map();
+
+function acceptsGzip(request) {
+  const header = request.headers['accept-encoding'];
+  if (typeof header !== 'string') return false;
+  // The token boundaries keep `x-gzip` from matching a bare `gzip`.
+  return /(^|[\s,])gzip(?:[\s;,]|$)/.test(header.toLowerCase());
+}
+
+// Only used for bodies that never vary by request (index.html and vendor files).
+// The compressed copy is keyed by the entity tag, so an edited file changes its
+// tag and can never be served from a stale entry; in practice the set of keys is
+// bounded by the files on disk because a redeploy restarts the process.
+async function encodedBodyFor(request, etag, type, data) {
+  const identity = { body: data, contentLength: data.length, encoding: null };
+  if (!acceptsGzip(request) || data.length < COMPRESSION_MIN_BYTES || !COMPRESSIBLE_TYPE.test(String(type || ''))) return identity;
+  const cached = compressedBodyCache.get(etag);
+  if (cached) return cached;
+  try {
+    const compressed = await gzipAsync(data);
+    const entry = { body: compressed, contentLength: compressed.length, encoding: 'gzip' };
+    compressedBodyCache.set(etag, entry);
+    return entry;
+  } catch {
+    return identity;
+  }
+}
 
 function randomId(prefix) {
   return `${prefix}_${crypto.randomBytes(8).toString('hex')}`;
@@ -936,7 +974,7 @@ function createChatServer(options = {}) {
       response.end(headOnly ? undefined : 'Not found');
       return;
     }
-    fs.readFile(filename, (error, data) => {
+    fs.readFile(filename, async (error, data) => {
       if (error) {
         response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
         response.end(headOnly ? undefined : 'Not found');
@@ -950,35 +988,48 @@ function createChatServer(options = {}) {
         etag = `"sha1-${crypto.createHash('sha1').update(data).digest('hex')}"`;
         vendorEtagCache.set(relative, etag);
       }
-      response.writeHead(200, {
-        'Content-Type': MIME_TYPES[extension] || 'application/octet-stream',
-        'Content-Length': data.length,
+      const type = MIME_TYPES[extension] || 'application/octet-stream';
+      const encoded = await encodedBodyFor(request, etag, type, data);
+      const headers = {
+        'Content-Type': type,
+        'Content-Length': encoded.contentLength,
         ETag: etag,
+        // The same ETag is served for both encodings, so a shared cache must key
+        // on Accept-Encoding or it can hand a gzipped body to a client that never
+        // asked for one.
+        Vary: 'Accept-Encoding',
         'Cache-Control': 'public, max-age=300',
         'X-Content-Type-Options': 'nosniff'
-      });
-      response.end(headOnly ? undefined : data);
+      };
+      if (encoded.encoding) headers['Content-Encoding'] = encoded.encoding;
+      response.writeHead(200, headers);
+      response.end(headOnly ? undefined : encoded.body);
     });
   }
 
-  function serveIndex(request, response, headOnly = false) {
-    fs.readFile(path.join(ROOT, 'index.html'), (error, data) => {
+  async function serveIndex(request, response, headOnly = false) {
+    fs.readFile(path.join(ROOT, 'index.html'), async (error, data) => {
       if (error) {
         response.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
         response.end(headOnly ? undefined : 'index.html is missing');
         return;
       }
-      response.writeHead(200, {
+      const etag = `"html-${data.length.toString(16)}-${crypto.createHash('sha1').update(data).digest('hex').slice(0, 16)}"`;
+      const encoded = await encodedBodyFor(request, etag, MIME_TYPES['.html'], data);
+      const headers = {
         'Content-Type': MIME_TYPES['.html'],
-        'Content-Length': data.length,
+        'Content-Length': encoded.contentLength,
         // Revalidate on every load so redeployments are picked up, while still
         // allowing a 304 — reloads keep the page they are already showing.
         'Cache-Control': 'no-cache',
-        ETag: `"html-${data.length.toString(16)}-${crypto.createHash('sha1').update(data).digest('hex').slice(0, 16)}"`,
+        ETag: etag,
+        Vary: 'Accept-Encoding',
         'X-Content-Type-Options': 'nosniff',
         'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:;"
-      });
-      response.end(headOnly ? undefined : data);
+      };
+      if (encoded.encoding) headers['Content-Encoding'] = encoded.encoding;
+      response.writeHead(200, headers);
+      response.end(headOnly ? undefined : encoded.body);
     });
   }
 

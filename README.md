@@ -38,6 +38,7 @@ Pavilo（**Pavilion + Local**）是一个浏览器即用、默认临时、可以
 - 图标来自自托管的 [Lucide](https://lucide.dev)（`vendor/lucide`，ISC 许可）
 - 表情选择器来自自托管的 `vendor/emoji-picker`（MIT 许可）
 - 服务端静态白名单只提供聊天页及所需的 `vendor/` 资源，不提供任意仓库文件
+- 静态文本资源按 `Accept-Encoding` 协商 gzip：聊天页 162 KB → 40 KB，图标数据 680 KB → 84 KB。压缩结果按 ETag 缓存，响应带 `Vary: Accept-Encoding`；不支持 gzip 的客户端仍收到原始字节
 
 **可靠性**
 

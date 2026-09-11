@@ -59,7 +59,11 @@ test('serves the room, health, and room metadata over GET and HEAD', async (t) =
   const indexHead = await fetch(`${baseUrl}/index.html`, { method: 'HEAD' });
   assert.equal(indexHead.status, 200);
   assert.equal(await indexHead.text(), '');
-  assert.equal(Number(indexHead.headers.get('content-length')), Buffer.byteLength(indexBody));
+  // `fetch` negotiates gzip and transparently decodes the body, so Content-Length
+  // is the compressed size while `indexBody` is the decoded text. The two must
+  // still agree on which encoding they agreed to use.
+  assert.equal(Number(indexHead.headers.get('content-length')), Number(index.headers.get('content-length')));
+  assert.equal(indexHead.headers.get('content-encoding'), index.headers.get('content-encoding'));
 
   const health = await fetch(`${baseUrl}/healthz`);
   assert.equal(health.status, 200);
@@ -428,6 +432,50 @@ test('serves vendored emoji picker assets without path traversal', async (t) => 
 
   const missing = await fetch(`${baseUrl}/vendor/emoji-picker/nope.js`);
   assert.equal(missing.status, 404);
+});
+
+test('negotiates gzip for static assets without breaking identity clients', async (t) => {
+  const { baseUrl } = await startServer(t);
+  const http = require('node:http');
+
+  // Raw request so the Accept-Encoding header is exactly what we set.
+  const raw = (path, headers = {}) => new Promise((resolve, reject) => {
+    const req = http.request({ hostname: '127.0.0.1', port: Number(new URL(baseUrl).port), path, headers }, (res) => {
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+
+  const indexIdentity = await raw('/', { 'Accept-Encoding': 'identity' });
+  assert.equal(indexIdentity.status, 200);
+  assert.equal(indexIdentity.headers['content-encoding'], undefined);
+  assert.equal(indexIdentity.body.length, Number(indexIdentity.headers['content-length']));
+  assert.equal(indexIdentity.headers.vary, 'Accept-Encoding');
+
+  const indexGzip = await raw('/', { 'Accept-Encoding': 'gzip' });
+  assert.equal(indexGzip.status, 200);
+  assert.equal(indexGzip.headers['content-encoding'], 'gzip');
+  assert.equal(indexGzip.body.length, Number(indexGzip.headers['content-length']));
+  assert.ok(indexGzip.body.length < indexIdentity.body.length, 'gzip should shrink the chat page');
+  // The ETag identifies the resource, not the encoding; Vary is what keeps a
+  // shared cache from crossing the two representations.
+  assert.equal(indexGzip.headers.etag, indexIdentity.headers.etag);
+
+  // `x-gzip` and a token inside a list must not be mistaken for plain `gzip`.
+  const notGzip = await raw('/', { 'Accept-Encoding': 'identity, x-gzip' });
+  assert.equal(notGzip.headers['content-encoding'], undefined);
+
+  const vendorGzip = await raw('/vendor/lucide/icon-nodes.json', { 'Accept-Encoding': 'gzip' });
+  assert.equal(vendorGzip.headers['content-encoding'], 'gzip');
+  assert.ok(vendorGzip.body.length < 200_000, 'the icon set should compress to well under its 680 KB source');
+
+  // Bodies too small to be worth the header are left alone.
+  const tiny = await raw('/vendor/lucide/LICENSE', { 'Accept-Encoding': 'gzip' });
+  assert.equal(tiny.status, 200);
+  assert.equal(tiny.headers['content-encoding'], undefined);
 });
 
 test('serves the vendored Lucide icon set used by the interface', async (t) => {
