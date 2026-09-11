@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <meta name="theme-color" content="#eef4f2">
-  <title>Pavilo / 语亭 · 极简聊天室</title>
+  <link id="appFavicon" rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23dceee9'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-size='36' fill='%230f7772'%3E%E8%BF%91%3C/text%3E%3C/svg%3E">
+  <title>Pavilo / 语亭</title>
   <style>
     :root {
       --bg: #eef4f2;
@@ -50,6 +51,7 @@
     }
 
     body.chat-active { height: 100vh; height: 100dvh; overflow: hidden; }
+    body.sheet-open { overflow: hidden; }
     .composer-text:focus-visible { outline: 3px solid rgba(232, 111, 87, .42); outline-offset: 3px; border-radius: 4px; }
 
     button, input, textarea { font: inherit; }
@@ -285,8 +287,10 @@
 
     .room-privacy { min-width: 0; max-width: 190px; flex: 0 1 190px; overflow-wrap: anywhere; color: var(--ink-faint); font-family: var(--mono); font-size: 9px; letter-spacing: .08em; line-height: 1.55; text-align: right; text-transform: uppercase; }
 
-    .message-scroll { min-width: 0; min-height: 0; overflow: hidden auto; overscroll-behavior: contain; scrollbar-gutter: stable; scroll-behavior: smooth; }
+    .message-scroll { position: relative; min-width: 0; min-height: 0; overflow: hidden auto; overscroll-behavior: contain; scrollbar-gutter: stable; scroll-behavior: smooth; }
     .message-scroll:focus-visible { outline: 3px solid rgba(232, 111, 87, .42); outline-offset: -3px; }
+    .new-message-jump { position: sticky; z-index: 3; top: 12px; display: block; min-height: 35px; margin: 0 auto -35px; padding: 7px 13px; border: 1px solid var(--teal); border-radius: 999px; background: var(--paper); box-shadow: 0 8px 20px rgba(24, 64, 64, .15); color: var(--teal-deep); cursor: pointer; font-size: 11px; font-weight: 800; }
+    .new-message-jump:hover { background: var(--teal-pale); }
     .message-list { display: grid; min-width: 0; min-height: 100%; align-content: start; gap: 2px; padding: 17px 30px 28px; }
     .message-empty {
       display: grid;
@@ -432,6 +436,20 @@
     }
     .message-action:hover { border-color: var(--teal); color: var(--teal-deep); }
     .message-action svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
+    @media (hover: none), (pointer: coarse) {
+      .message-actions { opacity: 1; transform: none; }
+    }
+
+    .reaction-list { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; margin-top: 7px; }
+    .reaction-button { display: inline-flex; align-items: center; gap: 4px; min-width: 44px; min-height: 32px; padding: 3px 7px; border: 1px solid var(--line); border-radius: 999px; background: rgba(249, 251, 248, .9); color: var(--ink-soft); cursor: pointer; font-size: 12px; }
+    .reaction-button:hover, .reaction-button.active { border-color: var(--teal); background: var(--teal-pale); color: var(--teal-deep); }
+    .reaction-button .reaction-count { font-family: var(--mono); font-size: 10px; }
+    .pending-message { opacity: .72; }
+    .pending-status { display: inline-flex; align-items: center; gap: 6px; margin-top: 7px; color: var(--ink-soft); font-family: var(--mono); font-size: 10px; }
+    .pending-status.error { color: var(--coral); }
+    .pending-status button { min-height: 28px; padding: 3px 8px; border: 1px solid currentColor; border-radius: 5px; background: transparent; color: inherit; cursor: pointer; font-size: 10px; }
+    .pending-image { max-width: min(260px, 100%); max-height: 180px; margin-top: 7px; border: 1px solid var(--line); border-radius: 7px; object-fit: contain; }
+    .message-action.reaction-action { min-width: 44px; }
 
     .typing-line {
       min-width: 0;
@@ -757,9 +775,13 @@
         <p class="room-title">语亭 · 临时频道</p>
       </div>
       <div class="top-actions">
-        <button class="top-action" id="copyLinkButton" type="button" title="复制局域网地址">
+        <button class="top-action" id="copyLinkButton" type="button" title="分享或复制局域网地址">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2"/><path d="M15 9V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/></svg>
-          <span>复制地址</span>
+          <span>分享地址</span>
+        </button>
+        <button class="top-action" id="notifyButton" type="button" title="开启系统提醒" aria-label="开启系统提醒">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4"/></svg>
+          <span>开启提醒</span>
         </button>
         <button class="top-action mobile-members-button" id="membersButton" type="button" title="查看在线成员" aria-label="查看在线成员" aria-expanded="false">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 20v-1.5c0-2-1.8-3.5-4-3.5s-4 1.5-4 3.5V20M12 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19 20v-1c0-1.5-.8-2.7-2-3.2M17 5.4a3 3 0 0 1 0 5.2"/></svg>
@@ -802,6 +824,7 @@
         </header>
 
         <div class="message-scroll" id="messageScroll" tabindex="0" role="log" aria-live="polite" aria-relevant="additions" aria-label="消息列表">
+          <button class="new-message-jump" id="newMessageJump" type="button" hidden aria-label="回到底部查看新消息"><span id="newMessageCount">0</span> 条新消息 ↓</button>
           <div class="message-list" id="messageList"></div>
         </div>
         <div class="typing-line" id="typingLine" aria-live="polite"></div>
@@ -870,7 +893,16 @@
   <script>
     (() => {
       const MAX_IMAGE_BYTES = 1_500_000;
-      const STORAGE_KEY = 'pavilo-avatar-seed-v1';
+      const MAX_PENDING = 32;
+      const MAX_PENDING_IMAGE_BYTES = 4_000_000;
+      const MAX_MESSAGES = 300;
+      const ACK_TIMEOUT = 8_000;
+      const TYPING_INTERVAL = 900;
+      const TYPING_EXPIRY = 4_500;
+      const PROTOCOL_VERSION = 2;
+      const CLIENT_SESSION_ID = (globalThis.crypto?.randomUUID?.() || `cs_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 96);
+      const AVATAR_SEED = globalThis.crypto?.getRandomValues ? globalThis.crypto.getRandomValues(new Uint32Array(1))[0] : Math.floor(Math.random() * 0x7fffffff);
+      const REACTION_EMOJIS = ['👍', '❤️', '😂', '🎉', '👀', '🔥'];
       const AVATAR_COLORS = [
         ['#dceee9', '#0f7772', '#f4c85f'],
         ['#fbe4dc', '#b34d46', '#e86f57'],
@@ -888,6 +920,8 @@
       const usernameInput = $('#usernameInput');
       const loginError = $('#loginError');
       const messageScroll = $('#messageScroll');
+      const newMessageJump = $('#newMessageJump');
+      const newMessageCount = $('#newMessageCount');
       const messageList = $('#messageList');
       const peopleList = $('#peopleList');
       const composer = $('#composer');
@@ -909,6 +943,8 @@
       const mobileSheetBackdrop = $('#mobileSheetBackdrop');
       const mobilePeopleList = $('#mobilePeopleList');
       const mobileProfile = $('#mobileProfile');
+      const notifyButton = $('#notifyButton');
+      const appFavicon = $('#appFavicon');
 
       let socket;
       let self;
@@ -917,11 +953,27 @@
       let replyTarget = null;
       let selectedUserId = null;
       let reconnectTimer;
+      let reconnectAttempt = 0;
       let typingTimer;
+      let typingLastSent = 0;
       let hasJoined = false;
       let profileTimerStarted = false;
       let connectionState = 'idle';
       let intentionalLeave = false;
+      let roomEpoch = null;
+      let pendingStateEpoch = null;
+      let latestSeq = 0;
+      let historyLoading = false;
+      let historyChunks = [];
+      let deferredEvents = [];
+      let unreadCount = 0;
+      let nativeNotification = null;
+      let notificationNoticeShown = false;
+      let roomInfo;
+      let mobileSheetOpener = null;
+      const pending = new Map();
+      const messageNodes = new Map();
+      const knownMessageKeys = new Set();
       const typingUsers = new Map();
 
       function escapeHtml(value) {
@@ -997,7 +1049,11 @@
       }
 
       function updateTypingLine() {
-        const names = [...typingUsers.values()].filter((item) => item !== self?.username);
+        const now = Date.now();
+        for (const [id, item] of typingUsers) {
+          if (item.expiresAt <= now) typingUsers.delete(id);
+        }
+        const names = [...typingUsers.values()].filter((item) => item.username !== self?.username).map((item) => item.username);
         if (!names.length) {
           typingLine.textContent = '';
         } else if (names.length === 1) {
@@ -1015,22 +1071,108 @@
         window.setTimeout(() => item.remove(), 3600);
       }
 
+      function makeClientMessageId() {
+        const value = globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
+        return `cm_${value.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 90)}`;
+      }
+
+      function safeSocketSend(target, command) {
+        if (!target || target.readyState !== WebSocket.OPEN) return false;
+        try {
+          target.send(JSON.stringify(command));
+          return true;
+        } catch {
+          return false;
+        }
+      }
+
       function send(command) {
         if (!isSocketReady()) return false;
-        socket.send(JSON.stringify(command));
-        return true;
+        return safeSocketSend(socket, command);
       }
 
       function sendRaw(command) {
-        if (!socket || socket.readyState !== WebSocket.OPEN) return false;
-        socket.send(JSON.stringify(command));
-        return true;
+        return safeSocketSend(socket, command);
+      }
+
+      function isNearBottom() {
+        return messageScroll.scrollHeight - messageScroll.scrollTop - messageScroll.clientHeight < 90;
+      }
+
+      function updateUnreadUI() {
+        const count = Math.max(0, unreadCount);
+        newMessageJump.hidden = count === 0;
+        newMessageCount.textContent = count > 99 ? '99+' : String(count);
+        const baseTitle = 'Pavilo / 语亭';
+        document.title = count ? `(${count > 99 ? '99+' : count}) ${baseTitle}` : baseTitle;
+        const badge = count > 99 ? '99+' : String(count);
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="18" fill="#dceee9"/><text x="32" y="43" text-anchor="middle" font-size="36" fill="#0f7772">近</text>${count ? `<circle cx="49" cy="15" r="13" fill="#e86f57"/><text x="49" y="19" text-anchor="middle" font-size="10" font-family="sans-serif" font-weight="700" fill="white">${badge}</text>` : ''}</svg>`;
+        appFavicon.href = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      }
+
+      function clearUnread() {
+        unreadCount = 0;
+        updateUnreadUI();
+        if (nativeNotification) {
+          nativeNotification.close();
+          nativeNotification = null;
+        }
+      }
+
+      function canMarkRead() {
+        return document.visibilityState === 'visible' && document.hasFocus() && isNearBottom();
+      }
+
+      function maybeClearUnread() {
+        if (canMarkRead()) clearUnread();
+      }
+
+      function notifyNewMessage(message) {
+        if (message.author?.id === self?.id || canMarkRead()) return;
+        unreadCount += 1;
+        updateUnreadUI();
+        if (typeof Notification !== 'function' || Notification.permission !== 'granted' || !document.hidden && document.hasFocus()) return;
+        if (nativeNotification) nativeNotification.close();
+        try {
+          nativeNotification = new Notification('语亭有新消息', { body: '回到房间查看', tag: 'pavilo-messages', renotify: false });
+          nativeNotification.onclick = () => {
+            window.focus();
+            messageScroll.scrollTop = messageScroll.scrollHeight;
+            clearUnread();
+            nativeNotification?.close();
+          };
+        } catch {
+          nativeNotification = null;
+        }
       }
 
       function updateComposer() {
-        sendButton.disabled = !composerText.value.trim() || !isSocketReady();
+        sendButton.disabled = !composerText.value.trim() || !isSocketReady() || [...pending.values()].some((item) => item.kind === 'text' && item.status === 'sending');
         composerText.style.height = 'auto';
         composerText.style.height = `${Math.min(composerText.scrollHeight, 145)}px`;
+      }
+
+      function scheduleTyping(active) {
+        if (!isSocketReady()) return;
+        const now = Date.now();
+        if (active && now - typingLastSent < TYPING_INTERVAL) {
+          window.clearTimeout(typingTimer);
+          typingTimer = window.setTimeout(() => scheduleTyping(true), TYPING_INTERVAL - (now - typingLastSent));
+          return;
+        }
+        if (active && !composerText.value.trim()) active = false;
+        if (!active && typingTimer) window.clearTimeout(typingTimer);
+        if (send({ type: 'typing', active })) typingLastSent = Date.now();
+        if (active) {
+          window.clearTimeout(typingTimer);
+          typingTimer = window.setTimeout(() => scheduleTyping(false), TYPING_EXPIRY);
+        }
+      }
+
+      function stopTyping() {
+        window.clearTimeout(typingTimer);
+        typingTimer = null;
+        scheduleTyping(false);
       }
 
       function peopleMarkup() {
@@ -1095,8 +1237,8 @@
       }
 
       function imageMarkup(message, author) {
-        const rawWidth = Number(message.image.width) || 640;
-        const rawHeight = Number(message.image.height) || 480;
+        const rawWidth = Number(message.image?.width) || 640;
+        const rawHeight = Number(message.image?.height) || 480;
         const scale = Math.min(1, 390 / rawWidth, 300 / rawHeight);
         const width = Math.max(1, Math.round(rawWidth * scale));
         const height = Math.max(1, Math.round(rawHeight * scale));
@@ -1104,29 +1246,240 @@
         return `<a class="message-image-link" href="${source}" target="_blank" rel="noopener noreferrer"><img class="message-image" src="${source}" alt="${escapeHtml(author.username)} 分享的图片" loading="lazy" decoding="async" width="${width}" height="${height}"></a>`;
       }
 
-      function renderMessages(forceBottom = false) {
-        const nearBottom = messageScroll.scrollHeight - messageScroll.scrollTop - messageScroll.clientHeight < 90;
+      function reactionMarkup(message) {
+        const reactions = message.reactions || {};
+        return `<div class="reaction-list" aria-label="消息回应">${REACTION_EMOJIS.map((emoji) => {
+          const item = reactions[emoji] || { count: 0, userIds: [] };
+          const active = item.userIds?.includes(self?.id);
+          return `<button class="reaction-button${active ? ' active' : ''}" type="button" data-reaction="${emoji}" data-message-id="${escapeHtml(message.id)}" aria-label="${emoji} ${active ? '取消回应' : '回应'}，${item.count || 0} 人" aria-pressed="${Boolean(active)}"><span>${emoji}</span><span class="reaction-count">${item.count || 0}</span></button>`;
+        }).join('')}</div>`;
+      }
+
+      function messageBodyMarkup(message, author) {
+        const body = message.kind === 'image'
+          ? imageMarkup(message, author)
+          : `<div class="message-body${/^\s*(?:\p{Extended_Pictographic}|\p{Emoji_Presentation}|\s)+$/u.test(message.text || '') ? ' emoji-only' : ''}">${escapeHtml(message.text || '')}</div>`;
+        return `${renderReply(message)}${body}${reactionMarkup(message)}`;
+      }
+
+      function actionMarkup(messageId) {
+        return `<div class="message-actions"><button class="message-action reply-action" type="button" data-message-id="${escapeHtml(messageId)}" aria-label="回复这条消息"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 15 4 12l5-3v2c6 0 8 2 9 6-2-2-4-3-9-3v1Z"/></svg>回复</button></div>`;
+      }
+
+      function createMessageNode(message) {
+        const author = message.author || self || { id: '', username: '未知成员', avatarSeed: 0 };
+        const article = document.createElement('article');
+        article.className = `message${author.id === self?.id ? ' self' : ''}`;
+        article.dataset.messageId = message.id;
+        article.innerHTML = `<div class="message-avatar">${avatarMarkup(author)}</div><div class="message-main"><div class="message-meta"><span class="message-author">${escapeHtml(author.username)}</span><time class="message-time" datetime="${new Date(message.createdAt).toISOString()}">${formatTime(message.createdAt)}</time></div>${messageBodyMarkup(message, author)}${actionMarkup(message.id)}</div>`;
+        messageNodes.set(message.id, article);
+        return article;
+      }
+
+      function createDayDivider(timestamp) {
+        const divider = document.createElement('div');
+        divider.className = 'day-divider';
+        divider.dataset.day = formatDay(timestamp);
+        divider.innerHTML = `<span>${escapeHtml(divider.dataset.day)}</span>`;
+        return divider;
+      }
+
+      function sortAndDedupeMessages(items) {
+        const seen = new Set();
+        const result = [];
+        for (const message of items || []) {
+          if (!message || typeof message.id !== 'string') continue;
+          const key = message.id;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          result.push(message);
+        }
+        result.sort((a, b) => (Number(a.seq) || 0) - (Number(b.seq) || 0) || Number(a.createdAt) - Number(b.createdAt));
+        return result.slice(-MAX_MESSAGES);
+      }
+
+      function renderHistory(forceBottom = false) {
+        const shouldBottom = forceBottom || isNearBottom();
+        messageNodes.clear();
+        messageList.replaceChildren();
         if (!messages.length) {
           messageList.innerHTML = '<div class="message-empty"><span class="message-empty-mark" aria-hidden="true">语</span><strong>频道刚刚打开</strong><p>先打个招呼吧。这里的每句话，都只活在这次服务运行期间。</p></div>';
           $('#messageCount').textContent = '0 条消息';
           return;
         }
         let lastDay = '';
-        messageList.innerHTML = messages.map((message) => {
-          const author = message.author;
+        const fragment = document.createDocumentFragment();
+        for (const message of messages) {
           const day = formatDay(message.createdAt);
-          const divider = day !== lastDay ? `<div class="day-divider"><span>${day}</span></div>` : '';
-          lastDay = day;
-          const body = message.kind === 'image'
-            ? imageMarkup(message, author)
-            : `<div class="message-body${/^\s*(?:\p{Extended_Pictographic}|\p{Emoji_Presentation}|\s)+$/u.test(message.text) ? ' emoji-only' : ''}">${escapeHtml(message.text)}</div>`;
-          return `${divider}<article class="message${author.id === self?.id ? ' self' : ''}" data-message-id="${escapeHtml(message.id)}">
-            <div class="message-avatar">${avatarMarkup(author)}</div>
-            <div class="message-main"><div class="message-meta"><span class="message-author">${escapeHtml(author.username)}</span><time class="message-time" datetime="${new Date(message.createdAt).toISOString()}">${formatTime(message.createdAt)}</time></div>${renderReply(message)}${body}<div class="message-actions"><button class="message-action reply-action" type="button" data-message-id="${escapeHtml(message.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 15 4 12l5-3v2c6 0 8 2 9 6-2-2-4-3-9-3v1Z"/></svg>回复</button></div></div>
-          </article>`;
-        }).join('');
+          if (day !== lastDay) { fragment.append(createDayDivider(message.createdAt)); lastDay = day; }
+          fragment.append(createMessageNode(message));
+        }
+        messageList.append(fragment);
         $('#messageCount').textContent = `${messages.length} 条消息`;
-        if (forceBottom || nearBottom) messageScroll.scrollTop = messageScroll.scrollHeight;
+        if (shouldBottom) messageScroll.scrollTop = messageScroll.scrollHeight;
+      }
+
+      function trimMessages() {
+        if (messages.length <= MAX_MESSAGES) return;
+        messages = messages.slice(-MAX_MESSAGES);
+        renderHistory(isNearBottom());
+      }
+
+      function updateReactionNode(messageId, reactions) {
+        const node = messageNodes.get(messageId);
+        const message = messages.find((item) => item.id === messageId);
+        if (!node || !message) return;
+        message.reactions = reactions || {};
+        const list = node.querySelector('.reaction-list');
+        if (list) list.outerHTML = reactionMarkup(message);
+      }
+
+      function applyPrune(removedIds) {
+        if (!Array.isArray(removedIds) || !removedIds.length) return;
+        const removed = new Set(removedIds);
+        const before = messages.length;
+        messages = messages.filter((message) => !removed.has(message.id));
+        if (messages.length !== before) renderHistory(isNearBottom());
+      }
+
+      function appendMessage(message, { initial = false, notify = true, forceBottom = false } = {}) {
+        if (!message || typeof message.id !== 'string') return false;
+        const existing = messages.find((item) => item.id === message.id || item.clientMessageId && item.clientMessageId === message.clientMessageId);
+        if (existing) { if (message.reactions) updateReactionNode(existing.id, message.reactions); return false; }
+        const nearBottom = isNearBottom();
+        const previousIds = new Set(messages.map((item) => item.id));
+        messages.push(message);
+        messages = sortAndDedupeMessages(messages);
+        const pruned = [...previousIds].some((id) => !messages.some((item) => item.id === id));
+        if (pruned || messages[messages.length - 1] !== message) { renderHistory(nearBottom || forceBottom); return true; }
+        messageList.querySelector('.message-empty')?.remove();
+        const previous = messages.length > 1 ? messages[messages.length - 2] : null;
+        if (!previous || formatDay(previous.createdAt) !== formatDay(message.createdAt)) messageList.append(createDayDivider(message.createdAt));
+        messageList.append(createMessageNode(message));
+        $('#messageCount').textContent = `${messages.length} 条消息`;
+        if (nearBottom || forceBottom || message.author?.id === self?.id) messageScroll.scrollTop = messageScroll.scrollHeight;
+        if (notify && !initial && message.author?.id !== self?.id && !canMarkRead()) notifyNewMessage(message);
+        if (canMarkRead()) clearUnread();
+        trimMessages();
+        return true;
+      }
+
+      function renderPending(item) {
+        let node = messageList.querySelector(`[data-pending-id="${CSS.escape(item.id)}"]`);
+        if (!node) {
+          messageList.querySelector('.message-empty')?.remove();
+          node = document.createElement('article');
+          node.className = 'message self pending-message';
+          node.dataset.pendingId = item.id;
+          const body = item.kind === 'image' ? `<img class="pending-image" src="${escapeHtml(item.image.src)}" alt="待发送图片">` : `<div class="message-body">${escapeHtml(item.text)}</div>`;
+          node.innerHTML = `<div class="message-avatar">${avatarMarkup(self || { username: '你', avatarSeed: AVATAR_SEED }, '', false)}</div><div class="message-main"><div class="message-meta"><span class="message-author">${escapeHtml(self?.username || '你')}</span><span class="message-time">现在</span></div>${body}<div class="pending-status" role="status" aria-live="polite"></div></div>`;
+          messageList.append(node);
+        }
+        const status = node.querySelector('.pending-status');
+        const label = item.status === 'sending' ? '等待房间确认…' : item.status === 'accepted' ? '房间已接收' : item.status === 'error' ? '发送失败，可重试' : '暂未确认，可重试';
+        status.classList.toggle('error', item.status === 'error' || item.status === 'unconfirmed');
+        status.innerHTML = `<span>${label}</span>${item.status === 'error' || item.status === 'unconfirmed' ? `<button type="button" class="pending-retry" data-pending-id="${escapeHtml(item.id)}">重试</button>` : ''}`;
+        if (isNearBottom()) messageScroll.scrollTop = messageScroll.scrollHeight;
+      }
+
+      function removePending(item) {
+        if (!item) return;
+        if (item.timer) window.clearTimeout(item.timer);
+        messageList.querySelector(`[data-pending-id="${CSS.escape(item.id)}"]`)?.remove();
+      }
+
+      function markPendingError(clientMessageId, message) {
+        const item = pending.get(clientMessageId);
+        if (!item) { toast(message, true); return; }
+        if (item.timer) window.clearTimeout(item.timer);
+        item.status = 'error';
+        item.error = message;
+        renderPending(item);
+        toast(message, true);
+        updateComposer();
+      }
+
+      function transmitPending(item) {
+        if (!item || !isSocketReady()) {
+          if (item) { item.status = 'unconfirmed'; renderPending(item); }
+          return false;
+        }
+        item.status = 'sending';
+        renderPending(item);
+        const command = { type: 'message', kind: item.kind, clientMessageId: item.id, replyTo: item.replyToId || undefined };
+        if (item.kind === 'text') command.text = item.text;
+        else command.image = item.image;
+        if (!send(command)) {
+          item.status = 'unconfirmed';
+          renderPending(item);
+          return false;
+        }
+        if (item.timer) window.clearTimeout(item.timer);
+        item.timer = window.setTimeout(() => {
+          if (!pending.has(item.id)) return;
+          item.status = 'unconfirmed';
+          renderPending(item);
+        }, ACK_TIMEOUT);
+        return true;
+      }
+
+      function retryPending(item) {
+        if (!item) return;
+        if (item.epoch && roomEpoch && item.epoch !== roomEpoch) {
+          const oldId = item.id;
+          pending.delete(oldId);
+          removePending(item);
+          item.id = makeClientMessageId();
+          item.epoch = roomEpoch;
+          pending.set(item.id, item);
+        }
+        item.attempts += 1;
+        transmitPending(item);
+      }
+
+      function reconcilePending(allowRetry = false) {
+        for (const item of [...pending.values()]) {
+          const accepted = messages.find((message) => message.clientMessageId === item.id);
+          if (accepted) {
+            pending.delete(item.id);
+            removePending(item);
+            if (item.kind === 'text' && composerText.value.trim() === item.text) {
+              composerText.value = '';
+              if (replyTarget?.id === item.replyToId) clearReply();
+            }
+          } else if (allowRetry && item.epoch === roomEpoch && item.status !== 'sending' && item.attempts < 2) {
+            item.attempts += 1;
+            transmitPending(item);
+          } else if (item.epoch && roomEpoch && item.epoch !== roomEpoch) {
+            item.status = 'error';
+            item.error = '房间已经重启，请确认后重试。';
+            renderPending(item);
+          }
+        }
+        updateComposer();
+      }
+
+      function settleAck(payload) {
+        const item = pending.get(payload.clientMessageId);
+        if (!item) return;
+        if (item.timer) window.clearTimeout(item.timer);
+        item.status = 'accepted';
+        if (item.kind === 'text' && composerText.value.trim() === item.text) {
+          composerText.value = '';
+          if (replyTarget?.id === item.replyToId) clearReply();
+          updateComposer();
+        }
+        const canonical = messages.find((message) => message.clientMessageId === item.id);
+        if (canonical) {
+          pending.delete(item.id);
+          removePending(item);
+          return;
+        }
+        renderPending(item);
+        window.setTimeout(() => {
+          const current = pending.get(item.id);
+          if (current?.status === 'accepted') { pending.delete(item.id); removePending(item); }
+        }, 5000);
       }
 
       function setReply(message) {
@@ -1148,19 +1501,58 @@
         window.requestAnimationFrame(() => composerText.focus());
       }
 
+      function finishState(snapshotMessages, snapshotEpoch, forceBottom) {
+        const previousEpoch = roomEpoch;
+        roomEpoch = snapshotEpoch || roomEpoch || 'legacy';
+        messages = sortAndDedupeMessages(snapshotMessages);
+        knownMessageKeys.clear();
+        for (const message of messages) knownMessageKeys.add(`${roomEpoch}:${message.id}`);
+        typingUsers.clear();
+        hasJoined = true;
+        connectionState = 'joined';
+        reconnectAttempt = 0;
+        document.body.classList.add('chat-active');
+        loginScreen.hidden = true;
+        loginScreen.setAttribute('aria-hidden', 'true');
+        appShell.hidden = false;
+        appShell.setAttribute('aria-hidden', 'false');
+        renderPeople();
+        renderHistory(forceBottom);
+        updateComposer();
+        setConnection(true, '已连接');
+        if (!profileTimerStarted) {
+          profileTimerStarted = true;
+          window.setInterval(updateProfileDuration, 1000);
+          window.setInterval(updateTypingLine, 1000);
+        }
+        reconcilePending(Boolean(previousEpoch && previousEpoch === roomEpoch));
+        if (!previousEpoch) setJoinFocus();
+      }
+
       function connect() {
+        if (intentionalLeave || navigator.onLine === false) return;
         if (reconnectTimer) window.clearTimeout(reconnectTimer);
-        if (socket && socket.readyState !== WebSocket.CLOSED) socket.close();
+        if (socket && socket.readyState !== WebSocket.CLOSED) {
+          try { socket.close(); } catch {}
+        }
         connectionState = 'connecting';
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         setConnection(false, hasJoined ? '重新连接中…' : '连接中…');
-        const clientSocket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+        let clientSocket;
+        try { clientSocket = new WebSocket(`${protocol}//${window.location.host}/ws`); }
+        catch {
+          scheduleReconnect();
+          return;
+        }
         socket = clientSocket;
         clientSocket.addEventListener('open', () => {
           if (socket !== clientSocket) return;
           connectionState = 'joining';
           setConnection(false, '正在进入…');
-          sendRaw({ type: 'join', username: self?.username || usernameInput.value.trim(), avatarSeed: self?.avatarSeed });
+          const username = self?.username || usernameInput.value.trim();
+          if (!sendRaw({ type: 'join', protocolVersion: PROTOCOL_VERSION, clientSessionId: CLIENT_SESSION_ID, username, avatarSeed: self?.avatarSeed ?? AVATAR_SEED })) {
+            try { clientSocket.close(); } catch {}
+          }
         });
         clientSocket.addEventListener('message', (event) => {
           if (socket !== clientSocket) return;
@@ -1168,82 +1560,150 @@
           try { payload = JSON.parse(event.data); } catch { return; }
           handleServerMessage(payload);
         });
-        clientSocket.addEventListener('close', () => {
+        clientSocket.addEventListener('close', (event) => {
           if (socket !== clientSocket) return;
           socket = null;
           const wasJoined = hasJoined;
+          hasJoined = false;
+          historyLoading = false;
+          pendingStateEpoch = null;
+          deferredEvents = [];
+          const serverStopped = event.code === 1001 && event.reason === 'server stopped';
+          if (serverStopped) {
+            hasJoined = false;
+            intentionalLeave = true;
+            if (reconnectTimer) window.clearTimeout(reconnectTimer);
+            reconnectTimer = null;
+            messages = [];
+            users = [];
+            pending.clear();
+            messageNodes.clear();
+            messageList.replaceChildren();
+            renderHistory();
+            clearUnread();
+            setConnection(false, '服务已停止');
+            document.body.classList.remove('chat-active');
+            appShell.hidden = true;
+            loginScreen.hidden = false;
+            loginScreen.setAttribute('aria-hidden', 'false');
+            loginError.textContent = '服务已停止，本页临时聊天数据已清空。';
+            loginForm.querySelector('.enter-button').disabled = false;
+            usernameInput.focus();
+            return;
+          }
           setConnection(false, wasJoined ? '连接已断开，准备重连…' : '无法连接服务');
           typingUsers.clear();
           updateTypingLine();
+          for (const item of pending.values()) {
+            if (item.status === 'sending') { item.status = 'unconfirmed'; renderPending(item); }
+          }
           updateComposer();
-          if (wasJoined && !intentionalLeave) {
-            users = [];
-            selectedUserId = null;
-            renderPeople();
-            renderProfile(null);
-            toast('与房间的连接断开了，正在重新接近…', true);
-            reconnectTimer = window.setTimeout(connect, 1800);
-          } else if (!wasJoined && !intentionalLeave) {
-            loginForm.querySelector('.enter-button').disabled = false;
-            loginError.textContent = '暂时无法连接聊天室，请确认服务正在运行后重试。';
+          if (!intentionalLeave) {
+            if (wasJoined) {
+              toast('与房间的连接断开了，草稿与未确认消息仍在本页。', true);
+            }
+            else {
+              loginForm.querySelector('.enter-button').disabled = false;
+              loginError.textContent = '暂时无法连接聊天室，正在重试。';
+            }
+            scheduleReconnect();
           }
         });
         clientSocket.addEventListener('error', () => {
           if (socket !== clientSocket) return;
           setConnection(false, '连接异常');
-          if (!hasJoined) {
-            loginForm.querySelector('.enter-button').disabled = false;
-            loginError.textContent = '无法连接聊天室，请稍后再试。';
-          }
         });
       }
 
+      function scheduleReconnect() {
+        if (intentionalLeave || navigator.onLine === false || reconnectTimer) return;
+        const base = Math.min(30_000, 700 * 2 ** Math.min(reconnectAttempt++, 6));
+        const delay = Math.round(base * (.75 + Math.random() * .5));
+        reconnectTimer = window.setTimeout(() => { reconnectTimer = null; connect(); }, delay);
+      }
+
       function handleServerMessage(payload) {
-        if (payload.type === 'state') {
-          if (socket && connectionState !== 'joining' && connectionState !== 'connecting') return;
+        if (payload.type === 'stateStart') {
+          historyLoading = true;
+          hasJoined = false;
+          historyChunks = [];
+          deferredEvents = [];
           self = payload.self;
           users = payload.users || [];
-          messages = payload.messages || [];
-          typingUsers.clear();
-          hasJoined = true;
-          connectionState = 'joined';
-          document.body.classList.add('chat-active');
-          loginScreen.hidden = true;
-          loginScreen.setAttribute('aria-hidden', 'true');
-          appShell.hidden = false;
-          appShell.setAttribute('aria-hidden', 'false');
-          renderPeople();
-          renderMessages(true);
-          updateComposer();
-          setConnection(true, '已连接');
-          setJoinFocus();
-          if (!profileTimerStarted) {
-            profileTimerStarted = true;
-            window.setInterval(updateProfileDuration, 1000);
-          }
+          latestSeq = Number(payload.latestSeq) || 0;
+          pendingStateEpoch = payload.roomEpoch || roomEpoch;
+          return;
+        }
+        if (payload.type === 'history' && historyLoading && (!payload.roomEpoch || payload.roomEpoch === pendingStateEpoch)) {
+          historyChunks.push(...(payload.messages || []));
+          return;
+        }
+        if (payload.type === 'historyEnd' && historyLoading && (!payload.roomEpoch || payload.roomEpoch === pendingStateEpoch)) {
+          historyLoading = false;
+          const wasInRoom = appShell.hidden === false;
+          latestSeq = Number(payload.latestSeq) || latestSeq;
+          finishState(historyChunks, pendingStateEpoch || payload.roomEpoch, !wasInRoom);
+          pendingStateEpoch = null;
+          historyChunks = [];
+          const queued = deferredEvents;
+          deferredEvents = [];
+          for (const deferred of queued) handleServerMessage(deferred);
+          return;
+        }
+        if (payload.type === 'state') {
+          self = payload.self;
+          users = payload.users || [];
+          finishState(payload.messages || [], payload.roomEpoch || 'legacy', !hasJoined);
+          return;
+        }
+        if (historyLoading && ['presence', 'message', 'reaction', 'typing', 'ack', 'error'].includes(payload.type)) {
+          deferredEvents.push(payload);
           return;
         }
         if (payload.type === 'presence') {
           users = payload.users || [];
-          if (payload.action === 'leave' && payload.userId) typingUsers.delete(payload.userId);
+          if (payload.action === 'leave' && payload.userId) {
+            typingUsers.delete(payload.userId);
+            if (selectedUserId === payload.userId) { selectedUserId = null; renderProfile(null); }
+          }
           renderPeople();
           updateTypingLine();
-          toast(payload.action === 'join' ? `${payload.user.username} 进入了频道` : `${payload.username} 离开了频道`);
+          if (payload.action !== 'reconnect') toast(payload.action === 'join' ? `${payload.user.username} 进入了频道` : `${payload.username} 离开了频道`);
+          return;
+        }
+        if (payload.type === 'ack') {
+          settleAck(payload);
           return;
         }
         if (payload.type === 'message') {
-          messages.push(payload.message);
-          renderMessages();
+          if (payload.roomEpoch && roomEpoch && payload.roomEpoch !== roomEpoch) return;
+          applyPrune(payload.removedIds);
+          latestSeq = Math.max(latestSeq, Number(payload.message?.seq) || 0);
+          appendMessage(payload.message);
+          const item = pending.get(payload.message?.clientMessageId);
+          if (item) { pending.delete(item.id); removePending(item); }
+          return;
+        }
+        if (payload.type === 'reaction') {
+          if (!payload.roomEpoch || !roomEpoch || payload.roomEpoch === roomEpoch) {
+            applyPrune(payload.removedIds);
+            updateReactionNode(payload.messageId, payload.reactions);
+          }
+          return;
+        }
+        if (payload.type === 'prune') {
+          if (!payload.roomEpoch || !roomEpoch || payload.roomEpoch === roomEpoch) applyPrune(payload.removedIds);
           return;
         }
         if (payload.type === 'typing' && payload.userId !== self?.id) {
-          if (payload.active) typingUsers.set(payload.userId, payload.username);
+          if (payload.active) typingUsers.set(payload.userId, { username: payload.username, expiresAt: Date.now() + TYPING_EXPIRY });
           else typingUsers.delete(payload.userId);
           updateTypingLine();
           return;
         }
         if (payload.type === 'error') {
-          if (payload.code === 'NAME_TAKEN' || payload.code === 'INVALID_NAME') {
+          if (payload.clientMessageId) { markPendingError(payload.clientMessageId, payload.message); return; }
+          if (['NAME_TAKEN', 'INVALID_NAME', 'SESSION_CONFLICT'].includes(payload.code)) {
             hasJoined = false;
             connectionState = 'idle';
             loginError.textContent = payload.message;
@@ -1261,30 +1721,73 @@
         }
       }
 
+      async function fileToDataUrl(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.addEventListener('load', () => resolve(String(reader.result)));
+          reader.addEventListener('error', () => reject(new Error('read failed')));
+          reader.readAsDataURL(file);
+        });
+      }
+
+      async function loadImage(source) {
+        return new Promise((resolve, reject) => {
+          const image = new Image();
+          image.addEventListener('load', () => resolve(image));
+          image.addEventListener('error', () => reject(new Error('decode failed')));
+          image.src = source;
+        });
+      }
+
+      async function prepareImage(file) {
+        const source = await fileToDataUrl(file);
+        const image = await loadImage(source);
+        if (file.type === 'image/gif') {
+          if (file.size > MAX_IMAGE_BYTES || image.naturalWidth > 4096 || image.naturalHeight > 4096 || image.naturalWidth * image.naturalHeight > 16_000_000) throw new Error('too large');
+          return { src: source, width: image.naturalWidth, height: image.naturalHeight, bytes: file.size };
+        }
+        const scale = Math.min(1, 2048 / image.naturalWidth, 2048 / image.naturalHeight, Math.sqrt(4_000_000 / (image.naturalWidth * image.naturalHeight)));
+        const width = Math.max(1, Math.round(image.naturalWidth * scale));
+        const height = Math.max(1, Math.round(image.naturalHeight * scale));
+        if (scale === 1 && file.size <= MAX_IMAGE_BYTES) return { src: source, width, height, bytes: file.size };
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d', { alpha: file.type === 'image/png' });
+        if (!context) throw new Error('canvas unavailable');
+        context.drawImage(image, 0, 0, width, height);
+        const mime = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+        let result = canvas.toDataURL(mime, .82);
+        let bytes = Math.ceil((result.split(',')[1]?.length || 0) * 3 / 4);
+        if (bytes > MAX_IMAGE_BYTES && mime === 'image/jpeg') {
+          result = canvas.toDataURL(mime, .68);
+          bytes = Math.ceil((result.split(',')[1]?.length || 0) * 3 / 4);
+        }
+        if (!bytes || bytes > MAX_IMAGE_BYTES) throw new Error('too large');
+        return { src: result, width, height, bytes };
+      }
+
       async function sendImage(file) {
-        if (!file || !file.type.startsWith('image/')) return;
-        if (file.size > MAX_IMAGE_BYTES) {
-          toast('图片太大了，请选择 1.5 MB 以内的图片。', true);
+        if (!file || !['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(file.type)) {
+          if (file) toast('请选择 PNG、JPEG、GIF 或 WebP 图片。', true);
           return;
         }
-        const capturedReplyId = replyTarget?.id;
-        const reader = new FileReader();
-        reader.addEventListener('load', () => {
-          const image = new Image();
-          image.addEventListener('load', () => {
-            if (image.naturalWidth * image.naturalHeight > 16_000_000) {
-              toast('图片像素太多了，请选择尺寸更小的图片。', true);
-              return;
-            }
-            const sent = send({ type: 'message', kind: 'image', image: { src: reader.result, width: image.naturalWidth, height: image.naturalHeight }, replyTo: capturedReplyId });
-            if (sent) {
-              if (replyTarget?.id === capturedReplyId) clearReply();
-            } else toast('连接尚未恢复，图片未发送。', true);
-          });
-          image.addEventListener('error', () => toast('图片无法读取，请换一张试试。', true));
-          image.src = reader.result;
-        });
-        reader.readAsDataURL(file);
+        const pendingImageBytes = [...pending.values()].reduce((total, item) => total + (item.image?.bytes || 0), 0);
+        if (pending.size >= MAX_PENDING || pendingImageBytes + file.size > MAX_PENDING_IMAGE_BYTES) {
+          toast('待确认的图片较多，请稍后再试。', true);
+          return;
+        }
+        try {
+          const image = await prepareImage(file);
+          const id = makeClientMessageId();
+          const item = { id, kind: 'image', image, replyToId: replyTarget?.id, epoch: roomEpoch, status: 'sending', attempts: 1, timer: null };
+          pending.set(id, item);
+          renderPending(item);
+          if (!transmitPending(item)) item.status = 'unconfirmed';
+          if (replyTarget?.id === item.replyToId) clearReply();
+        } catch {
+          toast('图片无法处理，请换一张尺寸更小的图片。', true);
+        }
       }
 
       loginForm.addEventListener('submit', (event) => {
@@ -1292,8 +1795,7 @@
         const username = usernameInput.value.trim();
         if (!username) { loginError.textContent = '请输入一个名字。'; return; }
         loginError.textContent = '';
-        self = { username, avatarSeed: Number(sessionStorage.getItem(STORAGE_KEY)) || crypto.getRandomValues(new Uint32Array(1))[0] };
-        sessionStorage.setItem(STORAGE_KEY, String(self.avatarSeed));
+        self = { username, avatarSeed: AVATAR_SEED };
         hasJoined = false;
         loginForm.querySelector('.enter-button').disabled = true;
         intentionalLeave = false;
@@ -1307,15 +1809,22 @@
           toast('连接尚未恢复，草稿已保留。', true);
           return false;
         }
-        const sent = send({ type: 'message', kind: 'text', text, replyTo: replyTarget?.id });
-        if (!sent) {
+        if (pending.size >= MAX_PENDING || [...pending.values()].some((item) => item.kind === 'text' && item.status === 'sending')) {
+          toast('上一条文字仍在等待确认。', true);
+          return false;
+        }
+        const id = makeClientMessageId();
+        const item = { id, kind: 'text', text, replyToId: replyTarget?.id, epoch: roomEpoch, status: 'sending', attempts: 1, timer: null };
+        pending.set(id, item);
+        renderPending(item);
+        if (!transmitPending(item)) {
+          pending.delete(id);
+          removePending(item);
           toast('发送失败，草稿已保留。', true);
           return false;
         }
-        composerText.value = '';
-        clearReply();
+        stopTyping();
         updateComposer();
-        send({ type: 'typing', active: false });
         return true;
       }
 
@@ -1326,9 +1835,7 @@
 
       composerText.addEventListener('input', () => {
         updateComposer();
-        send({ type: 'typing', active: true });
-        window.clearTimeout(typingTimer);
-        typingTimer = window.setTimeout(() => send({ type: 'typing', active: false }), 900);
+        scheduleTyping(Boolean(composerText.value.trim()));
       });
       composerText.addEventListener('keydown', (event) => {
         if (event.isComposing || event.keyCode === 229) return;
@@ -1339,8 +1846,19 @@
       });
 
       $('#messageList').addEventListener('click', (event) => {
+        const retry = event.target.closest('.pending-retry');
+        if (retry) { retryPending(pending.get(retry.dataset.pendingId)); return; }
+        const reaction = event.target.closest('.reaction-button');
+        if (reaction) {
+          send({ type: 'reaction', messageId: reaction.dataset.messageId, emoji: reaction.dataset.reaction, active: reaction.getAttribute('aria-pressed') !== 'true' });
+          return;
+        }
         const avatar = event.target.closest('[data-user-id]');
-        if (avatar) { renderProfile(userById(avatar.dataset.userId)); return; }
+        if (avatar) {
+          const user = userById(avatar.dataset.userId);
+          if (user) { renderProfile(user); if (window.matchMedia('(max-width: 760px)').matches) setMobileSheet(true, avatar); }
+          return;
+        }
         const replyButton = event.target.closest('.reply-action');
         if (replyButton) {
           const message = messages.find((item) => item.id === replyButton.dataset.messageId);
@@ -1392,18 +1910,22 @@
       $('#imageInput').addEventListener('change', () => { sendImage(imageInput.files[0]); imageInput.value = ''; });
       $('#attachmentButton').addEventListener('click', () => imageInput.click());
 
-      const setMobileSheet = (open) => {
+      const setMobileSheet = (open, opener = null) => {
         if (window.matchMedia('(min-width: 761px)').matches && open) return;
+        if (open) mobileSheetOpener = opener || document.activeElement;
         mobileSheet.hidden = !open;
         mobileSheet.setAttribute('aria-hidden', String(!open));
         mobileSheetBackdrop.hidden = !open;
         mobileSheetBackdrop.setAttribute('aria-hidden', String(!open));
         $('#membersButton').setAttribute('aria-expanded', String(open));
+        document.body.classList.toggle('sheet-open', open);
         if (open) {
           renderPeople();
           $('#mobileSheetClose').focus();
         } else {
-          $('#membersButton').focus();
+          const target = mobileSheetOpener?.isConnected ? mobileSheetOpener : $('#membersButton');
+          mobileSheetOpener = null;
+          target.focus();
         }
       };
 
@@ -1422,7 +1944,7 @@
         }
       }
 
-      $('#membersButton').addEventListener('click', () => setMobileSheet(true));
+      $('#membersButton').addEventListener('click', (event) => setMobileSheet(true, event.currentTarget));
       $('#mobileSheetClose').addEventListener('click', () => setMobileSheet(false));
       mobileSheetBackdrop.addEventListener('click', () => setMobileSheet(false));
       window.addEventListener('resize', () => {
@@ -1432,6 +1954,8 @@
           mobileSheet.setAttribute('aria-hidden', 'true');
           mobileSheetBackdrop.setAttribute('aria-hidden', 'true');
           $('#membersButton').setAttribute('aria-expanded', 'false');
+          document.body.classList.remove('sheet-open');
+          mobileSheetOpener = null;
         }
       });
       document.addEventListener('keydown', (event) => {
@@ -1446,30 +1970,102 @@
         }
       });
 
+      newMessageJump.addEventListener('click', () => {
+        messageScroll.scrollTo({ top: messageScroll.scrollHeight, behavior: 'smooth' });
+        clearUnread();
+      });
+      messageScroll.addEventListener('scroll', maybeClearUnread, { passive: true });
+      window.addEventListener('focus', maybeClearUnread);
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) stopTyping();
+        else maybeClearUnread();
+      });
+      composerText.addEventListener('blur', stopTyping);
+
+      notifyButton.addEventListener('click', async () => {
+        if (!window.isSecureContext || !('Notification' in window)) {
+          toast('当前局域网地址不支持系统通知；页内、标题和图标提醒仍然有效。', true);
+          return;
+        }
+        if (Notification.permission === 'denied') {
+          toast('系统通知已被浏览器拒绝，请在网站设置中修改。', true);
+          return;
+        }
+        const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+        if (permission === 'granted') {
+          notifyButton.classList.add('active');
+          notifyButton.title = '系统提醒已开启';
+          notifyButton.setAttribute('aria-label', '系统提醒已开启');
+          notifyButton.querySelector('span').textContent = '提醒已开';
+          toast('系统提醒已开启；只在页面不活跃时提醒。');
+        } else {
+          toast('未开启系统通知；页内提醒仍然有效。', true);
+        }
+      });
+
       $('#copyLinkButton').addEventListener('click', async () => {
-        try { await navigator.clipboard.writeText(window.location.href); toast('地址已复制，发给同一局域网的人即可。'); }
-        catch { toast('浏览器不允许自动复制，请手动复制地址栏。', true); }
+        let url = window.location.href;
+        try {
+          roomInfo ||= await fetch('/room-info', { cache: 'no-store' }).then((response) => response.ok ? response.json() : null);
+          if ((location.hostname === 'localhost' || location.hostname === '127.0.0.1') && roomInfo?.lanUrls?.length) url = roomInfo.lanUrls[0];
+          if (navigator.share) {
+            await navigator.share({ title: 'Pavilo / 语亭', text: '加入这个临时局域网聊天室', url });
+            return;
+          }
+          await navigator.clipboard.writeText(url);
+          toast('局域网地址已复制。');
+        } catch (error) {
+          if (error?.name !== 'AbortError') toast(`请手动复制这个地址：${url}`, true);
+        }
       });
       $('#leaveButton').addEventListener('click', () => {
+        if (socket?.readyState === WebSocket.OPEN) sendRaw({ type: 'leave' });
         hasJoined = false;
         connectionState = 'idle';
+        intentionalLeave = true;
+        if (reconnectTimer) window.clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+        stopTyping();
         typingUsers.clear();
         updateTypingLine();
-        intentionalLeave = true;
-        document.body.classList.remove('chat-active');
+        clearUnread();
+        document.body.classList.remove('chat-active', 'sheet-open');
         mobileSheet.hidden = true;
         mobileSheetBackdrop.hidden = true;
         mobileSheet.setAttribute('aria-hidden', 'true');
         mobileSheetBackdrop.setAttribute('aria-hidden', 'true');
         $('#membersButton').setAttribute('aria-expanded', 'false');
-        if (socket) socket.close();
+        if (socket) { try { socket.close(); } catch {} }
+        socket = null;
         appShell.hidden = true;
+        appShell.setAttribute('aria-hidden', 'true');
         loginScreen.hidden = false;
+        loginScreen.setAttribute('aria-hidden', 'false');
         loginError.textContent = '';
         loginForm.querySelector('.enter-button').disabled = false;
         usernameInput.focus();
       });
 
+      window.addEventListener('online', () => { if (!intentionalLeave && !isSocketReady()) connect(); });
+      window.addEventListener('offline', () => {
+        if (reconnectTimer) window.clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+        setConnection(false, '网络已离线，等待恢复…');
+      });
+      window.addEventListener('pagehide', stopTyping);
+      updateUnreadUI();
+      if (!window.isSecureContext || !('Notification' in window)) {
+        notifyButton.title = '系统提醒在当前地址不可用';
+        notifyButton.setAttribute('aria-label', '系统提醒不可用，页内提醒仍然有效');
+        notifyButton.querySelector('span').textContent = '页内提醒';
+      } else if (Notification.permission === 'granted') {
+        notifyButton.classList.add('active');
+        notifyButton.title = '系统提醒已开启';
+        notifyButton.querySelector('span').textContent = '提醒已开';
+      } else if (Notification.permission === 'denied') {
+        notifyButton.title = '系统提醒已被浏览器拒绝';
+        notifyButton.querySelector('span').textContent = '提醒已拒';
+      }
       usernameInput.focus();
     })();
   </script>
