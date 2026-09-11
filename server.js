@@ -783,7 +783,10 @@ function createChatServer(options = {}) {
       return;
     }
     if (client.syncing && command.type !== 'leave') {
-      sendError(client, 'SYNC_IN_PROGRESS', '历史同步中，请稍候。');
+      // The correlation ID is what lets the sender turn this into a retryable
+      // failure instead of leaving the message stuck as "unconfirmed".
+      sendError(client, 'SYNC_IN_PROGRESS', '历史同步中，请稍候。',
+        typeof command.clientMessageId === 'string' ? command.clientMessageId : undefined);
       return;
     }
     if (command.type === 'typing') {

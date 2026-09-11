@@ -135,7 +135,7 @@ channels:
 
 ### 配置文件安全
 
-Pavilo 的 HTTP 服务采用静态白名单，`pavilo.yaml` 和 `pavilo.example.yaml` 不会被应用直接提供；配置加载器也拒绝把 `index.html` 或 `vendor/` 内文件（包括通过符号链接指向它们的文件）用作配置。但这不是认证机制：聊天页面、房间元数据和 vendor 资源对任何能访问监听端口的人开放。
+Pavilo 的 HTTP 服务采用静态白名单，`pavilo.yaml` 和 `pavilo.example.yaml` 不会被应用直接提供；配置加载器也拒绝把 `index.html`、`chat.css` 或 `vendor/` 内文件（包括通过符号链接指向它们的文件）用作配置。但这不是认证机制：聊天页面、房间元数据和 vendor 资源对任何能访问监听端口的人开放。
 
 - 不要把真实配置放入 `vendor/`、其他 Web 根目录、对象存储公开目录或反向代理的静态目录。
 - 反向代理只能转发 Pavilo 的应用端口，不得额外把整个仓库目录作为静态站点；否则代理可能绕过应用白名单，泄漏原始 YAML、源码或其他文件。
@@ -175,7 +175,7 @@ node --check config.js
 node --check server.js
 ```
 
-测试覆盖配置默认值、部分覆盖、错误、环境变量、文件加载与示例，以及 HTTP / WebSocket 的历史分块、ACK、幂等去重、恢复身份、Origin、心跳、回应、静态资源和生命周期。
+测试覆盖配置默认值、部分覆盖、错误、环境变量、文件加载与示例，以及 HTTP / WebSocket 的历史分块、ACK、幂等去重、恢复身份、Origin、心跳、回应、静态资源和生命周期；频道测试覆盖隔离、原子切换、人数租约与容量淘汰（淘汰 ID 随消息下发、超预算拒绝、同步中断线恢复、同步中拒发并保留消息 ID）。
 
 ## 项目结构
 
@@ -184,6 +184,7 @@ node --check server.js
 ├── config.js           # YAML / 环境变量配置加载与校验
 ├── pavilo.example.yaml # 完整配置示例
 ├── index.html          # 单页聊天界面与浏览器端逻辑
+├── chat.css            # 页面样式（由 index.html 引用）
 ├── server.js           # HTTP、WebSocket、频道、会话与临时消息服务
 ├── vendor/             # 自托管的第三方前端资源
 ├── scripts/            # Lucide 资源构建脚本

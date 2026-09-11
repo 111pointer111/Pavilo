@@ -149,3 +149,102 @@ test('hiding member IP applies to initial roster, live messages and history', as
   const b = await member(port, 'Bob');
   assert.equal(Object.hasOwn(b.initial.history[0].author, 'ip'), false);
 });
+
+test('eviction reports removedIds on every message so clients can rebuild once', async (t) => {
+  // A cap of 3 with a byte budget big enough that only the count can evict.
+  const { port } = await setup(t, { maxMessages: 3, maxRoomBytes: 10 * 1024 * 1024 });
+  const { client, initial } = await member(port, 'Keeper');
+
+  // Fill exactly to the cap: nothing should be evicted yet.
+  for (const index of [1, 2, 3]) {
+    const event = await post(client, `evict-fill-${index}`, `fill ${index}`);
+    assert.deepEqual(event.removedIds, [], `message ${index} must not evict while under the cap`);
+  }
+
+  // The 4th arrival evicts the oldest, and the evicted id travels with the message
+  // event. This is what lets a client apply the prune and the append as one change
+  // instead of rebuilding twice.
+  const overflow = await post(client, 'evict-overflow', 'overflow');
+  assert.equal(overflow.removedIds.length, 1);
+  assert.equal(overflow.message.text, 'overflow');
+
+  const seen = await (async () => {
+    const joiner = await openWebSocket({ port });
+    joiner.sendJson({ type: 'join', protocolVersion: 3, username: 'Auditor', clientSessionId: 'session-auditor-001' });
+    return state(joiner);
+  })();
+  const texts = seen.history.map((message) => message.text);
+  assert.deepEqual(texts, ['fill 2', 'fill 3', 'overflow']);
+  assert.ok(!texts.includes('fill 1'), 'the evicted message must be gone from history');
+  assert.equal(seen.latestSeq, 4, 'eviction must not rewind the sequence');
+});
+
+test('a message that cannot fit the channel budget is refused instead of emptying it', async (t) => {
+  // maxTextLength is raised on purpose: the text must be valid and still be
+  // refused, so the byte budget is the only rule that can reject it.
+  const { port } = await setup(t, { maxMessages: 200, maxRoomBytes: 4096, maxTextLength: 10_000 });
+  const { client } = await member(port, 'Writer');
+  await post(client, 'budget-small', 'fits');
+
+  // Larger than the whole channel budget: accepting it would evict everything,
+  // including itself.
+  client.sendJson({
+    type: 'message',
+    kind: 'text',
+    clientMessageId: 'budget-huge',
+    text: 'x'.repeat(6000)
+  });
+  const error = await client.nextJson((p) => p.type === 'error');
+  assert.equal(error.code, 'ROOM_BUDGET_EXCEEDED');
+  assert.equal(error.clientMessageId, 'budget-huge');
+
+  const after = await (async () => {
+    const joiner = await openWebSocket({ port });
+    joiner.sendJson({ type: 'join', protocolVersion: 3, username: 'Checker', clientSessionId: 'session-checker-001' });
+    return state(joiner);
+  })();
+  assert.deepEqual(after.history.map((message) => message.text), ['fits'], 'the earlier message survives a refused send');
+});
+
+test('a client that reconnects mid-sync resumes with a complete history', async (t) => {
+  const { port } = await setup(t, { maxMessages: 200 });
+  const { client } = await member(port, 'Historian');
+  for (let index = 0; index < 5; index += 1) await post(client, `sync-seed-${index}`, `seed ${index}`);
+
+  // Drop without leaving: the same token comes back on a new socket.
+  const token = 'session-Historian-001';
+  client.socket.destroy();
+  await new Promise((resolve) => setTimeout(resolve, 40));
+
+  const again = await openWebSocket({ port });
+  again.sendJson({ type: 'join', protocolVersion: 3, username: 'Historian', channelId: 'general', clientSessionId: token });
+  const resumed = await state(again);
+  assert.equal(resumed.self.username, 'Historian');
+  // Chunking is transparent to the client: it still sees the whole history and a
+  // terminator carrying the sequence the snapshot was taken at.
+  assert.equal(resumed.history.length, 5);
+  assert.equal(resumed.latestSeq, 5);
+  assert.equal(resumed.historyEnd, undefined);
+});
+
+test('a client is told to wait rather than losing events while its history syncs', async (t) => {
+  const { port } = await setup(t, { maxMessages: 200, maxJsonBytes: 700 });
+  const { client } = await member(port, 'Burst');
+  for (let index = 0; index < 6; index += 1) await post(client, `sync-hold-${index}`, `${'y'.repeat(120)} ${index}`);
+
+  // The join pushes a multi-chunk history; a message sent during it must be
+  // refused with SYNC_IN_PROGRESS instead of accepted and dropped.
+  const joiner = await openWebSocket({ port });
+  joiner.sendJson({ type: 'join', protocolVersion: 3, username: 'Latecomer', clientSessionId: 'session-latecomer-001' });
+  await joiner.nextJson((p) => p.type === 'stateStart');
+  joiner.sendJson({ type: 'message', kind: 'text', clientMessageId: 'during-sync', text: 'too early' });
+  while (true) {
+    const payload = await joiner.nextJson();
+    if (payload.type === 'error') {
+      assert.equal(payload.code, 'SYNC_IN_PROGRESS');
+      assert.equal(payload.clientMessageId, 'during-sync');
+      break;
+    }
+    if (payload.type === 'historyEnd') assert.fail('the join must still complete');
+  }
+});
