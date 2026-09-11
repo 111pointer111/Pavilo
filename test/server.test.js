@@ -232,6 +232,67 @@ test('reaction updates are idempotent and expose canonical counts', async (t) =>
   assert.deepEqual(secondInactive.reactions, {});
 });
 
+test('reactions accept any renderable emoji and reject plain text', async (t) => {
+  const { port } = await startServer(t);
+  const client = await openWebSocket({ port });
+  const { stateStart } = await join(client);
+
+  client.sendJson({
+    type: 'message',
+    clientMessageId: 'message-reaction-full-set',
+    kind: 'text',
+    text: 'react here too'
+  });
+  const ack = await client.nextJson((payload) => payload.type === 'ack');
+  client.nextJson((payload) => payload.type === 'message');
+
+  const complexEmoji = ['👨‍👩‍👧‍👦', '🇨🇳', '👍🏻', '1️⃣', '❤', '⛷️'];
+  for (const emoji of complexEmoji) {
+    client.sendJson({ type: 'reaction', messageId: ack.messageId, emoji, active: true });
+    const event = await client.nextJson((payload) => payload.type === 'reaction');
+    assert.equal(event.reactions[emoji].count, 1, `${emoji} should be accepted`);
+    assert.equal(event.reactions[emoji].userIds[0], stateStart.self.id);
+  }
+
+  for (const emoji of ['hello', '你好', '👍🏼' + '文本', ''] ) {
+    client.sendJson({ type: 'reaction', messageId: ack.messageId, emoji, active: true });
+    const error = await client.nextJson((payload) => payload.type === 'error');
+    assert.equal(error.code, 'INVALID_REACTION', JSON.stringify(emoji));
+  }
+});
+
+test('serves vendored emoji picker assets without path traversal', async (t) => {
+  const { baseUrl, port } = await startServer(t);
+  const http = require('node:http');
+
+  const picker = await fetch(`${baseUrl}/vendor/emoji-picker/picker.js`);
+  assert.equal(picker.status, 200);
+  assert.match(picker.headers.get('content-type'), /^text\/javascript/);
+  assert.ok((await picker.text()).includes('customElements.define'));
+
+  const data = await fetch(`${baseUrl}/vendor/emoji-picker/data.json`);
+  assert.equal(data.status, 200);
+  assert.match(data.headers.get('content-type'), /^application\/json/);
+  assert.ok((await data.json()).length > 1000);
+
+  // Raw request keeps `..` intact on the wire; the server must not serve source files.
+  const rawPath = (path) => new Promise((resolve, reject) => {
+    const req = http.request({ hostname: '127.0.0.1', port, path }, (res) => {
+      let body = '';
+      res.on('data', (chunk) => { body += chunk; });
+      res.on('end', () => resolve({ status: res.statusCode, body }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+  const traversal = await rawPath('/vendor/../server.js');
+  assert.notEqual(traversal.status, 200);
+  assert.ok(!traversal.body.includes('createChatServer'));
+
+  const missing = await fetch(`${baseUrl}/vendor/emoji-picker/nope.js`);
+  assert.equal(missing.status, 404);
+});
+
 test('rejects WebSocket upgrades from a foreign Origin', async (t) => {
   const { port } = await startServer(t);
 

@@ -29,15 +29,27 @@ const DEFAULTS = Object.freeze({
 });
 const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 const PROTOCOL_VERSION = 2;
-const REACTION_EMOJIS = new Set(['👍', '❤️', '😂', '🎉', '👀', '🔥']);
 const CLIENT_ID_RE = /^[A-Za-z0-9_-]{8,96}$/;
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon'
 };
+
+// Accept any renderable emoji (including ZWJ families, skin tones, flags, keycaps),
+// while rejecting plain text, control characters, and oversized payloads.
+const EMOJI_STRING_RE = /^[\p{Emoji}\p{Emoji_Modifier}\p{Regional_Indicator}\u200D\uFE0F\u20E3]+$/u;
+const EMOJI_CORE_RE = /[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}\u20E3]/u;
+const MAX_REACTION_EMOJI_POINTS = 12;
+
+function isReactionEmoji(value) {
+  if (typeof value !== 'string' || !value) return false;
+  if ([...value].length > MAX_REACTION_EMOJI_POINTS) return false;
+  return EMOJI_STRING_RE.test(value) && EMOJI_CORE_RE.test(value);
+}
 
 function randomId(prefix) {
   return `${prefix}_${crypto.randomBytes(8).toString('hex')}`;
@@ -596,7 +608,7 @@ function createChatServer(options = {}) {
       sendError(client, 'REACTION_RATE_LIMITED', '回应太快了，请稍等。');
       return;
     }
-    if (typeof command.messageId !== 'string' || !REACTION_EMOJIS.has(command.emoji) || typeof command.active !== 'boolean') {
+    if (typeof command.messageId !== 'string' || !isReactionEmoji(command.emoji) || typeof command.active !== 'boolean') {
       sendError(client, 'INVALID_REACTION', '不支持这个回应。');
       return;
     }
@@ -808,6 +820,30 @@ function createChatServer(options = {}) {
     }
   }
 
+  function serveVendorFile(request, response, pathname, headOnly = false) {
+    const relative = pathname.slice('/vendor/'.length);
+    if (relative.startsWith('/') || relative.includes('..') || relative.includes('\0')) {
+      response.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+      response.end(headOnly ? undefined : 'Forbidden');
+      return;
+    }
+    const extension = path.extname(relative).toLowerCase();
+    fs.readFile(path.join(ROOT, 'vendor', relative), (error, data) => {
+      if (error) {
+        response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+        response.end(headOnly ? undefined : 'Not found');
+        return;
+      }
+      response.writeHead(200, {
+        'Content-Type': MIME_TYPES[extension] || 'application/octet-stream',
+        'Content-Length': data.length,
+        'Cache-Control': 'public, max-age=300',
+        'X-Content-Type-Options': 'nosniff'
+      });
+      response.end(headOnly ? undefined : data);
+    });
+  }
+
   function serveIndex(request, response, headOnly = false) {
     fs.readFile(path.join(ROOT, 'index.html'), (error, data) => {
       if (error) {
@@ -874,6 +910,10 @@ function createChatServer(options = {}) {
     }
     if ((request.method === 'GET' || isHead) && (requestUrl.pathname === '/' || requestUrl.pathname === '/index.html')) {
       serveIndex(request, response, isHead);
+      return;
+    }
+    if ((request.method === 'GET' || isHead) && requestUrl.pathname.startsWith('/vendor/')) {
+      serveVendorFile(request, response, requestUrl.pathname, isHead);
       return;
     }
     if ((request.method === 'GET' || isHead) && requestUrl.pathname === '/favicon.ico') {
@@ -1065,7 +1105,7 @@ function createChatServer(options = {}) {
   };
 }
 
-module.exports = { createChatServer, DEFAULTS, PROTOCOL_VERSION, REACTION_EMOJIS: [...REACTION_EMOJIS] };
+module.exports = { createChatServer, DEFAULTS, PROTOCOL_VERSION };
 
 if (require.main === module) {
   const app = createChatServer();
