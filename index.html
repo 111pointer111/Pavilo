@@ -6,6 +6,12 @@
   <meta name="theme-color" content="#eef4f2">
   <link id="appFavicon" rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23dceee9'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-size='36' fill='%230f7772'%3E%E8%BF%91%3C/text%3E%3C/svg%3E">
   <title>Pavilo / 语亭</title>
+  <script>
+    // Runs in <head>, before the first paint: when this load may be a reload of a
+    // page that still holds a room identity, mark the document so the login overlay
+    // never flashes while the socket reattaches. The boot script clears it.
+    try { if (sessionStorage.getItem('pavilo.resume')) document.documentElement.classList.add('resuming'); } catch {}
+  </script>
   <style>
     :root {
       --bg: #eef4f2;
@@ -52,12 +58,17 @@
 
     body.chat-active { height: 100vh; height: 100dvh; overflow: hidden; }
     body.sheet-open { overflow: hidden; }
+    body.viewer-open { overflow: hidden; }
     .composer-text:focus-visible { outline: 3px solid rgba(232, 111, 87, .42); outline-offset: 3px; border-radius: 4px; }
 
     button, input, textarea { font: inherit; }
     button { color: inherit; }
     button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible { outline: 3px solid rgba(232, 111, 87, .42); outline-offset: 3px; }
     [hidden] { display: none !important; }
+
+    /* Lucide icons (vendor/lucide, ISC) paint from currentColor; each call site
+       only picks a size, matching how the previous inline SVGs were styled. */
+    .icon { display: block; width: 18px; height: 18px; flex: 0 0 auto; }
 
     .app-shell {
       display: grid;
@@ -162,7 +173,7 @@
     .top-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 44px; min-height: 44px; padding: 7px 11px; border: 1px solid var(--line); border-radius: 7px; background: rgba(249, 251, 248, .55); color: var(--ink-soft); cursor: pointer; font-size: 11px; font-weight: 700; letter-spacing: .04em; transition: border-color .18s ease, background .18s ease, color .18s ease, transform .18s ease; }
 
     .top-action:hover { border-color: var(--line-strong); background: var(--paper); color: var(--ink); transform: translateY(-1px); }
-    .top-action svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
+    .top-action .icon { width: 15px; height: 15px; }
 
     .workspace {
       display: grid;
@@ -301,6 +312,7 @@
       color: var(--ink-soft);
       text-align: center;
     }
+    .message-empty[hidden] { display: none !important; }
     .message-empty-mark { display: grid; width: 48px; height: 48px; place-items: center; margin-bottom: 16px; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--teal); font-family: var(--display); font-size: 23px; transform: rotate(-6deg); }
     .message-empty strong { font-family: var(--display); font-size: 21px; font-weight: 400; letter-spacing: -.03em; }
     .message-empty p { max-width: 28rem; margin: 8px 0 0; color: var(--ink-faint); font-size: 11px; line-height: 1.7; }
@@ -392,7 +404,11 @@
       width: fit-content;
       max-width: 100%;
       margin-top: 8px;
+      padding: 0;
+      border: 0;
       border-radius: 7px;
+      background: transparent;
+      cursor: zoom-in;
     }
     .message-image-link:focus-visible { outline: 3px solid rgba(232, 111, 87, .42); outline-offset: 3px; }
     .message-image {
@@ -435,7 +451,7 @@
       font-size: 10px;
     }
     .message-action:hover { border-color: var(--teal); color: var(--teal-deep); }
-    .message-action svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
+    .message-action .icon { width: 12px; height: 12px; }
     @media (hover: none), (pointer: coarse) {
       .message-actions { opacity: 1; transform: none; }
     }
@@ -450,7 +466,7 @@
     .pending-status button { min-height: 28px; padding: 3px 8px; border: 1px solid currentColor; border-radius: 5px; background: transparent; color: inherit; cursor: pointer; font-size: 10px; }
     .pending-image { max-width: min(260px, 100%); max-height: 180px; margin-top: 7px; border: 1px solid var(--line); border-radius: 7px; object-fit: contain; }
     .message-action.reaction-action { position: relative; min-width: 36px; min-height: 36px; padding: 0; }
-    .message-action.reaction-action svg { width: 16px; height: 16px; }
+    .message-action.reaction-action .icon { width: 16px; height: 16px; }
     .message-action.reaction-action .reaction-plus { position: absolute; right: 2px; bottom: 2px; width: 10px; height: 10px; border-radius: 50%; background: var(--teal-pale); stroke-width: 2.4; }
 
     .reaction-popover, .composer-popover {
@@ -569,7 +585,6 @@
       transition: color .18s ease, border-color .18s ease, background .18s ease;
     }
     .composer-button:hover { border-color: var(--teal); background: var(--teal-pale); color: var(--teal-deep); }
-    .composer-button svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; }
     .composer-button .fill-icon { fill: currentColor; stroke: none; }
     .composer-text { grid-area: text; width: 100%; min-width: 0; min-height: 36px; max-height: 145px; padding: 7px 0; border: 0; outline: 0; resize: none; overflow-y: auto; background: transparent; color: var(--ink); font-size: 13px; line-height: 1.6; }
     .composer-text::placeholder { color: var(--ink-faint); }
@@ -593,7 +608,149 @@
     }
     .send-button:hover { background: var(--teal-deep); transform: translateY(-1px); }
     .send-button:disabled { cursor: not-allowed; opacity: .48; transform: none; }
-    .send-button svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+    .send-button .icon { width: 14px; height: 14px; }
+
+    .image-viewer[hidden] { display: none; }
+    .image-viewer {
+      position: fixed;
+      z-index: 70;
+      inset: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      background: rgba(20, 42, 45, .82);
+      backdrop-filter: blur(14px);
+      animation: viewer-in .18s ease both;
+    }
+    @keyframes viewer-in { from { opacity: 0; } to { opacity: 1; } }
+
+    .viewer-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding:
+        max(13px, env(safe-area-inset-top))
+        max(13px, env(safe-area-inset-right))
+        13px
+        max(13px, env(safe-area-inset-left));
+      color: rgba(249, 251, 248, .92);
+    }
+    .viewer-identity { display: flex; min-width: 0; align-items: center; gap: 11px; }
+    .viewer-identity .avatar { width: 34px; height: 34px; border-color: rgba(249, 251, 248, .3); border-radius: 9px 9px 9px 3px; font-size: 15px; }
+    .viewer-identity .avatar[aria-hidden="true"] { cursor: default; }
+    .viewer-who { min-width: 0; }
+    .viewer-author { display: block; overflow: hidden; font-size: 12px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+    .viewer-when { margin: 2px 0 0; color: rgba(249, 251, 248, .6); font-family: var(--mono); font-size: 10px; }
+
+    .viewer-controls { display: flex; flex: 0 0 auto; align-items: center; gap: 7px; }
+    .viewer-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-width: 44px;
+      min-height: 44px;
+      padding: 7px 10px;
+      border: 1px solid rgba(249, 251, 248, .24);
+      border-radius: 8px;
+      background: rgba(249, 251, 248, .1);
+      color: inherit;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .03em;
+      transition: background .18s ease, border-color .18s ease, transform .18s ease;
+    }
+    .viewer-button:hover { border-color: rgba(249, 251, 248, .5); background: rgba(249, 251, 248, .2); }
+    .viewer-button:disabled { cursor: default; opacity: .38; }
+    .viewer-button:disabled:hover { border-color: rgba(249, 251, 248, .24); background: rgba(249, 251, 248, .1); }
+    .viewer-button.accent { border-color: rgba(122, 214, 198, .62); background: rgba(15, 119, 114, .58); }
+    .viewer-button.accent:hover { background: rgba(15, 119, 114, .82); }
+    .viewer-button:focus-visible { outline-color: rgba(244, 200, 95, .78); }
+    .viewer-button .icon { width: 17px; height: 17px; }
+    .viewer-zoom-label { min-width: 46px; color: rgba(249, 251, 248, .62); font-family: var(--mono); font-size: 10px; text-align: center; }
+
+    .viewer-stage {
+      position: relative;
+      display: grid;
+      min-width: 0;
+      min-height: 0;
+      place-items: center;
+      padding: 6px 16px;
+      overflow: hidden;
+      overscroll-behavior: contain;
+      touch-action: none;
+      cursor: grab;
+    }
+    .viewer-stage.dragging { cursor: grabbing; }
+    .viewer-image {
+      grid-area: 1 / 1;
+      max-width: 100%;
+      max-height: 100%;
+      border-radius: 8px;
+      box-shadow: 0 24px 60px rgba(8, 26, 28, .5);
+      user-select: none;
+      -webkit-user-drag: none;
+      transition: opacity .18s ease;
+    }
+    .viewer-image.zoomed { max-width: none; max-height: none; cursor: grab; }
+    .viewer-image.zoomed.dragging { cursor: grabbing; }
+    .viewer-image[data-loaded="false"] { opacity: 0; }
+    .viewer-status {
+      grid-area: 1 / 1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: rgba(249, 251, 248, .78);
+      font-size: 12px;
+    }
+    .viewer-status .icon { width: 17px; height: 17px; }
+    .viewer-status.spinning .icon { animation: viewer-spin 1s linear infinite; }
+    @keyframes viewer-spin { to { transform: rotate(360deg); } }
+
+    .viewer-nav {
+      position: absolute;
+      z-index: 1;
+      top: 50%;
+      display: grid;
+      width: 46px;
+      height: 46px;
+      place-items: center;
+      padding: 0;
+      transform: translateY(-50%);
+      border: 1px solid rgba(249, 251, 248, .26);
+      border-radius: 50%;
+      background: rgba(20, 42, 45, .55);
+      color: rgba(249, 251, 248, .92);
+      cursor: pointer;
+      transition: background .18s ease, border-color .18s ease;
+    }
+    .viewer-nav:hover { border-color: rgba(249, 251, 248, .58); background: rgba(20, 42, 45, .82); }
+    .viewer-nav.left { left: max(12px, env(safe-area-inset-left)); }
+    .viewer-nav.right { right: max(12px, env(safe-area-inset-right)); }
+    .viewer-nav .icon { width: 21px; height: 21px; }
+
+    .viewer-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding:
+        13px
+        max(13px, env(safe-area-inset-right))
+        max(13px, env(safe-area-inset-bottom))
+        max(13px, env(safe-area-inset-left));
+      color: rgba(249, 251, 248, .72);
+      font-size: 11px;
+    }
+    .viewer-meta { display: flex; min-width: 0; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10px; }
+    .viewer-meta span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .viewer-note { color: rgba(249, 251, 248, .46); font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+    .viewer-error { margin: 0; color: var(--yellow); font-size: 12px; line-height: 1.6; text-align: center; }
+
+    .login-error { min-height: 18px; margin: 2px 0 0; color: var(--coral); font-size: 11px; line-height: 1.5; }
+    .login-foot { display: flex; align-items: center; gap: 8px; margin: 22px 0 0; padding-top: 15px; border-top: 1px solid var(--line); color: var(--ink-soft); font-family: var(--mono); font-size: 10px; line-height: 1.5; }
+    .login-foot .icon { width: 15px; height: 15px; color: var(--teal); }
 
     .people-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 13px; }
     .people-count { color: var(--teal-deep); font-family: var(--mono); font-size: 11px; font-weight: 800; }
@@ -620,7 +777,11 @@
     .profile-field dt { color: var(--ink-soft); font-family: var(--mono); font-size: 10px; }
     .profile-field dd { min-width: 0; margin: 0; overflow: hidden; color: var(--ink); font-family: var(--mono); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 
-    .login-screen[hidden] { pointer-events: none; }
+    .login-screen[hidden] { pointer-events: none; visibility: hidden; }
+    /* Set by the head script below when this page load may still hold a room
+       identity, so the login overlay never takes part in the first paint. The
+       boot script drops it once the room answers or gives up. */
+    html.resuming .login-screen { visibility: hidden; }
     .login-screen {
       position: fixed;
       z-index: 20;
@@ -651,10 +812,6 @@
     .enter-button { min-height: 43px; padding: 9px 16px; border: 1px solid var(--teal-deep); border-radius: 6px; background: var(--teal); color: #fff; cursor: pointer; font-size: 12px; font-weight: 800; }
     .enter-button:hover { background: var(--teal-deep); }
     .enter-button:disabled { cursor: wait; opacity: .62; }
-    .login-error { min-height: 18px; margin: 2px 0 0; color: var(--coral); font-size: 11px; line-height: 1.5; }
-    .login-foot { display: flex; align-items: center; gap: 8px; margin: 22px 0 0; padding-top: 15px; border-top: 1px solid var(--line); color: var(--ink-soft); font-family: var(--mono); font-size: 10px; line-height: 1.5; }
-    .login-foot svg { width: 15px; height: 15px; flex: 0 0 auto; stroke: var(--teal); fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; }
-
     .toast-region {
       position: fixed;
       z-index: 30;
@@ -696,7 +853,7 @@
       .brand-mark { width: 31px; height: 31px; flex: 0 0 auto; font-size: 17px; }
       .brand-name { font-size: 10px; letter-spacing: .16em; }
       .top-actions { gap: 6px; }
-      .top-actions .top-action span { display: none; }
+      .top-actions .top-action-label { display: none; }
       .top-action { width: 44px; min-height: 44px; justify-content: center; padding: 7px; }
       .mobile-members-button { display: inline-flex; }
       .workspace { display: block; min-height: 0; margin-top: 10px; border-radius: 10px; }
@@ -758,6 +915,16 @@
     @media (max-width: 480px) {
       .login-row { grid-template-columns: 1fr; }
       .enter-button { width: 100%; }
+      /* Six controls plus the sender identity do not fit one 390px row, so the
+         header stacks: who sent it on top, the controls in their own row below. */
+      .viewer-top { flex-direction: column; align-items: stretch; gap: 8px; padding-block: max(9px, env(safe-area-inset-top)) 9px; }
+      .viewer-controls { justify-content: center; }
+      .viewer-button { min-width: 44px; min-height: 44px; padding: 6px; }
+      .viewer-button .icon { width: 16px; height: 16px; }
+      .viewer-zoom-label { min-width: 40px; }
+      .viewer-nav { width: 40px; height: 40px; }
+      .viewer-note { display: none; }
+      .viewer-stage { padding-inline: 10px; }
       .composer {
         grid-template-columns: minmax(0, 1fr) auto;
         grid-template-areas:
@@ -803,7 +970,7 @@
         <p class="login-error" id="loginError" role="alert"></p>
       </form>
       <p class="login-foot">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.5 2.9 8.3 7 10 4.1-1.7 7-5.5 7-10V6l-7-3Z"/><path d="m9.2 12 1.8 1.8 4-4"/></svg>
+        <span class="icon" data-icon="shield-check" data-icon-size="15" aria-hidden="true"></span>
         不写入磁盘 · 不上传公网 · 仅在本次服务进程内存在
       </p>
     </section>
@@ -821,20 +988,20 @@
       </div>
       <div class="top-actions">
         <button class="top-action" id="copyLinkButton" type="button" title="分享或复制局域网地址">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2"/><path d="M15 9V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/></svg>
-          <span>分享地址</span>
+          <span class="icon" data-icon="link-2" data-icon-size="15" aria-hidden="true"></span>
+          <span class="top-action-label">分享地址</span>
         </button>
         <button class="top-action" id="notifyButton" type="button" title="开启系统提醒" aria-label="开启系统提醒">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4"/></svg>
-          <span>开启提醒</span>
+          <span class="icon" data-icon="bell" data-icon-size="15" aria-hidden="true"></span>
+          <span class="top-action-label">开启提醒</span>
         </button>
         <button class="top-action mobile-members-button" id="membersButton" type="button" title="查看在线成员" aria-label="查看在线成员" aria-expanded="false">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 20v-1.5c0-2-1.8-3.5-4-3.5s-4 1.5-4 3.5V20M12 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19 20v-1c0-1.5-.8-2.7-2-3.2M17 5.4a3 3 0 0 1 0 5.2"/></svg>
-          <span>成员</span>
+          <span class="icon" data-icon="users-round" data-icon-size="15" aria-hidden="true"></span>
+          <span class="top-action-label">成员</span>
         </button>
         <button class="top-action" id="leaveButton" type="button" title="离开频道">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4"/><path d="m14 8 4 4-4 4M9 12h9"/></svg>
-          <span>离开</span>
+          <span class="icon" data-icon="log-out" data-icon-size="15" aria-hidden="true"></span>
+          <span class="top-action-label">离开</span>
         </button>
       </div>
     </header>
@@ -876,21 +1043,23 @@
         <div class="composer-wrap">
           <div class="replying" id="replyingBar" hidden>
             <span class="replying-copy">回复 <strong id="replyingName"></strong>：<span id="replyingText"></span></span>
-            <button class="cancel-reply" id="cancelReplyButton" type="button" aria-label="取消回复">×</button>
+            <button class="cancel-reply" id="cancelReplyButton" type="button" aria-label="取消回复">
+              <span class="icon" data-icon="x" aria-hidden="true"></span>
+            </button>
           </div>
           <form class="composer" id="composer">
             <div class="composer-tools">
               <button class="composer-button" id="emojiButton" type="button" aria-label="打开表情" aria-expanded="false" aria-controls="emojiPopover">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 14.5c1.8 2 5.2 2 7 0M9 9.5h.01M15 9.5h.01"/></svg>
+                <span class="icon" data-icon="smile" aria-hidden="true"></span>
               </button>
               <button class="composer-button" id="attachmentButton" type="button" aria-label="发送图片">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="m5 17 4.5-4 3 2.5 2.5-2 4 3.5"/></svg>
+                <span class="icon" data-icon="image-plus" aria-hidden="true"></span>
               </button>
             </div>
             <textarea class="composer-text" id="composerText" rows="1" maxlength="2000" enterkeyhint="send" placeholder="说点什么…  Enter 发送，Shift + Enter 换行" aria-label="消息内容"></textarea>
             <button class="send-button" id="sendButton" type="submit" disabled>
               发送
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 12 16-8-4 16-4.5-6.5L4 12Z"/><path d="M11.5 13.5 20 4"/></svg>
+              <span class="icon" data-icon="send" data-icon-size="14" aria-hidden="true"></span>
             </button>
             <input id="imageInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
           </form>
@@ -926,7 +1095,9 @@
   <aside class="mobile-sheet" id="mobileSheet" aria-labelledby="mobileSheetTitle" aria-modal="true" role="dialog" hidden aria-hidden="true">
     <header class="mobile-sheet-header">
       <div><p class="section-label">语亭频道</p><h2 class="mobile-sheet-title" id="mobileSheetTitle">在线成员</h2></div>
-      <button class="mobile-sheet-close" id="mobileSheetClose" type="button" aria-label="关闭成员面板">×</button>
+      <button class="mobile-sheet-close" id="mobileSheetClose" type="button" aria-label="关闭成员面板">
+        <span class="icon" data-icon="x" aria-hidden="true"></span>
+      </button>
     </header>
     <div class="people-list mobile-people-list" id="mobilePeopleList"></div>
     <div class="mobile-profile" id="mobileProfile" aria-live="polite"></div>
@@ -939,8 +1110,59 @@
     <emoji-picker id="composerPicker" locale="zh" data-source="/vendor/emoji-picker/data.json"></emoji-picker>
   </div>
 
+  <div class="image-viewer" id="imageViewer" role="dialog" aria-modal="true" aria-labelledby="viewerAuthor" hidden>
+    <header class="viewer-top">
+      <div class="viewer-identity">
+        <div id="viewerAvatar"></div>
+        <div class="viewer-who">
+          <strong class="viewer-author" id="viewerAuthor"></strong>
+          <p class="viewer-when" id="viewerWhen"></p>
+        </div>
+      </div>
+      <div class="viewer-controls">
+        <button class="viewer-button" id="viewerZoomOut" type="button" aria-label="缩小" title="缩小（−）">
+          <span class="icon" data-icon="zoom-out" aria-hidden="true"></span>
+        </button>
+        <span class="viewer-zoom-label" id="viewerZoomLabel" aria-live="off">100%</span>
+        <button class="viewer-button" id="viewerZoomIn" type="button" aria-label="放大" title="放大（+）">
+          <span class="icon" data-icon="zoom-in" aria-hidden="true"></span>
+        </button>
+        <button class="viewer-button" id="viewerRotate" type="button" aria-label="旋转 90 度" title="旋转（R）">
+          <span class="icon" data-icon="rotate-cw" aria-hidden="true"></span>
+        </button>
+        <button class="viewer-button" id="viewerReset" type="button" aria-label="还原为原始大小" title="实际大小（0）">
+          <span class="icon" data-icon="scan-eye" aria-hidden="true"></span>
+        </button>
+        <a class="viewer-button" id="viewerDownload" download="pavilo-image" aria-label="下载这张图片" title="下载">
+          <span class="icon" data-icon="download" aria-hidden="true"></span>
+        </a>
+        <button class="viewer-button" id="viewerClose" type="button" aria-label="关闭图片查看" title="关闭（Esc）">
+          <span class="icon" data-icon="x" aria-hidden="true"></span>
+        </button>
+      </div>
+    </header>
+    <div class="viewer-stage" id="viewerStage">
+      <button class="viewer-nav left" id="viewerPrev" type="button" aria-label="上一张图片" title="上一张（←）" hidden>
+        <span class="icon" data-icon="chevron-left" aria-hidden="true"></span>
+      </button>
+      <img class="viewer-image" id="viewerImage" alt="" data-loaded="false" draggable="false">
+      <div class="viewer-status" id="viewerStatus" role="status" aria-live="polite"></div>
+      <button class="viewer-nav right" id="viewerNext" type="button" aria-label="下一张图片" title="下一张（→）" hidden>
+        <span class="icon" data-icon="chevron-right" aria-hidden="true"></span>
+      </button>
+    </div>
+    <footer class="viewer-foot">
+      <div class="viewer-meta">
+        <span id="viewerDimension"></span>
+        <span id="viewerIndex"></span>
+      </div>
+      <span class="viewer-note">只在此刻 · 刷新后不保留</span>
+    </footer>
+  </div>
+
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
 
+  <script src="/vendor/lucide/index.js"></script>
   <script>
     (() => {
       const MAX_IMAGE_BYTES = 1_500_000;
@@ -951,6 +1173,8 @@
       const TYPING_INTERVAL = 900;
       const TYPING_EXPIRY = 4_500;
       const PROTOCOL_VERSION = 2;
+      const RESUME_KEY = 'pavilo.resume';
+      const VIEWER_MIN_SCALE = .25;
       const CLIENT_SESSION_ID = (globalThis.crypto?.randomUUID?.() || `cs_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 96);
       const AVATAR_SEED = globalThis.crypto?.getRandomValues ? globalThis.crypto.getRandomValues(new Uint32Array(1))[0] : Math.floor(Math.random() * 0x7fffffff);
       const REACTION_EMOJIS = ['👍', '❤️', '😂', '🎉', '👀', '🔥'];
@@ -964,6 +1188,41 @@
       ];
 
       const $ = (selector) => document.querySelector(selector);
+
+      // Lucide icons (vendor/lucide, ISC). Chrome paints the ink, CSS sizes it.
+      const lucideIcon = globalThis.lucideCreateIcon || (() => '');
+      function iconMarkup(name, size) {
+        const inner = lucideIcon(name);
+        if (!inner) return '';
+        const dimension = size ? ` style="width:${size}px;height:${size}px"` : '';
+        return `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${dimension}>${inner}</svg>`;
+      }
+
+      // Declarative icons in the markup; dynamically built nodes call iconMarkup.
+      for (const host of document.querySelectorAll('[data-icon]')) {
+        const size = Number(host.dataset.iconSize) || 0;
+        host.innerHTML = iconMarkup(host.dataset.icon, size);
+      }
+
+      // The room identity lives in sessionStorage: a reload keeps you in the room,
+      // closing the tab ends it, and 离开 clears it so the login stays gone for good.
+      function readResume() {
+        try {
+          const value = JSON.parse(sessionStorage.getItem(RESUME_KEY) || 'null');
+          return value && typeof value.token === 'string' && typeof value.username === 'string' ? value : null;
+        } catch {
+          return null;
+        }
+      }
+
+      function writeResume(value) {
+        try { sessionStorage.setItem(RESUME_KEY, JSON.stringify(value)); } catch { /* private mode: reload falls back to the login */ }
+      }
+
+      function clearResume() {
+        try { sessionStorage.removeItem(RESUME_KEY); } catch { /* nothing to clear */ }
+      }
+
       const loginScreen = $('#loginScreen');
       const appShell = $('#appShell');
       const loginForm = $('#loginForm');
@@ -999,6 +1258,24 @@
       const mobileProfile = $('#mobileProfile');
       const notifyButton = $('#notifyButton');
       const appFavicon = $('#appFavicon');
+      const imageViewer = $('#imageViewer');
+      const viewerAvatar = $('#viewerAvatar');
+      const viewerAuthor = $('#viewerAuthor');
+      const viewerWhen = $('#viewerWhen');
+      const viewerStage = $('#viewerStage');
+      const viewerImage = $('#viewerImage');
+      const viewerStatus = $('#viewerStatus');
+      const viewerZoomLabel = $('#viewerZoomLabel');
+      const viewerZoomIn = $('#viewerZoomIn');
+      const viewerZoomOut = $('#viewerZoomOut');
+      const viewerRotate = $('#viewerRotate');
+      const viewerReset = $('#viewerReset');
+      const viewerDownload = $('#viewerDownload');
+      const viewerClose = $('#viewerClose');
+      const viewerPrev = $('#viewerPrev');
+      const viewerNext = $('#viewerNext');
+      const viewerDimension = $('#viewerDimension');
+      const viewerIndex = $('#viewerIndex');
 
       let socket;
       let self;
@@ -1014,6 +1291,8 @@
       let profileTimerStarted = false;
       let connectionState = 'idle';
       let intentionalLeave = false;
+      let resumeToken = null;
+      let leaveTimer;
       let roomEpoch = null;
       let pendingStateEpoch = null;
       let latestSeq = 0;
@@ -1025,6 +1304,10 @@
       let notificationNoticeShown = false;
       let roomInfo;
       let mobileSheetOpener = null;
+      let viewerItems = [];
+      let viewerIndexNow = -1;
+      let viewerOpener = null;
+      let viewerMeta = null;
       const pending = new Map();
       const messageNodes = new Map();
       const knownMessageKeys = new Set();
@@ -1128,6 +1411,27 @@
       function makeClientMessageId() {
         const value = globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
         return `cm_${value.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 90)}`;
+      }
+
+      // The head script has already hidden the login; here we decide whether that
+      // promise holds. Any outcome that is not "the room answered" restores it.
+      let resumeWatchdog;
+      function finishResume() {
+        if (!resumeWatchdog) return;
+        window.clearTimeout(resumeWatchdog);
+        resumeWatchdog = null;
+        document.documentElement.classList.remove('resuming');
+      }
+
+      function primeResume() {
+        const saved = readResume();
+        if (!saved) {
+          finishResume();
+          return null;
+        }
+        // Belt and braces: if the room never answers, the login must not stay hidden.
+        resumeWatchdog = window.setTimeout(finishResume, 12_000);
+        return saved;
       }
 
       function safeSocketSend(target, command) {
@@ -1297,7 +1601,7 @@
         const width = Math.max(1, Math.round(rawWidth * scale));
         const height = Math.max(1, Math.round(rawHeight * scale));
         const source = escapeHtml(message.image.src);
-        return `<a class="message-image-link" href="${source}" target="_blank" rel="noopener noreferrer"><img class="message-image" src="${source}" alt="${escapeHtml(author.username)} 分享的图片" loading="lazy" decoding="async" width="${width}" height="${height}"></a>`;
+        return `<button class="message-image-link" type="button" data-viewer-message-id="${escapeHtml(message.id)}" aria-label="查看 ${escapeHtml(author.username)} 分享的图片"><img class="message-image" src="${source}" alt="${escapeHtml(author.username)} 分享的图片" loading="lazy" decoding="async" width="${width}" height="${height}"></button>`;
       }
 
       function reactionMarkup(message) {
@@ -1321,7 +1625,7 @@
       }
 
       function actionMarkup(messageId) {
-        return `<div class="message-actions"><button class="message-action reaction-action" type="button" data-message-id="${escapeHtml(messageId)}" aria-label="表情回应"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 14.5c1.8 2 5.2 2 7 0M9 9.5h.01M15 9.5h.01"/></svg><svg viewBox="0 0 24 24" class="reaction-plus" aria-hidden="true"><circle cx="16.8" cy="16.8" r="3.4"/><path d="M16.8 15.4v2.8M15.4 16.8h2.8"/></svg></button><button class="message-action reply-action" type="button" data-message-id="${escapeHtml(messageId)}" aria-label="回复这条消息"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 15 4 12l5-3v2c6 0 8 2 9 6-2-2-4-3-9-3v1Z"/></svg>回复</button></div>`;
+        return `<div class="message-actions"><button class="message-action reaction-action" type="button" data-message-id="${escapeHtml(messageId)}" aria-label="表情回应"><span class="icon" data-icon="smile-plus" data-icon-size="16" aria-hidden="true"></span><span class="icon reaction-plus" data-icon="plus" data-icon-size="10" aria-hidden="true"></span></button><button class="message-action reply-action" type="button" data-message-id="${escapeHtml(messageId)}" aria-label="回复这条消息"><span class="icon" data-icon="reply" data-icon-size="12" aria-hidden="true"></span>回复</button></div>`;
       }
 
       function createMessageNode(message) {
@@ -1330,6 +1634,7 @@
         article.className = `message${author.id === self?.id ? ' self' : ''}`;
         article.dataset.messageId = message.id;
         article.innerHTML = `<div class="message-avatar">${avatarMarkup(author)}</div><div class="message-main"><div class="message-meta"><span class="message-author">${escapeHtml(author.username)}</span><time class="message-time" datetime="${new Date(message.createdAt).toISOString()}">${formatTime(message.createdAt)}</time></div>${messageBodyMarkup(message, author)}${actionMarkup(message.id)}</div>`;
+        hydrateIcons(article);
         messageNodes.set(message.id, article);
         return article;
       }
@@ -1356,12 +1661,27 @@
         return result.slice(-MAX_MESSAGES);
       }
 
+      // Fills in icons for markup that was injected as a string. Declarative
+      // `data-icon` hosts are handled once at boot and inside createMessageNode.
+      function hydrateIcons(root) {
+        for (const host of root.querySelectorAll('[data-icon]')) {
+          host.innerHTML = iconMarkup(host.dataset.icon, Number(host.dataset.iconSize) || 0);
+          delete host.dataset.icon;
+        }
+      }
+
       function renderHistory(forceBottom = false) {
         const shouldBottom = forceBottom || isNearBottom();
         messageNodes.clear();
         messageList.replaceChildren();
         if (!messages.length) {
-          messageList.innerHTML = '<div class="message-empty"><span class="message-empty-mark" aria-hidden="true">语</span><strong>频道刚刚打开</strong><p>先打个招呼吧。这里的每句话，都只活在这次服务运行期间。</p></div>';
+          // A reloaded page paints the room before the socket answers, and "频道刚刚
+          // 打开" would be a lie for a room that already has history coming.
+          const placeholder = document.createElement('div');
+          placeholder.className = 'message-empty';
+          placeholder.hidden = document.documentElement.classList.contains('resuming');
+          placeholder.innerHTML = '<span class="message-empty-mark" aria-hidden="true">语</span><strong>频道刚刚打开</strong><p>先打个招呼吧。这里的每句话，都只活在这次服务运行期间。</p>';
+          messageList.append(placeholder);
           $('#messageCount').textContent = '0 条消息';
           return;
         }
@@ -1398,8 +1718,7 @@
         node.querySelector('.message-actions')?.insertAdjacentHTML('beforebegin', markup);
       }
 
-      function focusPickerSearch(picker) {
-        const input = picker?.shadowRoot?.querySelector('input[type="search"]');
+      function focusPickerSearch(picker) {        const input = picker?.shadowRoot?.querySelector('input[type="search"]');
         if (input) input.focus();
         else picker?.focus();
       }
@@ -1518,6 +1837,7 @@
           node.dataset.pendingId = item.id;
           const body = item.kind === 'image' ? `<img class="pending-image" src="${escapeHtml(item.image.src)}" alt="待发送图片">` : `<div class="message-body">${escapeHtml(item.text)}</div>`;
           node.innerHTML = `<div class="message-avatar">${avatarMarkup(self || { username: '你', avatarSeed: AVATAR_SEED }, '', false)}</div><div class="message-main"><div class="message-meta"><span class="message-author">${escapeHtml(self?.username || '你')}</span><span class="message-time">现在</span></div>${body}<div class="pending-status" role="status" aria-live="polite"></div></div>`;
+          hydrateIcons(node);
           messageList.append(node);
         }
         const status = node.querySelector('.pending-status');
@@ -1656,6 +1976,9 @@
         hasJoined = true;
         connectionState = 'joined';
         reconnectAttempt = 0;
+        if (leaveTimer) { window.clearTimeout(leaveTimer); leaveTimer = null; }
+        if (reconnectTimer) { window.clearTimeout(reconnectTimer); reconnectTimer = null; }
+        finishResume();
         document.body.classList.add('chat-active');
         loginScreen.hidden = true;
         loginScreen.setAttribute('aria-hidden', 'true');
@@ -1671,7 +1994,7 @@
           window.setInterval(updateTypingLine, 1000);
         }
         reconcilePending(Boolean(previousEpoch && previousEpoch === roomEpoch));
-        if (!previousEpoch) setJoinFocus();
+        setJoinFocus();
       }
 
       function connect() {
@@ -1695,7 +2018,13 @@
           connectionState = 'joining';
           setConnection(false, '正在进入…');
           const username = self?.username || usernameInput.value.trim();
-          if (!sendRaw({ type: 'join', protocolVersion: PROTOCOL_VERSION, clientSessionId: CLIENT_SESSION_ID, username, avatarSeed: self?.avatarSeed ?? AVATAR_SEED })) {
+          const avatarSeed = self?.avatarSeed;
+          const command = { type: 'join', protocolVersion: PROTOCOL_VERSION, clientSessionId: CLIENT_SESSION_ID, username };
+          if (resumeToken) command.resumeToken = resumeToken;
+          // Omit the seed when we do not know it: the room generates one for a fresh
+          // member, and a reloaded page adopts whatever the original session used.
+          if (avatarSeed !== undefined && avatarSeed !== null) command.avatarSeed = avatarSeed;
+          if (!sendRaw(command)) {
             try { clientSocket.close(); } catch {}
           }
         });
@@ -1719,6 +2048,9 @@
             intentionalLeave = true;
             if (reconnectTimer) window.clearTimeout(reconnectTimer);
             reconnectTimer = null;
+            stopTyping();
+            typingUsers.clear();
+            updateTypingLine();
             messages = [];
             users = [];
             pending.clear();
@@ -1726,9 +2058,14 @@
             messageList.replaceChildren();
             renderHistory();
             clearUnread();
+            // The room is gone; start the next visit from the login box.
+            clearResume();
+            resumeToken = null;
+            finishResume();
             setConnection(false, '服务已停止');
             document.body.classList.remove('chat-active');
             appShell.hidden = true;
+            appShell.setAttribute('aria-hidden', 'true');
             loginScreen.hidden = false;
             loginScreen.setAttribute('aria-hidden', 'false');
             loginError.textContent = '服务已停止，本页临时聊天数据已清空。';
@@ -1777,6 +2114,12 @@
           users = payload.users || [];
           latestSeq = Number(payload.latestSeq) || 0;
           pendingStateEpoch = payload.roomEpoch || roomEpoch;
+          // Keep the token the room just issued; it is what carries this identity
+          // through a reload or a reconnect.
+          if (typeof payload.resumeToken === 'string' && payload.resumeToken) {
+            resumeToken = payload.resumeToken;
+            writeResume({ token: resumeToken, username: self.username });
+          }
           return;
         }
         if (payload.type === 'history' && historyLoading && (!payload.roomEpoch || payload.roomEpoch === pendingStateEpoch)) {
@@ -1813,7 +2156,14 @@
           }
           renderPeople();
           updateTypingLine();
-          if (payload.action !== 'reconnect') toast(payload.action === 'join' ? `${payload.user.username} 进入了频道` : `${payload.username} 离开了频道`);
+          const roomVisible = appShell.hidden === false;
+          if (payload.action === 'reconnect') return;
+          if (payload.userId === self?.id) {
+            if (roomVisible) toast(`你已回到频道${payload.username ? `（${payload.username}）` : ''}`);
+            return;
+          }
+          if (!roomVisible) return;
+          toast(payload.action === 'join' ? `${payload.user.username} 进入了频道` : `${payload.username} 离开了频道`);
           return;
         }
         if (payload.type === 'ack') {
@@ -1849,8 +2199,38 @@
         if (payload.type === 'error') {
           if (payload.clientMessageId) { markPendingError(payload.clientMessageId, payload.message); return; }
           if (['NAME_TAKEN', 'INVALID_NAME', 'SESSION_CONFLICT'].includes(payload.code)) {
+            const wasInRoom = appShell.hidden === false;
             hasJoined = false;
             connectionState = 'idle';
+            closeImageViewer();
+            // A rejected identity cannot be resumed; drop the stale token so the
+            // login box starts from a clean slate.
+            if (payload.code !== 'NAME_TAKEN') {
+              clearResume();
+              resumeToken = null;
+            }
+            finishResume();
+            if (wasInRoom) {
+              // The room was on screen while this arrived, so a bare bounce to the
+              // login would look like a random reload.
+              closeSocketQuietly();
+              messages = [];
+              users = [];
+              pending.clear();
+              messageNodes.clear();
+              messageList.replaceChildren();
+              renderHistory();
+              clearUnread();
+              document.body.classList.remove('chat-active');
+              renderPeople();
+              toast(payload.message, true);
+              loginScreen.hidden = false;
+              loginScreen.setAttribute('aria-hidden', 'false');
+              loginError.textContent = '';
+              loginForm.querySelector('.enter-button').disabled = false;
+              usernameInput.focus();
+              return;
+            }
             loginError.textContent = payload.message;
             document.body.classList.remove('chat-active');
             loginScreen.hidden = false;
@@ -1940,7 +2320,13 @@
         const username = usernameInput.value.trim();
         if (!username) { loginError.textContent = '请输入一个名字。'; return; }
         loginError.textContent = '';
-        self = { username, avatarSeed: AVATAR_SEED };
+        // A typed name is a deliberate identity: start over instead of resuming a
+        // session that a reload had parked.
+        if (resumeToken && self?.username !== username) {
+          clearResume();
+          resumeToken = null;
+        }
+        self = { username };
         hasJoined = false;
         loginForm.querySelector('.enter-button').disabled = true;
         intentionalLeave = false;
@@ -1993,6 +2379,11 @@
       $('#messageList').addEventListener('click', (event) => {
         const retry = event.target.closest('.pending-retry');
         if (retry) { retryPending(pending.get(retry.dataset.pendingId)); return; }
+        const image = event.target.closest('[data-viewer-message-id]');
+        if (image) {
+          openImageViewer(image.dataset.viewerMessageId, image);
+          return;
+        }
         const reaction = event.target.closest('.reaction-button');
         if (reaction) {
           send({ type: 'reaction', messageId: reaction.dataset.messageId, emoji: reaction.dataset.reaction, active: reaction.getAttribute('aria-pressed') !== 'true' });
@@ -2091,14 +2482,15 @@
       });
       document.addEventListener('keydown', (event) => {
         trapMobileSheetFocus(event);
+        trapViewerFocus(event);
         if (event.key === 'Escape') {
-          if (!reactionPopover.hidden) closeReactionPopover();
+          if (!mobileSheet.hidden) setMobileSheet(false);
+          else if (!reactionPopover.hidden) closeReactionPopover();
           else if (!composerPopover.hidden) {
             closeComposerPopover();
             emojiButton.setAttribute('aria-expanded', 'false');
             emojiButton.focus();
           }
-          else if (!mobileSheet.hidden) setMobileSheet(false);
         }
       });
       document.addEventListener('pointerdown', (event) => {
@@ -2109,6 +2501,9 @@
         }
       });
       messageScroll.addEventListener('scroll', () => { closeReactionPopover(); closeComposerPopover(); }, { passive: true });
+      // The viewer is deliberately left alone here: opening it can itself scroll the
+      // message list (focus follows the clicked thumbnail), and that stray scroll
+      // would close the overlay the user just asked for.
       window.addEventListener('resize', () => { closeReactionPopover(); closeComposerPopover(); });
 
       newMessageJump.addEventListener('click', () => {
@@ -2137,7 +2532,7 @@
           notifyButton.classList.add('active');
           notifyButton.title = '系统提醒已开启';
           notifyButton.setAttribute('aria-label', '系统提醒已开启');
-          notifyButton.querySelector('span').textContent = '提醒已开';
+          notifyButton.querySelector('.top-action-label').textContent = '提醒已开';
           toast('系统提醒已开启；只在页面不活跃时提醒。');
         } else {
           toast('未开启系统通知；页内提醒仍然有效。', true);
@@ -2159,17 +2554,33 @@
           if (error?.name !== 'AbortError') toast(`请手动复制这个地址：${url}`, true);
         }
       });
-      $('#leaveButton').addEventListener('click', () => {
+      function leaveRoom() {
         if (socket?.readyState === WebSocket.OPEN) sendRaw({ type: 'leave' });
         hasJoined = false;
         connectionState = 'idle';
         intentionalLeave = true;
+        // Leaving is the one way out: forget the room identity so a reload lands on
+        // the login instead of walking back in.
+        clearResume();
+        resumeToken = null;
+        self = null;
+        roomEpoch = null;
         if (reconnectTimer) window.clearTimeout(reconnectTimer);
         reconnectTimer = null;
+        finishResume();
         stopTyping();
         typingUsers.clear();
         updateTypingLine();
         clearUnread();
+        closeImageViewer();
+        messages = [];
+        users = [];
+        pending.clear();
+        messageNodes.clear();
+        messageList.replaceChildren();
+        renderHistory();
+        renderPeople();
+        renderProfile(null);
         document.body.classList.remove('chat-active', 'sheet-open');
         mobileSheet.hidden = true;
         mobileSheetBackdrop.hidden = true;
@@ -2184,7 +2595,34 @@
         loginScreen.setAttribute('aria-hidden', 'false');
         loginError.textContent = '';
         loginForm.querySelector('.enter-button').disabled = false;
+        usernameInput.value = '';
         usernameInput.focus();
+      }
+
+      function closeSocketQuietly() {
+        if (socket) { try { socket.close(); } catch {} }
+        socket = null;
+      }
+
+      $('#leaveButton').addEventListener('click', () => {
+        // Confirm with a short grace period instead of a modal: a mis-tap can be
+        // undone by pressing again, and nothing leaves this browser until it lapses.
+        const button = $('#leaveButton');
+        if (button.classList.contains('confirming')) {
+          window.clearTimeout(leaveTimer);
+          leaveTimer = null;
+          button.classList.remove('confirming');
+          button.querySelector('.top-action-label').textContent = '离开';
+          leaveRoom();
+          return;
+        }
+        button.classList.add('confirming');
+        button.querySelector('.top-action-label').textContent = '确认离开';
+        leaveTimer = window.setTimeout(() => {
+          leaveTimer = null;
+          button.classList.remove('confirming');
+          button.querySelector('.top-action-label').textContent = '离开';
+        }, 3000);
       });
 
       window.addEventListener('online', () => { if (!intentionalLeave && !isSocketReady()) connect(); });
@@ -2198,16 +2636,220 @@
       if (!window.isSecureContext || !('Notification' in window)) {
         notifyButton.title = '系统提醒在当前地址不可用';
         notifyButton.setAttribute('aria-label', '系统提醒不可用，页内提醒仍然有效');
-        notifyButton.querySelector('span').textContent = '页内提醒';
+        notifyButton.querySelector('.top-action-label').textContent = '页内提醒';
       } else if (Notification.permission === 'granted') {
         notifyButton.classList.add('active');
         notifyButton.title = '系统提醒已开启';
-        notifyButton.querySelector('span').textContent = '提醒已开';
+        notifyButton.querySelector('.top-action-label').textContent = '提醒已开';
       } else if (Notification.permission === 'denied') {
         notifyButton.title = '系统提醒已被浏览器拒绝';
-        notifyButton.querySelector('span').textContent = '提醒已拒';
+        notifyButton.querySelector('.top-action-label').textContent = '提醒已拒';
       }
-      usernameInput.focus();
+
+      // ---- Image viewer -------------------------------------------------------
+      // Everything below is view-state only; the image itself always comes from the
+      // message the room already delivered, so nothing new is fetched from anywhere.
+
+      function viewerSetScale(next) {
+        if (!viewerMeta) return;
+        const scale = Math.min(8, Math.max(VIEWER_MIN_SCALE, next));
+        // Fit against the stage's content box: clientWidth includes the padding, and
+        // fitting to it would push the image past the edges on narrow screens.
+        const style = window.getComputedStyle(viewerStage);
+        const availableWidth = viewerStage.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+        const availableHeight = viewerStage.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+        const base = Math.min(availableWidth / viewerMeta.width, availableHeight / viewerMeta.height, 1) || 1;
+        viewerMeta.scale = scale;
+        viewerImage.style.width = `${Math.round(viewerMeta.width * base * scale)}px`;
+        viewerImage.style.transform = `rotate(${viewerMeta.rotation}deg)`;
+        viewerImage.classList.toggle('zoomed', scale !== 1);
+        viewerZoomLabel.textContent = `${Math.round(scale * 100)}%`;
+        viewerZoomIn.disabled = scale >= 8;
+        viewerZoomOut.disabled = scale <= VIEWER_MIN_SCALE;
+        viewerStage.scrollLeft = (viewerStage.scrollWidth - viewerStage.clientWidth) / 2;
+        viewerStage.scrollTop = (viewerStage.scrollHeight - viewerStage.clientHeight) / 2;
+      }
+
+      function viewerShowStatus(icon, text, spinning = false) {
+        viewerStatus.classList.toggle('spinning', spinning);
+        viewerStatus.innerHTML = text ? `${iconMarkup(icon)}<span>${escapeHtml(text)}</span>` : '';
+      }
+
+      function viewerUpdateChrome() {
+        const item = viewerItems[viewerIndexNow];
+        if (!item) return;
+        viewerImage.alt = `${item.author.username} 分享的图片`;
+        viewerAuthor.textContent = item.author.username;
+        viewerAvatar.innerHTML = avatarMarkup(item.author, '', false);
+        viewerWhen.textContent = `${formatDay(item.message.createdAt)} ${formatTime(item.message.createdAt)}`;
+        viewerDimension.textContent = `${item.message.image.width} × ${item.message.image.height}`;
+        const multiple = viewerItems.length > 1;
+        viewerPrev.hidden = !multiple;
+        viewerNext.hidden = !multiple;
+        viewerIndex.textContent = multiple ? `第 ${viewerIndexNow + 1} / ${viewerItems.length} 张` : '';
+        viewerDownload.href = item.message.image.src;
+        viewerDownload.download = `pavilo-${item.message.id}.png`;
+      }
+
+      function viewerLoad(index) {
+        if (!viewerItems.length) return;
+        viewerIndexNow = (index + viewerItems.length) % viewerItems.length;
+        const item = viewerItems[viewerIndexNow];
+        viewerMeta = { width: Number(item.message.image.width) || 1, height: Number(item.message.image.height) || 1, scale: 1, rotation: 0 };
+        viewerImage.dataset.loaded = 'false';
+        viewerImage.removeAttribute('src');
+        viewerShowStatus('loader-circle', '正在载入图片…', true);
+        viewerUpdateChrome();
+        viewerSetScale(1);
+        viewerImage.src = item.message.image.src;
+      }
+
+      function viewerStep(delta) {
+        if (viewerItems.length < 2) return;
+        viewerLoad(viewerIndexNow + delta);
+      }
+
+      function refreshViewerItems() {
+        viewerItems = messages
+          .filter((message) => message.kind === 'image' && message.image?.src)
+          .map((message) => ({ message, author: message.author || self || { username: '未知成员', avatarSeed: 0 } }));
+      }
+
+      function openImageViewer(messageId, opener) {
+        refreshViewerItems();
+        const index = viewerItems.findIndex((item) => item.message.id === messageId);
+        if (index === -1) return;
+        viewerOpener = opener || document.activeElement;
+        imageViewer.hidden = false;
+        imageViewer.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('viewer-open');
+        viewerLoad(index);
+        viewerClose.focus({ preventScroll: true });
+      }
+
+      function closeImageViewer() {
+        if (imageViewer.hidden) return;
+        imageViewer.hidden = true;
+        imageViewer.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('viewer-open');
+        viewerImage.removeAttribute('src');
+        viewerImage.dataset.loaded = 'false';
+        viewerMeta = null;
+        viewerItems = [];
+        viewerIndexNow = -1;
+        viewerShowStatus('', '');
+        const target = viewerOpener?.isConnected ? viewerOpener : null;
+        viewerOpener = null;
+        target?.focus({ preventScroll: true });
+      }
+
+      function viewerIsOpen() { return !imageViewer.hidden; }
+
+      function trapViewerFocus(event) {
+        if (!viewerIsOpen() || event.key !== 'Tab') return;
+        const focusable = [...imageViewer.querySelectorAll('button, [href]')].filter((item) => !item.disabled && !item.hidden);
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+
+      viewerImage.addEventListener('load', () => {
+        viewerImage.dataset.loaded = 'true';
+        viewerShowStatus('', '');
+        viewerSetScale(viewerMeta?.scale ?? 1);
+      });
+
+      viewerImage.addEventListener('error', () => {
+        if (!viewerImage.getAttribute('src')) return;
+        viewerShowStatus('circle-alert', '');
+        viewerStatus.innerHTML = `${iconMarkup('circle-alert')}<p class="viewer-error">这张图片没能载入。它可能已经随着临时历史一起消失了。</p>`;
+        viewerSetScale(viewerMeta?.scale ?? 1);
+      });
+
+      viewerZoomIn.addEventListener('click', () => viewerSetScale((viewerMeta?.scale ?? 1) * 1.25));
+      viewerZoomOut.addEventListener('click', () => viewerSetScale((viewerMeta?.scale ?? 1) / 1.25));
+      viewerRotate.addEventListener('click', () => {
+        if (!viewerMeta) return;
+        viewerMeta.rotation = (viewerMeta.rotation + 90) % 360;
+        viewerSetScale(viewerMeta.scale);
+      });
+      viewerReset.addEventListener('click', () => {
+        if (!viewerMeta) return;
+        viewerMeta.rotation = 0;
+        viewerSetScale(1);
+      });
+      viewerClose.addEventListener('click', closeImageViewer);
+      viewerPrev.addEventListener('click', () => viewerStep(-1));
+      viewerNext.addEventListener('click', () => viewerStep(1));
+
+      // Pointer panning and wheel zoom only make sense once the image is enlarged.
+      let viewerDrag = null;
+      viewerStage.addEventListener('pointerdown', (event) => {
+        if (!viewerMeta || viewerMeta.scale === 1 || event.button !== 0) return;
+        if (event.target.closest('.viewer-nav')) return;
+        viewerDrag = { x: event.clientX, y: event.clientY, left: viewerStage.scrollLeft, top: viewerStage.scrollTop };
+        viewerStage.classList.add('dragging');
+        viewerStage.setPointerCapture(event.pointerId);
+      });
+      viewerStage.addEventListener('pointermove', (event) => {
+        if (!viewerDrag) return;
+        viewerStage.scrollLeft = viewerDrag.left - (event.clientX - viewerDrag.x);
+        viewerStage.scrollTop = viewerDrag.top - (event.clientY - viewerDrag.y);
+      });
+      const endViewerDrag = () => {
+        viewerDrag = null;
+        viewerStage.classList.remove('dragging');
+      };
+      viewerStage.addEventListener('pointerup', endViewerDrag);
+      viewerStage.addEventListener('pointercancel', endViewerDrag);
+      viewerStage.addEventListener('wheel', (event) => {
+        if (!viewerMeta) return;
+        event.preventDefault();
+        viewerSetScale((viewerMeta.scale ?? 1) * (event.deltaY < 0 ? 1.12 : 1 / 1.12));
+      }, { passive: false });
+      viewerStage.addEventListener('dblclick', () => viewerSetScale((viewerMeta?.scale ?? 1) === 1 ? 2 : 1));
+      window.addEventListener('resize', () => { if (viewerIsOpen()) viewerSetScale(viewerMeta?.scale ?? 1); });
+
+      // Keyboard browsing is scoped to the viewer so the composer keeps its keys.
+      window.addEventListener('keydown', (event) => {
+        if (!viewerIsOpen()) return;
+        if (event.key === 'Escape') { event.preventDefault(); closeImageViewer(); return; }
+        if (event.key === 'ArrowLeft') { event.preventDefault(); viewerStep(-1); return; }
+        if (event.key === 'ArrowRight') { event.preventDefault(); viewerStep(1); return; }
+        if (event.key === '+' || event.key === '=') { event.preventDefault(); viewerSetScale((viewerMeta?.scale ?? 1) * 1.25); return; }
+        if (event.key === '-' || event.key === '_') { event.preventDefault(); viewerSetScale((viewerMeta?.scale ?? 1) / 1.25); return; }
+        if (event.key === '0') { event.preventDefault(); if (viewerMeta) { viewerMeta.rotation = 0; viewerSetScale(1); } return; }
+        if (event.key === 'r' || event.key === 'R') {
+          event.preventDefault();
+          if (viewerMeta) { viewerMeta.rotation = (viewerMeta.rotation + 90) % 360; viewerSetScale(viewerMeta.scale); }
+        }
+      }, true);
+
+      // A reload keeps the page you were on; the token decides whether that page is
+      // still the room. Without one there is nothing to resume, so show the login.
+      const savedResume = primeResume();
+      if (savedResume) {
+        self = { username: savedResume.username };
+        resumeToken = savedResume.token;
+        intentionalLeave = false;
+        // Keep the room on screen while the socket reattaches.
+        appShell.hidden = false;
+        appShell.setAttribute('aria-hidden', 'false');
+        loginScreen.setAttribute('aria-hidden', 'true');
+        document.body.classList.add('chat-active');
+        renderPeople();
+        renderHistory(true);
+        connect();
+      } else {
+        usernameInput.focus();
+      }
     })();
   </script>
   <script type="module">
