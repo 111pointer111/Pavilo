@@ -1,5 +1,9 @@
 # Pavilo / 语亭
 
+<p align="center">
+  <img src="docs/logo/pavilo-lockup.svg" width="520" alt="Pavilo / 语亭">
+</p>
+
 > 一条命令，给身边的人一间聊天室。
 
 Pavilo（**Pavilion + Local**）是一个浏览器即用、默认临时、可以自行托管的极简群聊。像一座随处可搭的小亭：启动 Node.js 进程，同一局域网里的人打开网页就能交谈，服务停止后一切回到空白。

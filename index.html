@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <meta name="theme-color" content="#eef4f2">
-  <link id="appFavicon" rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23dceee9'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-size='36' fill='%230f7772'%3E%E8%BF%91%3C/text%3E%3C/svg%3E">
+  <link id="appFavicon" rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23dceee9'/%3E%3Cg transform='scale(.25)'%3E%3Cpath fill='%230f7772' d='M127 46C119 47 113 61 105 69C87 87 66 99 37 108C30 110 32 119 40 124L51 129V199C51 205 56 210 63 210H84L98 189C87 186 81 180 81 171V142C81 133 86 129 95 122C111 111 122 101 129 89C137 103 147 113 161 122C171 129 175 135 175 143V171C175 183 168 190 156 192H116C108 194 102 201 96 207C92 210 94 210 101 210H193C200 210 205 205 205 198V129L217 123C225 119 225 110 219 108C187 98 166 84 152 70L134 48C132 45 130 45 127 46Z'/%3E%3Ccircle cx='196.7' cy='71.7' r='15.1' fill='%23e86f57'/%3E%3C/g%3E%3C/svg%3E">
   <title>Pavilo / 语亭</title>
   <script>
     // Runs in <head>, before the first paint: when this load may be a reload of a
@@ -108,31 +108,12 @@
     }
 
     .brand-mark {
-      position: relative;
-      display: grid;
+      display: block;
       width: 34px;
       height: 34px;
-      place-items: center;
-      border: 1.5px solid var(--teal);
-      border-radius: 50%;
-      color: var(--teal);
-      font-family: var(--display);
-      font-size: 19px;
-      line-height: 1;
-      transform: rotate(-8deg);
+      flex: 0 0 auto;
     }
-
-    .brand-mark::after {
-      position: absolute;
-      right: -4px;
-      bottom: 1px;
-      width: 7px;
-      height: 7px;
-      content: "";
-      border-radius: 50%;
-      background: var(--coral);
-      box-shadow: 0 0 0 4px rgba(232, 111, 87, .12);
-    }
+    .brand-mark svg { display: block; width: 100%; height: 100%; overflow: visible; }
 
     .brand-name {
       min-width: 0;
@@ -979,7 +960,12 @@
   <main class="app-shell" id="appShell" hidden aria-hidden="true">
     <header class="topbar">
       <a class="brand" href="#chat" aria-label="Pavilo 语亭聊天室">
-        <span class="brand-mark" aria-hidden="true">近</span>
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 256 256">
+            <path fill="#0f7772" d="M127 46C119 47 113 61 105 69C87 87 66 99 37 108C30 110 32 119 40 124L51 129V199C51 205 56 210 63 210H84L98 189C87 186 81 180 81 171V142C81 133 86 129 95 122C111 111 122 101 129 89C137 103 147 113 161 122C171 129 175 135 175 143V171C175 183 168 190 156 192H116C108 194 102 201 96 207C92 210 94 210 101 210H193C200 210 205 205 205 198V129L217 123C225 119 225 110 219 108C187 98 166 84 152 70L134 48C132 45 130 45 127 46Z"/>
+            <circle cx="196.7" cy="71.7" r="15.1" fill="#e86f57"/>
+          </svg>
+        </span>
         <span class="brand-name">Pavilo</span>
       </a>
       <div class="room-center">
@@ -1464,7 +1450,7 @@
         const baseTitle = 'Pavilo / 语亭';
         document.title = count ? `(${count > 99 ? '99+' : count}) ${baseTitle}` : baseTitle;
         const badge = count > 99 ? '99+' : String(count);
-        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="18" fill="#dceee9"/><text x="32" y="43" text-anchor="middle" font-size="36" fill="#0f7772">近</text>${count ? `<circle cx="49" cy="15" r="13" fill="#e86f57"/><text x="49" y="19" text-anchor="middle" font-size="10" font-family="sans-serif" font-weight="700" fill="white">${badge}</text>` : ''}</svg>`;
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="18" fill="#dceee9"/><g transform="scale(.25)"><path fill="#0f7772" d="M127 46C119 47 113 61 105 69C87 87 66 99 37 108C30 110 32 119 40 124L51 129V199C51 205 56 210 63 210H84L98 189C87 186 81 180 81 171V142C81 133 86 129 95 122C111 111 122 101 129 89C137 103 147 113 161 122C171 129 175 135 175 143V171C175 183 168 190 156 192H116C108 194 102 201 96 207C92 210 94 210 101 210H193C200 210 205 205 205 198V129L217 123C225 119 225 110 219 108C187 98 166 84 152 70L134 48C132 45 130 45 127 46Z"/>${count ? `<circle cx="200" cy="56" r="48" fill="#e86f57"/><text x="200" y="72" text-anchor="middle" font-size="40" font-family="sans-serif" font-weight="700" fill="white">${badge}</text>` : '<circle cx="196.7" cy="71.7" r="15.1" fill="#e86f57"/>'}</g></svg>`;
         appFavicon.href = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
       }
 
