@@ -1007,17 +1007,23 @@ function createChatServer(options = {}) {
     });
   }
 
-  async function serveIndex(request, response, headOnly = false) {
-    fs.readFile(path.join(ROOT, 'index.html'), async (error, data) => {
+  // `index.html` and `chat.css` are the only files Pavilo serves from its own root,
+  // and the loader in config.js refuses to treat either as a config source for the
+  // same reason. Both carry a CSP that allows the inline bootstrap script the page
+  // needs before the stylesheet has been parsed.
+  async function serveAppFile(request, response, filename, headOnly = false) {
+    const extension = path.extname(filename).toLowerCase();
+    const type = MIME_TYPES[extension] || 'application/octet-stream';
+    fs.readFile(path.join(ROOT, filename), async (error, data) => {
       if (error) {
         response.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
-        response.end(headOnly ? undefined : 'index.html is missing');
+        response.end(headOnly ? undefined : `${filename} is missing`);
         return;
       }
-      const etag = `"html-${data.length.toString(16)}-${crypto.createHash('sha1').update(data).digest('hex').slice(0, 16)}"`;
-      const encoded = await encodedBodyFor(request, etag, MIME_TYPES['.html'], data);
+      const etag = `"app-${data.length.toString(16)}-${crypto.createHash('sha1').update(data).digest('hex').slice(0, 16)}"`;
+      const encoded = await encodedBodyFor(request, etag, type, data);
       const headers = {
-        'Content-Type': MIME_TYPES['.html'],
+        'Content-Type': type,
         'Content-Length': encoded.contentLength,
         // Revalidate on every load so redeployments are picked up, while still
         // allowing a 304 — reloads keep the page they are already showing.
@@ -1092,7 +1098,11 @@ function createChatServer(options = {}) {
       return;
     }
     if ((request.method === 'GET' || isHead) && (requestUrl.pathname === '/' || requestUrl.pathname === '/index.html' || requestUrl.pathname === '/chat')) {
-      serveIndex(request, response, isHead);
+      serveAppFile(request, response, 'index.html', isHead);
+      return;
+    }
+    if ((request.method === 'GET' || isHead) && requestUrl.pathname === '/chat.css') {
+      serveAppFile(request, response, 'chat.css', isHead);
       return;
     }
     if ((request.method === 'GET' || isHead) && requestUrl.pathname.startsWith('/vendor/')) {

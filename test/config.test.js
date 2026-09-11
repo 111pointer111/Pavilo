@@ -266,6 +266,7 @@ test('rejects HTTP-public config paths and symlinks resolving to them', (t) => {
   t.after(() => fs.rmSync(vendorConfig, { force: true }));
   throwsMatch(() => loadConfig({ env: {}, configPath: vendorConfig }), /HTTP 公开路径/);
   throwsMatch(() => loadConfig({ env: {}, configPath: path.join(ROOT, 'index.html') }), /HTTP 公开路径/);
+  throwsMatch(() => loadConfig({ env: {}, configPath: path.join(ROOT, 'chat.css') }), /HTTP 公开路径/);
 
   const directory = temporaryDirectory(t);
   const symlink = path.join(directory, 'linked.yaml');

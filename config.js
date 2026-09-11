@@ -13,7 +13,9 @@ const MAX_USERS = 1000;
 const MAX_CHANNELS = 100;
 const MAX_MESSAGE_OVERHEAD_BYTES = 16 * 1024;
 const MAX_ROSTER_USER_BYTES = 512;
-const HTTP_PUBLIC_FILES = new Set(['index.html']);
+// Files Pavilo serves from its own root. Anything else there (including the YAML
+// config) stays private, see assertPrivateConfigPath below.
+const HTTP_PUBLIC_FILES = new Set(['index.html', 'chat.css']);
 
 const DEFAULTS = deepFreeze({
   port: 4173,

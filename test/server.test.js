@@ -530,6 +530,32 @@ test('rejects an image whose declared size exceeds the configured budget', async
   assert.equal(error.code, 'INVALID_IMAGE');
 });
 
+test('serves the stylesheet as a first-class asset, not a repository file', async (t) => {
+  const { baseUrl } = await startServer(t);
+
+  const css = await fetch(`${baseUrl}/chat.css`);
+  assert.equal(css.status, 200);
+  assert.match(css.headers.get('content-type'), /^text\/css/);
+  assert.ok(css.headers.get('etag'), 'chat.css should expose an ETag like the page does');
+  const body = await css.text();
+  assert.ok(body.includes('--paper'), 'the stylesheet should carry the page variables');
+  assert.ok(body.length > 10_000, 'the whole stylesheet should be served');
+
+  const head = await fetch(`${baseUrl}/chat.css`, { method: 'HEAD' });
+  assert.equal(head.status, 200);
+  assert.equal(await head.text(), '');
+  assert.equal(Number(head.headers.get('content-length')), Number(css.headers.get('content-length')));
+
+  // The page has to reference the served path, or the split silently breaks the UI.
+  const page = await (await fetch(`${baseUrl}/`)).text();
+  assert.ok(page.includes('href="/chat.css"'), 'index.html must link the extracted stylesheet');
+  assert.ok(!page.includes('<style>'), 'the stylesheet should no longer be inline');
+
+  // Still not a general-purpose file server.
+  const source = await fetch(`${baseUrl}/server.js`);
+  assert.equal(source.status, 404);
+});
+
 test('serves the vendored Lucide icon set used by the interface', async (t) => {
   const { baseUrl } = await startServer(t);
 
