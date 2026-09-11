@@ -793,19 +793,95 @@
     .enter-button { min-height: 43px; padding: 9px 16px; border: 1px solid var(--teal-deep); border-radius: 6px; background: var(--teal); color: #fff; cursor: pointer; font-size: 12px; font-weight: 800; }
     .enter-button:hover { background: var(--teal-deep); }
     .enter-button:disabled { cursor: wait; opacity: .62; }
+    /* 通知气泡：右上角一列，倒计时一满就自动隐去；鼠标停上去或键盘聚焦时暂停，移开继续。
+       --toast-life 同时决定脚本的存活毫秒数与进度条动画时长，两边只在这里定义一次。 */
+    /* The container is shrink-wrapped: its height is its content's height, so the
+       stack needs an explicit ceiling the script can measure against. */
     .toast-region {
       position: fixed;
-      z-index: 30;
+      z-index: 50;
+      top: max(20px, env(safe-area-inset-top));
       right: max(20px, env(safe-area-inset-right));
-      bottom: max(20px, env(safe-area-inset-bottom));
       display: grid;
-      gap: 7px;
-      width: min(310px, calc(100vw - 40px));
+      align-content: start;
+      gap: 9px;
+      max-height: 60dvh;
+      width: min(336px, calc(100vw - 32px));
       pointer-events: none;
     }
-    .toast { max-width: 100%; padding: 11px 13px; overflow-wrap: anywhere; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--paper); box-shadow: var(--shadow-float); color: var(--ink); font-size: 11px; line-height: 1.5; animation: toast-in .22s ease both; }
-    .toast.error { border-color: rgba(232, 111, 87, .42); }
-    @keyframes toast-in { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+    .toast {
+      --toast-life: 3600ms;
+      --toast-accent: var(--teal);
+      position: relative;
+      padding: 11px 8px 13px 12px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--toast-accent);
+      border-radius: 9px;
+      background: var(--paper);
+      box-shadow: 0 12px 30px rgba(24, 64, 64, .12);
+      color: var(--ink);
+      font-size: 11px;
+      line-height: 1.55;
+      pointer-events: auto;
+      animation: toast-in .26s cubic-bezier(.22, .9, .34, 1);
+    }
+    /* 语气色只在这里定义：脚本只管图标与标题，颜色全部由 data-variant 决定，
+       免得两处各写一份、改了一边忘了另一边。 */
+    .toast[data-variant="error"] { --toast-accent: var(--coral); }
+    .toast[data-variant="success"] { --toast-accent: var(--teal); }
+    .toast[data-variant="presence"] { --toast-accent: var(--ink-faint); }
+    /* 收起时反过来要 `both`：动画结束后元素保持透明，直到计时器把它摘掉，
+       中间不会闪回一帧不透明。 */
+    .toast.leaving { animation: toast-out .18s ease both; pointer-events: none; }
+    /* The countdown lives on a pseudo-element so the grid only ever has one row. */
+    .toast::after {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 0;
+      height: 2px;
+      background: var(--toast-accent);
+      opacity: .5;
+      content: "";
+      animation: toast-progress var(--toast-life) linear both;
+      animation-play-state: paused;
+      transition: opacity .18s ease;
+    }
+    .toast[data-ready]::after { animation-play-state: running; }
+    /* 暂停时的进度条要看得更清楚：它是“还剩多久”的唯一提示。 */
+    .toast[data-paused]::after { animation-play-state: paused; opacity: .85; }
+    .toast-head { display: flex; align-items: center; gap: 7px; }
+    .toast-icon { display: block; width: 14px; height: 14px; flex: 0 0 auto; color: var(--toast-accent); }
+    .toast-title { min-width: 0; flex: 1 1 auto; overflow: hidden; color: var(--ink); font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .1em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+    /* 20px 的点击区比视觉尺寸大，让内边距去吸收，不要用负外边距——负值会让按钮
+       向左溢出到正文之前，折叠成一行时就会看到 × 卡在文字中间。 */
+    .toast-close { display: grid; width: 20px; height: 20px; flex: 0 0 auto; place-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--ink-faint); cursor: pointer; }
+    .toast-close:hover { background: var(--teal-pale); color: var(--ink); }
+    .toast-close .icon { width: 12px; height: 12px; }
+    .toast-copy { margin: 6px 0 0; overflow-wrap: anywhere; color: var(--ink); }
+    /* Desktop selects the text anyway; only clamp on narrow screens. Holding or
+       focusing the toast is a request to read it, so the clamp lifts there. */
+    @media (min-width: 761px) { .toast-copy { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; } }
+    .toast.pinned .toast-copy { -webkit-line-clamp: unset; }
+    .toast-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 9px; }
+    .toast-action { min-height: 27px; padding: 4px 11px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--ink); cursor: pointer; font-size: 10px; font-weight: 700; letter-spacing: .04em; transition: border-color .18s ease, background .18s ease, color .18s ease; }
+    .toast-action:hover { border-color: var(--teal); background: var(--teal-pale); color: var(--teal-deep); }
+    /* Stack overflow: past four at once the oldest collapse to a one-line strip
+       so long join/leave runs cannot cover the room. */
+    .toast.compact { display: flex; align-items: center; gap: 7px; padding: 7px 8px 7px 10px; }
+    /* The strip reads icon → text → ×, so the head keeps its own width and the
+       copy takes the slack; flexing the head instead pushes × in front of it. */
+    .toast.compact .toast-head { flex: 0 0 auto; }
+    .toast.compact .toast-title { display: none; }
+    .toast.compact .toast-copy { min-width: 0; flex: 1 1 auto; margin: 0; overflow: hidden; color: var(--ink-soft); text-overflow: ellipsis; white-space: nowrap; }
+    .toast.compact .toast-foot { flex: 0 0 auto; margin: 0; }
+    /* One strip measures 36px, so the budget maths the script does stays honest. */
+    .toast.compact { min-height: 36px; }
+    .toast:focus-visible, .toast-close:focus-visible, .toast-action:focus-visible { outline: 3px solid rgba(232, 111, 87, .42); outline-offset: 2px; }
+    @keyframes toast-in { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes toast-out { to { opacity: 0; transform: translateX(22px); } }
+    @keyframes toast-progress { from { width: 100%; } to { width: 0; } }
 
     .mobile-members-button { display: none; }
     .mobile-sheet { display: none; }
@@ -834,6 +910,9 @@
       .brand-mark { width: 31px; height: 31px; flex: 0 0 auto; font-size: 17px; }
       .brand-name { font-size: 10px; letter-spacing: .16em; }
       .top-actions { gap: 6px; }
+      /* The header actions and the notification stack share the top-right corner,
+         so on one column the toasts drop below the header instead of over it. */
+      .toast-region { top: calc(max(12px, env(safe-area-inset-top)) + 62px); right: max(10px, env(safe-area-inset-right)); width: min(336px, calc(100vw - 20px)); }
       .top-actions .top-action-label { display: none; }
       .top-action { width: 44px; min-height: 44px; justify-content: center; padding: 7px; }
       .mobile-members-button { display: inline-flex; }
@@ -1146,7 +1225,7 @@
     </footer>
   </div>
 
-  <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+  <div class="toast-region" id="toastRegion" role="region" aria-label="页面通知"></div>
 
   <script src="/vendor/lucide/index.js"></script>
   <script>
@@ -1386,12 +1465,238 @@
         }
       }
 
-      function toast(message, isError = false) {
-        const item = document.createElement('div');
-        item.className = `toast${isError ? ' error' : ''}`;
-        item.textContent = message;
-        toastRegion.append(item);
-        window.setTimeout(() => item.remove(), 3600);
+      // 通知气泡。四种语气各自的图标与默认标题（语气色写在 .toast[data-variant]
+      // 规则里）；倒计时由 .toast::after 的进度条承担，脚本只在开始时把时长写进
+      // --toast-life，之后靠进度条的剩余宽度读回时间——暂停、恢复与存活计时因此
+      // 永远对得上，也不会出现两条定时器各走各的。
+      const TOAST_KINDS = {
+        info: { icon: 'bell', title: '通知' },
+        error: { icon: 'circle-alert', title: '出错了' },
+        success: { icon: 'circle-check', title: '已完成' },
+        presence: { icon: 'users-round', title: '有人进出' }
+      };
+      const TOAST_MAX_STACK = 6;       // 一屏最多挂几条
+      const TOAST_FULL_SLOTS = 3;      // 最多几张卡片保持完整展开
+      const TOAST_BUDGET_PX = 460;     // 整摞通知的像素预算，约等于半屏
+      const TOAST_ESTIMATED_FULL_PX = 66; // 一张完整卡片的大致高度，用于挑展开条数
+      const TOAST_SLIDE = 240;         // 收起动画时长，和 .toast-out 的 .18s 对齐
+      const APPEARANCE_BONUS = 5000;   // 页面在后台的这段时间，给每条通知补一段停留时间
+
+      function toastDuration(message) {
+        // 极短的一句来不及读，最长的一句也不必占满十秒。
+        return Math.max(2400, Math.min(6000, 1500 + message.length * 95));
+      }
+
+      function createToast(message, { kind = 'info', title, action, onAction, closeLabel } = {}) {
+        const tone = TOAST_KINDS[kind] || TOAST_KINDS.info;
+        const node = document.createElement('div');
+        node.className = 'toast';
+        node.dataset.variant = kind;
+        node.style.setProperty('--toast-life', `${toastDuration(message)}ms`);
+        node.innerHTML = `
+          <div class="toast-head">
+            ${iconMarkup(tone.icon)}
+            <span class="toast-title">${escapeHtml(title || tone.title)}</span>
+            <button class="toast-close" type="button" aria-label="${escapeHtml(closeLabel || '关闭通知')}"></button>
+          </div>
+          <p class="toast-copy"></p>
+          <div class="toast-foot" hidden></div>`;
+        node.querySelector('.toast-copy').textContent = message; // 用户与房间的内容一律走 textContent
+        node.querySelector('.toast-close').innerHTML = iconMarkup('x');
+
+        let closed = false;
+        let onClose = null;
+        const state = { node, until: 0, hovered: false, held: false, timer: 0 };
+
+        function dismiss() {
+          if (closed) return;
+          closed = true;
+          window.clearInterval(state.timer);
+          state.timer = 0;
+          if (onClose) onClose();
+          node.classList.add('leaving');
+          window.setTimeout(() => {
+            node.remove();
+            // The stack is normally kept under TOAST_MAX_STACK, so this is only for
+            // the path where 离开 clears every notice at once.
+            if (!toastRegion.querySelector('.toast')) toastStack.compactAll(true);
+          }, TOAST_SLIDE);
+        }
+        state.dismiss = dismiss;
+        // The slide-out removes the node on its own; the timer below stays as the
+        // fallback for reduced-motion, where that animation never actually runs.
+        node.addEventListener('animationend', (event) => { if (event.animationName === 'toast-out' && closed) node.remove(); });
+        node.querySelector('.toast-close').addEventListener('click', dismiss);
+
+        const foot = node.querySelector('.toast-foot');
+        if (action) {
+          const button = document.createElement('button');
+          button.className = 'toast-action';
+          button.type = 'button';
+          button.textContent = action;
+          button.addEventListener('click', () => { dismiss(); onAction?.(); });
+          // 带按钮的通知不自己走掉：多半需要人点一下，或者干脆不理它。
+          state.held = true;
+          foot.append(button);
+        }
+        if (!state.held) state.until = Date.now() + toastDuration(message);
+
+        // requestAnimationFrame 在后台页会一直不触发，所以用双重 rAF 之外再加一个定时器兜底，
+        // 免得切标签页时通知永远停在“还没开始”的状态。
+        let armed = false;
+        const arm = () => {
+          if (armed || closed) return;
+          armed = true;
+          node.dataset.ready = '';
+        };
+        requestAnimationFrame(() => requestAnimationFrame(arm));
+        window.setTimeout(arm, 48);
+
+        onClose = toastStack.open(state, message);
+        node.addEventListener('pointerenter', () => toastStack.setHover(state, true));
+        node.addEventListener('pointerleave', () => toastStack.setHover(state, false));
+        node.addEventListener('focusin', () => toastStack.setHover(state, true));
+        // focusout 先让浏览器把焦点交出去，否则 contains(document.activeElement) 还是旧值。
+        node.addEventListener('focusout', () => window.setTimeout(() => toastStack.setHover(state, node.contains(document.activeElement)), 0));
+        return { node, dismiss };
+      }
+
+      const toastStack = {
+        items: [],
+
+        open(state, message) {
+          this.items.push(state);
+          toastRegion.prepend(state.node);
+          while (this.items.length > TOAST_MAX_STACK) this.drop(this.items[0], true);
+          this.compactAll(false);
+          state.timer = window.setInterval(() => this.tick(state), 32);
+          return () => { window.clearInterval(state.timer); state.timer = 0; };
+        },
+
+        drop(state, immediate) {
+          window.clearInterval(state.timer);
+          state.timer = 0;
+          const index = this.items.indexOf(state);
+          if (index >= 0) this.items.splice(index, 1);
+          if (immediate) state.node.remove();
+          else state.dismiss();
+        },
+
+        // 悬浮与键盘聚焦都能暂停，进度条和存活时间一起停。
+        setHover(state, hovered) {
+          if (state.hovered === hovered) return;
+          state.hovered = hovered;
+          state.node.classList.toggle('pinned', hovered);
+          this.syncPause();
+        },
+
+        syncPause() {
+          for (const state of this.items) {
+            const paused = state.hovered || state.held;
+            state.node.toggleAttribute('data-paused', paused);
+            if (paused) {
+              if (state.timer) { window.clearInterval(state.timer); state.timer = 0; }
+              state.remaining = Math.max(0, state.until - Date.now());
+            } else if (state.until) {
+              // 进度条是暂停时读回剩余时间的唯一来源，恢复时把存活计时重新对准它。
+              state.until = Date.now() + state.remaining;
+              state.timer = window.setInterval(() => this.tick(state), 32);
+            }
+          }
+        },
+
+        tick(state) {
+          if (state.node.hasAttribute('data-paused')) return;
+          state.remaining = state.held ? 0 : Math.max(0, state.until - Date.now());
+          if (state.held || state.remaining > 0) return;
+          const computed = getComputedStyle(state.node, '::after');
+          const life = parseFloat(getComputedStyle(state.node).getPropertyValue('--toast-life')) || 0;
+          const bar = parseFloat(computed.width) || 0;
+          const host = state.node.offsetWidth;
+          // 节点一旦脱离文档，offsetWidth 是 0，这里会算出 0/0；那就只能按进度条绝对宽度估。
+          const left = bar > 1 ? (host ? life * (bar / host) : bar) : 0;
+          if (left > 80) {
+            // 进度条还没走完，说明动画比存活计时慢一点，跟着它再等一小段。
+            state.until = Date.now() + Math.min(400, left);
+            state.remaining = state.until - Date.now();
+            return;
+          }
+          this.drop(state, false);
+        },
+
+        // 存活计时以 --toast-life 为准：进度条读到哪儿，剩下的时间就是多少。
+        resync() {
+          for (const state of this.items) {
+            if (state.held) continue;
+            const width = parseFloat(getComputedStyle(state.node, '::after').width);
+            if (Number.isNaN(width)) continue;
+            const fraction = Math.min(1, Math.max(0, width / (state.node.offsetWidth || 1)));
+            const life = parseFloat(getComputedStyle(state.node).getPropertyValue('--toast-life')) || 0;
+            state.until = Date.now() + life * fraction;
+          }
+        },
+
+        // 容器本身是收缩包裹的，clientHeight 永远等于内容高度，拿它当上限等于没有上限；
+        // 所以这里用视口高度算。全部折叠完仍然放不下时就停手，免得空转。
+        syncCompact() {
+          const limit = window.innerHeight * .6;
+          let guard = this.items.length;
+          while (this.items.length > 1 && guard-- > 0 && this.stackHeight() > limit) {
+            if (!this.compactOldest()) break;
+          }
+        },
+
+        stackHeight() {
+          const gap = parseFloat(getComputedStyle(toastRegion).rowGap) || 0;
+          return this.items.reduce((sum, state) =>
+            sum + state.node.getBoundingClientRect().height + (state.node === this.items.at(-1) ? 0 : gap), 0);
+        },
+
+        // 一屏最多摆下 TOAST_FULL_SLOTS 张完整卡片，再多的位置归最新那条；其余全部
+        // 折成一行，而不是每来一条只折一条——否则中途会挂着半屏展开的卡片。
+        compactAll(relaxed) {
+          const slots = Math.max(1, Math.min(TOAST_FULL_SLOTS, Math.floor(TOAST_BUDGET_PX / TOAST_ESTIMATED_FULL_PX)));
+          const expanded = relaxed ? this.items : this.items.slice(-slots);
+          for (const state of this.items) {
+            const compact = !expanded.includes(state);
+            state.node.classList.toggle('compact', compact);
+            const copy = state.node.querySelector('.toast-copy');
+            if (compact) copy.title = copy.textContent;
+            else copy.removeAttribute('title');
+          }
+          this.syncCompact();
+        },
+
+        // 返回这次是否真的折叠了谁；没有可折叠的条目时调用方必须收手。
+        compactOldest() {
+          const state = this.items.find((item) => !item.node.classList.contains('compact'));
+          if (!state) return false;
+          state.node.classList.add('compact');
+          return true;
+        },
+
+        clear() {
+          for (const state of this.items.splice(0)) {
+            window.clearInterval(state.timer);
+            state.timer = 0;
+            state.node.remove();
+          }
+        }
+      };
+
+      // --toast-life 是暂停时读回剩余时间的唯一来源，窗口尺寸一变就可能重算，
+      // 所以尺寸变化和切回后台页时都把存活计时重新对准进度条。
+      function layoutToasts() {
+        toastStack.syncCompact();
+        toastStack.resync();
+      }
+      window.addEventListener('resize', layoutToasts);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) toastStack.resync(); });
+
+      // 兼容旧调用：toast(消息) / toast(消息, true)。
+      function toast(message, variant = 'info') {
+        const kind = variant === true ? 'error' : variant === false ? 'info' : variant;
+        return createToast(message, { kind });
       }
 
       function makeClientMessageId() {
@@ -2145,11 +2450,11 @@
           const roomVisible = appShell.hidden === false;
           if (payload.action === 'reconnect') return;
           if (payload.userId === self?.id) {
-            if (roomVisible) toast(`你已回到频道${payload.username ? `（${payload.username}）` : ''}`);
+            if (roomVisible) toast(`你已回到频道${payload.username ? `（${payload.username}）` : ''}`, 'success');
             return;
           }
           if (!roomVisible) return;
-          toast(payload.action === 'join' ? `${payload.user.username} 进入了频道` : `${payload.username} 离开了频道`);
+          toast(payload.action === 'join' ? `${payload.user.username} 进入了频道` : `${payload.username} 离开了频道`, 'presence');
           return;
         }
         if (payload.type === 'ack') {
@@ -2499,8 +2804,16 @@
       messageScroll.addEventListener('scroll', maybeClearUnread, { passive: true });
       window.addEventListener('focus', maybeClearUnread);
       document.addEventListener('visibilitychange', () => {
-        if (document.hidden) stopTyping();
-        else maybeClearUnread();
+        if (document.hidden) {
+          stopTyping();
+          // 攒着的通知没有人在看，回到页面时再说一次。
+          for (const state of toastStack.items) {
+            if (!state.held) state.until += APPEARANCE_BONUS;
+          }
+        } else {
+          toastStack.resync();
+          maybeClearUnread();
+        }
       });
       composerText.addEventListener('blur', stopTyping);
 
