@@ -453,19 +453,44 @@
     .message-action.reaction-action svg { width: 16px; height: 16px; }
     .message-action.reaction-action .reaction-plus { position: absolute; right: 2px; bottom: 2px; width: 10px; height: 10px; border-radius: 50%; background: var(--teal-pale); stroke-width: 2.4; }
 
-    .reaction-popover {
+    .reaction-popover, .composer-popover {
       position: fixed;
       z-index: 60;
-      width: 344px;
       max-width: calc(100vw - 16px);
       border: 1px solid var(--line-strong);
       border-radius: 10px;
       background: var(--paper);
       box-shadow: var(--shadow-float);
     }
-    .reaction-popover[hidden] { display: none; }
-    .reaction-popover emoji-picker,
-    .emoji-tray emoji-picker {
+    .reaction-popover[hidden], .composer-popover[hidden] { display: none; }
+
+    .reaction-choice-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 2px;
+      padding: 6px;
+    }
+    .reaction-choice {
+      display: grid;
+      width: 42px;
+      height: 42px;
+      place-items: center;
+      padding: 0;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      cursor: pointer;
+      font-size: 24px;
+      line-height: 1;
+    }
+    .reaction-choice:hover { background: var(--yellow-pale); }
+    .reaction-choice:focus-visible { outline-offset: 1px; }
+    .reaction-choice.active { border-color: var(--teal); background: var(--teal-pale); }
+    @media (hover: none), (pointer: coarse) {
+      .reaction-choice { width: 46px; height: 46px; font-size: 26px; }
+    }
+
+    .composer-popover emoji-picker {
       --background: var(--paper);
       --border-color: var(--line);
       --border-radius: 9px;
@@ -477,10 +502,11 @@
       --button-hover-background: var(--teal-pale);
       --button-active-background: var(--teal-pale);
       --outline-color: rgba(232, 111, 87, .42);
-      width: 100%;
+      color-scheme: light;
+      width: 344px;
+      max-width: calc(100vw - 16px);
+      height: min(360px, 60dvh);
     }
-    .reaction-popover emoji-picker { height: min(360px, 60dvh); }
-    .emoji-tray emoji-picker { height: min(300px, 42dvh); }
 
     .typing-line {
       min-width: 0;
@@ -568,11 +594,6 @@
     .send-button:hover { background: var(--teal-deep); transform: translateY(-1px); }
     .send-button:disabled { cursor: not-allowed; opacity: .48; transform: none; }
     .send-button svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
-
-    .emoji-tray {
-      max-width: 520px;
-      padding: 8px 0 0;
-    }
 
     .people-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 13px; }
     .people-count { color: var(--teal-deep); font-family: var(--mono); font-size: 11px; font-weight: 800; }
@@ -699,7 +720,6 @@
       .message-actions { position: static; width: fit-content; margin-top: 6px; opacity: 1; transform: none; }
       .message-action { min-width: 44px; min-height: 44px; justify-content: center; }
       .message-action.reaction-action { min-width: 44px; min-height: 44px; }
-      .emoji-tray { max-width: none; }
       .login-card { padding: 28px 23px 24px; }
       .mobile-sheet-backdrop {
         position: fixed;
@@ -860,7 +880,7 @@
           </div>
           <form class="composer" id="composer">
             <div class="composer-tools">
-              <button class="composer-button" id="emojiButton" type="button" aria-label="打开表情" aria-expanded="false" aria-controls="emojiTray">
+              <button class="composer-button" id="emojiButton" type="button" aria-label="打开表情" aria-expanded="false" aria-controls="emojiPopover">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 14.5c1.8 2 5.2 2 7 0M9 9.5h.01M15 9.5h.01"/></svg>
               </button>
               <button class="composer-button" id="attachmentButton" type="button" aria-label="发送图片">
@@ -874,9 +894,6 @@
             </button>
             <input id="imageInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
           </form>
-          <div class="emoji-tray" id="emojiTray" hidden>
-            <emoji-picker id="composerPicker" locale="zh" data-source="/vendor/emoji-picker/data.json"></emoji-picker>
-          </div>
         </div>
       </section>
 
@@ -916,7 +933,10 @@
   </aside>
 
   <div class="reaction-popover" id="reactionPopover" hidden>
-    <emoji-picker id="reactionPicker" locale="zh" data-source="/vendor/emoji-picker/data.json"></emoji-picker>
+    <div class="reaction-choice-grid" id="reactionChoices" role="group" aria-label="表情回应"></div>
+  </div>
+  <div class="composer-popover" id="composerPopover" hidden>
+    <emoji-picker id="composerPicker" locale="zh" data-source="/vendor/emoji-picker/data.json"></emoji-picker>
   </div>
 
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
@@ -933,6 +953,7 @@
       const PROTOCOL_VERSION = 2;
       const CLIENT_SESSION_ID = (globalThis.crypto?.randomUUID?.() || `cs_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 96);
       const AVATAR_SEED = globalThis.crypto?.getRandomValues ? globalThis.crypto.getRandomValues(new Uint32Array(1))[0] : Math.floor(Math.random() * 0x7fffffff);
+      const REACTION_EMOJIS = ['👍', '❤️', '😂', '🎉', '👀', '🔥'];
       const AVATAR_COLORS = [
         ['#dceee9', '#0f7772', '#f4c85f'],
         ['#fbe4dc', '#b34d46', '#e86f57'],
@@ -958,10 +979,10 @@
       const sendButton = $('#sendButton');
       const imageInput = $('#imageInput');
       const emojiButton = $('#emojiButton');
-      const emojiTray = $('#emojiTray');
+      const composerPopover = $('#composerPopover');
       const composerPicker = $('#composerPicker');
       const reactionPopover = $('#reactionPopover');
-      const reactionPicker = $('#reactionPicker');
+      const reactionChoices = $('#reactionChoices');
       let reactionMessageId = null;
       const replyingBar = $('#replyingBar');
       const replyingName = $('#replyingName');
@@ -1383,26 +1404,38 @@
         else picker?.focus();
       }
 
-      function positionReactionPopover(anchor) {
+      function positionPopover(popover, anchor, heightHint) {
         const rect = anchor.getBoundingClientRect();
-        const width = reactionPopover.offsetWidth || 344;
-        const height = reactionPopover.offsetHeight || 360;
-        const left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8));
+        const width = popover.offsetWidth || 344;
+        const height = popover.offsetHeight || heightHint;
+        let left = anchor.dataset.popoverAlign === 'right'
+          ? Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8))
+          : Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
         let top = rect.bottom + 6;
         if (top + height > window.innerHeight - 8) top = Math.max(8, rect.top - height - 6);
-        reactionPopover.style.left = `${left}px`;
-        reactionPopover.style.top = `${top}px`;
+        popover.style.left = `${left}px`;
+        popover.style.top = `${top}px`;
       }
 
-      function openReactionPopover(messageId, anchor, { focus = true } = {}) {
+      function renderReactionChoices() {
+        const message = messages.find((item) => item.id === reactionMessageId);
+        const reactions = message?.reactions || {};
+        reactionChoices.innerHTML = REACTION_EMOJIS.map((emoji) => {
+          const item = reactions[emoji];
+          const active = Boolean(item?.userIds?.includes(self?.id));
+          return `<button class="reaction-choice${active ? ' active' : ''}" type="button" data-emoji="${escapeHtml(emoji)}" aria-label="${escapeHtml(emoji)}${active ? '，取消回应' : ''}" aria-pressed="${active}">${escapeHtml(emoji)}</button>`;
+        }).join('');
+      }
+
+      function openReactionPopover(messageId, anchor) {
         if (!reactionPopover.hidden && reactionMessageId === messageId) {
           closeReactionPopover();
           return;
         }
         reactionMessageId = messageId;
+        renderReactionChoices();
         reactionPopover.hidden = false;
-        positionReactionPopover(anchor);
-        if (focus) queueMicrotask(() => focusPickerSearch(reactionPicker));
+        positionPopover(reactionPopover, anchor, 60);
       }
 
       function closeReactionPopover() {
@@ -1411,14 +1444,39 @@
         reactionMessageId = null;
       }
 
-      reactionPicker.addEventListener('emoji-click', (event) => {
-        const emoji = event.detail?.unicode || event.detail?.emoji?.emoji;
-        if (!emoji || !reactionMessageId) return;
-        const message = messages.find((item) => item.id === reactionMessageId);
-        const already = Boolean(message?.reactions?.[emoji]?.userIds?.includes(self?.id));
-        send({ type: 'reaction', messageId: reactionMessageId, emoji, active: !already });
+      reactionChoices.addEventListener('click', (event) => {
+        const button = event.target.closest('.reaction-choice');
+        if (!button || !reactionMessageId) return;
+        send({ type: 'reaction', messageId: reactionMessageId, emoji: button.dataset.emoji, active: button.getAttribute('aria-pressed') !== 'true' });
         closeReactionPopover();
         messageScroll.focus({ preventScroll: true });
+      });
+
+      function openComposerPopover() {
+        if (!composerPopover.hidden) {
+          closeComposerPopover();
+          return;
+        }
+        closeReactionPopover();
+        composerPopover.hidden = false;
+        positionPopover(composerPopover, emojiButton, 360);
+        queueMicrotask(() => focusPickerSearch(composerPicker));
+      }
+
+      function closeComposerPopover() {
+        if (composerPopover.hidden) return;
+        composerPopover.hidden = true;
+      }
+
+      composerPicker.addEventListener('emoji-click', (event) => {
+        const emoji = event.detail?.unicode || event.detail?.emoji?.emoji;
+        if (!emoji) return;
+        const start = composerText.selectionStart;
+        const end = composerText.selectionEnd;
+        composerText.value = `${composerText.value.slice(0, start)}${emoji}${composerText.value.slice(end)}`;
+        composerText.selectionStart = composerText.selectionEnd = start + emoji.length;
+        composerText.focus();
+        updateComposer();
       });
 
       function applyPrune(removedIds) {
@@ -1977,29 +2035,8 @@
       });
       $('#cancelReplyButton').addEventListener('click', clearReply);
       $('#emojiButton').addEventListener('click', () => {
-        emojiTray.hidden = !emojiTray.hidden;
-        emojiButton.setAttribute('aria-expanded', String(!emojiTray.hidden));
-        if (!emojiTray.hidden) {
-          closeReactionPopover();
-          queueMicrotask(() => focusPickerSearch(composerPicker));
-        }
-      });
-      emojiTray.addEventListener('emoji-click', (event) => {
-        const emoji = event.detail?.unicode || event.detail?.emoji?.emoji;
-        if (!emoji) return;
-        const start = composerText.selectionStart;
-        const end = composerText.selectionEnd;
-        composerText.value = `${composerText.value.slice(0, start)}${emoji}${composerText.value.slice(end)}`;
-        composerText.selectionStart = composerText.selectionEnd = start + emoji.length;
-        composerText.focus();
-        updateComposer();
-      });
-      emojiTray.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') {
-          emojiTray.hidden = true;
-          emojiButton.setAttribute('aria-expanded', 'false');
-          emojiButton.focus();
-        }
+        openComposerPopover();
+        emojiButton.setAttribute('aria-expanded', String(!composerPopover.hidden));
       });
       $('#imageInput').addEventListener('change', () => { sendImage(imageInput.files[0]); imageInput.value = ''; });
       $('#attachmentButton').addEventListener('click', () => imageInput.click());
@@ -2056,8 +2093,8 @@
         trapMobileSheetFocus(event);
         if (event.key === 'Escape') {
           if (!reactionPopover.hidden) closeReactionPopover();
-          else if (!emojiTray.hidden) {
-            emojiTray.hidden = true;
+          else if (!composerPopover.hidden) {
+            closeComposerPopover();
             emojiButton.setAttribute('aria-expanded', 'false');
             emojiButton.focus();
           }
@@ -2066,9 +2103,13 @@
       });
       document.addEventListener('pointerdown', (event) => {
         if (!reactionPopover.hidden && !reactionPopover.contains(event.target)) closeReactionPopover();
+        if (!composerPopover.hidden && !composerPopover.contains(event.target)) {
+          closeComposerPopover();
+          emojiButton.setAttribute('aria-expanded', 'false');
+        }
       });
-      messageScroll.addEventListener('scroll', () => closeReactionPopover(), { passive: true });
-      window.addEventListener('resize', () => closeReactionPopover());
+      messageScroll.addEventListener('scroll', () => { closeReactionPopover(); closeComposerPopover(); }, { passive: true });
+      window.addEventListener('resize', () => { closeReactionPopover(); closeComposerPopover(); });
 
       newMessageJump.addEventListener('click', () => {
         messageScroll.scrollTo({ top: messageScroll.scrollHeight, behavior: 'smooth' });
