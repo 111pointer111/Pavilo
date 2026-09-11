@@ -237,8 +237,12 @@
 
     .channel:hover { background: rgba(220, 238, 233, .58); color: var(--ink); }
     .channel.active { background: var(--teal-pale); color: var(--teal-deep); font-weight: 800; }
+    .channel:disabled { cursor: not-allowed; opacity: .48; }
+    .channel:disabled:hover { background: transparent; color: var(--ink-soft); }
+    .channel.active:disabled { background: var(--teal-pale); color: var(--teal-deep); opacity: .7; }
     .channel-hash { color: var(--teal); font-family: var(--mono); font-size: 16px; font-weight: 400; }
     .channel-meta { margin-left: auto; color: var(--ink-faint); font-family: var(--mono); font-size: 9px; }
+    .mobile-channel-picker { display: none; }
 
     .ephemeral-note {
       margin-top: auto;
@@ -920,7 +924,10 @@
       .rail, .info-panel { display: none; }
       .chat { height: 100%; min-height: 0; }
       .chat-header { align-items: flex-start; padding: 15px 15px 13px; gap: 9px; }
+      .chat-heading { flex: 1 1 auto; }
       .chat-heading h1 { font-size: 25px; }
+      .mobile-channel-picker { display: block; width: min(42vw, 180px); min-height: 44px; flex: 0 1 180px; padding: 8px 30px 8px 10px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--paper); color: var(--teal-deep); font-size: 12px; font-weight: 800; }
+      .mobile-channel-picker:disabled { cursor: wait; opacity: .58; }
       .room-privacy { display: none; }
       .message-list { padding: 12px 14px 20px; }
       .message { grid-template-columns: 35px minmax(0, 1fr); gap: 9px; margin-left: -5px; padding: 8px 5px; }
@@ -1048,8 +1055,8 @@
         <span class="brand-name">Pavilo</span>
       </a>
       <div class="room-center">
-        <p class="room-kicker">Local / 01</p>
-        <p class="room-title">语亭 · 临时频道</p>
+        <p class="room-kicker" id="roomKicker">Local / 01</p>
+        <p class="room-title" id="roomTitle">语亭 · 临时频道</p>
       </div>
       <div class="top-actions">
         <button class="top-action" id="copyLinkButton" type="button" title="分享或复制局域网地址">
@@ -1076,12 +1083,9 @@
         <div class="channel-block">
           <div class="channel-heading">
             <p class="section-label">频道</p>
-            <span class="channel-count">01</span>
+            <span class="channel-count" id="channelCount">01</span>
           </div>
-          <nav class="channel-list" aria-label="频道列表">
-            <button class="channel active" type="button"><span class="channel-hash">#</span><span>闲聊 · general</span><span class="channel-meta">LIVE</span></button>
-            <button class="channel" type="button" disabled><span class="channel-hash">#</span><span>待定 · later</span><span class="channel-meta">—</span></button>
-          </nav>
+          <nav class="channel-list" id="channelList" aria-label="频道列表"></nav>
         </div>
         <div class="ephemeral-note">
           <strong>只在此刻</strong>
@@ -1097,7 +1101,8 @@
             <h1 id="roomHeading">闲聊 · general</h1>
             <p class="chat-subline"><span class="live-dot" id="connectionDot"></span><span id="connectionText" role="status" aria-live="polite" aria-atomic="true">连接中…</span><span aria-hidden="true">·</span><span id="messageCount">0 条消息</span></p>
           </div>
-          <div class="room-privacy">同一 Wi‑Fi 的人可以看见这里<br>头像是随机的，不代表身份</div>
+          <select class="mobile-channel-picker" id="mobileChannelPicker" aria-label="切换频道" disabled></select>
+          <div class="room-privacy" id="channelDescription">同一 Wi‑Fi 的人可以看见这里<br>头像是随机的，不代表身份</div>
         </header>
 
         <div class="message-scroll" id="messageScroll" tabindex="0" role="log" aria-live="polite" aria-relevant="additions" aria-label="消息列表">
@@ -1230,15 +1235,19 @@
   <script src="/vendor/lucide/index.js"></script>
   <script>
     (() => {
-      const MAX_IMAGE_BYTES = 1_500_000;
+      let MAX_IMAGE_BYTES = 1_500_000;
+      let MAX_IMAGE_DIMENSION = 4096;
+      let MAX_IMAGE_PIXELS = 16_000_000;
       const MAX_PENDING = 32;
       const MAX_PENDING_IMAGE_BYTES = 4_000_000;
-      const MAX_MESSAGES = 300;
+      let MAX_MESSAGES = 300;
       const ACK_TIMEOUT = 8_000;
       const TYPING_INTERVAL = 900;
       const TYPING_EXPIRY = 4_500;
-      const PROTOCOL_VERSION = 2;
+      const PROTOCOL_VERSION = 3;
       const RESUME_KEY = 'pavilo.resume';
+      const CHANNEL_KEY = 'pavilo.channel';
+      const ROOM_INFO_RETRY_DELAY = 2_000;
       const VIEWER_MIN_SCALE = .25;
       const CLIENT_SESSION_ID = (globalThis.crypto?.randomUUID?.() || `cs_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 96);
       const AVATAR_SEED = globalThis.crypto?.getRandomValues ? globalThis.crypto.getRandomValues(new Uint32Array(1))[0] : Math.floor(Math.random() * 0x7fffffff);
@@ -1288,6 +1297,18 @@
         try { sessionStorage.removeItem(RESUME_KEY); } catch { /* nothing to clear */ }
       }
 
+      function readChannelId() {
+        try { return sessionStorage.getItem(CHANNEL_KEY) || null; } catch { return null; }
+      }
+
+      function writeChannelId(channelId) {
+        try { sessionStorage.setItem(CHANNEL_KEY, channelId); } catch { /* private mode: use the active channel until reload */ }
+      }
+
+      function clearChannelId() {
+        try { sessionStorage.removeItem(CHANNEL_KEY); } catch { /* nothing to clear */ }
+      }
+
       const loginScreen = $('#loginScreen');
       const appShell = $('#appShell');
       const loginForm = $('#loginForm');
@@ -1297,6 +1318,9 @@
       const newMessageJump = $('#newMessageJump');
       const newMessageCount = $('#newMessageCount');
       const messageList = $('#messageList');
+      const channelList = $('#channelList');
+      const mobileChannelPicker = $('#mobileChannelPicker');
+      const channelDescription = $('#channelDescription');
       const peopleList = $('#peopleList');
       const composer = $('#composer');
       const composerText = $('#composerText');
@@ -1367,7 +1391,15 @@
       let unreadCount = 0;
       let nativeNotification = null;
       let notificationNoticeShown = false;
-      let roomInfo;
+      let roomInfo = null;
+      let roomInfoReady = false;
+      let roomInfoPromise = null;
+      let roomInfoRetryTimer = null;
+      let currentChannelId = null;
+      let requestedChannelId = null;
+      let switchingChannel = false;
+      let imageProcessingCount = 0;
+      let roomChannels = [];
       let mobileSheetOpener = null;
       let viewerItems = [];
       let viewerIndexNow = -1;
@@ -1377,6 +1409,162 @@
       const messageNodes = new Map();
       const knownMessageKeys = new Set();
       const typingUsers = new Map();
+
+      function channelById(channelId) {
+        return roomChannels.find((channel) => channel.id === channelId) || null;
+      }
+
+      function activeChannel() {
+        return channelById(currentChannelId);
+      }
+
+      function updateChannelChrome() {
+        const channel = activeChannel();
+        $('#roomTitle').textContent = roomInfo?.roomTitle || '语亭 · 临时频道';
+        if (!channel) return;
+        $('#roomHeading').textContent = `${channel.name} · ${channel.id}`;
+        $('#roomKicker').textContent = `Local / ${String(roomChannels.indexOf(channel) + 1).padStart(2, '0')}`;
+        channelDescription.textContent = channel.description || '同一 Wi‑Fi 的人可以看见这里';
+      }
+
+      function renderChannels() {
+        $('#channelCount').textContent = String(roomChannels.filter((channel) => channel.enabled).length).padStart(2, '0');
+        channelList.replaceChildren(...roomChannels.map((channel) => {
+          const button = document.createElement('button');
+          const active = channel.id === currentChannelId;
+          button.className = `channel${active ? ' active' : ''}`;
+          button.type = 'button';
+          button.disabled = switchingChannel || !channel.enabled;
+          button.title = !channel.enabled ? `${channel.name}（已停用）` : channel.description || channel.name;
+          button.setAttribute('aria-current', active ? 'page' : 'false');
+          button.innerHTML = `<span class="channel-hash">#</span><span>${escapeHtml(channel.name)} · ${escapeHtml(channel.id)}</span><span class="channel-meta">${channel.enabled ? `≤${channel.maxUsers}` : '停用'}</span>`;
+          button.addEventListener('click', () => switchChannel(channel.id));
+          return button;
+        }));
+        mobileChannelPicker.replaceChildren(...roomChannels.map((channel) => {
+          const option = document.createElement('option');
+          option.value = channel.id;
+          option.disabled = !channel.enabled;
+          option.textContent = `${channel.name} · ${channel.id}${channel.enabled ? '' : '（已停用）'}`;
+          return option;
+        }));
+        if (currentChannelId) mobileChannelPicker.value = currentChannelId;
+        mobileChannelPicker.disabled = switchingChannel || !hasJoined || !roomChannels.some((channel) => channel.enabled);
+        updateChannelChrome();
+      }
+
+      function positiveLimit(value, fallback) {
+        const number = Number(value);
+        return Number.isFinite(number) && number > 0 ? Math.floor(number) : fallback;
+      }
+
+      function applyRoomInfo(info) {
+        if (!info || typeof info.defaultChannelId !== 'string' || !Array.isArray(info.channels)) throw new Error('invalid room info');
+        const channels = info.channels.filter((channel) => channel && typeof channel.id === 'string' && typeof channel.name === 'string');
+        const defaultChannel = channels.find((channel) => channel.id === info.defaultChannelId && channel.enabled);
+        if (!defaultChannel) throw new Error('invalid default channel');
+        roomInfo = info;
+        roomChannels = channels;
+        MAX_IMAGE_BYTES = positiveLimit(info.limits?.maxImageBytes, MAX_IMAGE_BYTES);
+        MAX_IMAGE_DIMENSION = positiveLimit(info.limits?.maxImageDimension, MAX_IMAGE_DIMENSION);
+        MAX_IMAGE_PIXELS = positiveLimit(info.limits?.maxImagePixels, MAX_IMAGE_PIXELS);
+        MAX_MESSAGES = positiveLimit(info.limits?.maxMessages, MAX_MESSAGES);
+        composerText.maxLength = positiveLimit(info.limits?.maxTextLength, composerText.maxLength);
+        const savedChannel = channelById(readChannelId());
+        if (!currentChannelId || !channelById(currentChannelId)?.enabled) currentChannelId = savedChannel?.enabled ? savedChannel.id : defaultChannel.id;
+        roomInfoReady = true;
+        renderChannels();
+        updateComposer();
+      }
+
+      function scheduleRoomInfoRetry() {
+        if (intentionalLeave || roomInfoRetryTimer) return;
+        roomInfoRetryTimer = window.setTimeout(() => {
+          roomInfoRetryTimer = null;
+          loadRoomInfo().then(() => { if (!isSocketReady() && self?.username) connect(); });
+        }, ROOM_INFO_RETRY_DELAY);
+      }
+
+      function loadRoomInfo() {
+        if (roomInfoReady) return Promise.resolve(roomInfo);
+        if (roomInfoPromise) return roomInfoPromise;
+        roomInfoPromise = fetch('/room-info', { cache: 'no-store' })
+          .then((response) => {
+            if (!response.ok) throw new Error(`room info ${response.status}`);
+            return response.json();
+          })
+          .then((info) => {
+            applyRoomInfo(info);
+            loginError.textContent = '';
+            return info;
+          })
+          .catch(() => {
+            roomInfoReady = false;
+            setConnection(false, '无法读取频道配置，准备重试…');
+            loginError.textContent = '暂时无法读取频道配置，请稍后重试。';
+            loginForm.querySelector('.enter-button').disabled = false;
+            scheduleRoomInfoRetry();
+            return null;
+          })
+          .finally(() => { roomInfoPromise = null; });
+        return roomInfoPromise;
+      }
+
+      // 已确认（accepted）的条目只是在等房间回显来收尾，不算未完成的工作——
+      // 否则一次成功的发送会永久拦住频道切换。
+      function pendingChannelWork() {
+        for (const item of pending.values()) {
+          if (item.status !== 'accepted') return item;
+        }
+        return null;
+      }
+
+      function hasUnsafeChannelWork() {
+        return Boolean(composerText.value.trim() || pendingChannelWork() || imageProcessingCount);
+      }
+
+      function switchChannel(channelId) {
+        const channel = channelById(channelId);
+        if (!channel || channel.id === currentChannelId) { renderChannels(); return; }
+        if (!channel.enabled) {
+          toast('这个频道已停用，当前频道保持不变。', true);
+          renderChannels();
+          return;
+        }
+        if (switchingChannel) {
+          toast('正在切换频道，请稍候。');
+          renderChannels();
+          return;
+        }
+        const unfinished = pendingChannelWork();
+        if (hasUnsafeChannelWork()) {
+          const reason = imageProcessingCount ? '图片仍在处理中' : unfinished ? '还有消息等待确认' : '输入框里还有草稿';
+          toast(`${reason}，请处理后再切换频道。`, true);
+          renderChannels();
+          return;
+        }
+        if (!isSocketReady()) {
+          toast('连接尚未恢复，暂时不能切换频道。', true);
+          renderChannels();
+          return;
+        }
+        stopTyping();
+        switchingChannel = true;
+        requestedChannelId = channel.id;
+        setConnection(true, `正在切换到 ${channel.name}…`);
+        renderChannels();
+        updateComposer();
+        if (!sendRaw({ type: 'switchChannel', channelId: channel.id })) {
+          switchingChannel = false;
+          requestedChannelId = null;
+          setConnection(true, '已连接');
+          renderChannels();
+          updateComposer();
+          toast('切换请求未能发送，当前频道保持不变。', true);
+        }
+      }
+
+      loadRoomInfo();
 
       function escapeHtml(value) {
         return String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
@@ -1736,7 +1924,7 @@
       }
 
       function send(command) {
-        if (!isSocketReady()) return false;
+        if (!isSocketReady() || switchingChannel) return false;
         return safeSocketSend(socket, command);
       }
 
@@ -1796,7 +1984,11 @@
       }
 
       function updateComposer() {
-        sendButton.disabled = !composerText.value.trim() || !isSocketReady() || [...pending.values()].some((item) => item.kind === 'text' && item.status === 'sending');
+        const composerLocked = switchingChannel || imageProcessingCount > 0;
+        sendButton.disabled = composerLocked || !composerText.value.trim() || !isSocketReady() || [...pending.values()].some((item) => item.kind === 'text' && item.status === 'sending');
+        composerText.disabled = switchingChannel;
+        emojiButton.disabled = composerLocked;
+        $('#attachmentButton').disabled = composerLocked || !isSocketReady();
         composerText.style.height = 'auto';
         composerText.style.height = `${Math.min(composerText.scrollHeight, 145)}px`;
       }
@@ -2257,6 +2449,32 @@
         window.requestAnimationFrame(() => composerText.focus());
       }
 
+      function resetChannelView() {
+        clearReply();
+        closeReactionPopover();
+        closeComposerPopover();
+        emojiButton.setAttribute('aria-expanded', 'false');
+        closeImageViewer(false);
+        if (!mobileSheet.hidden) setMobileSheet(false, null, false);
+        mobileSheet.hidden = true;
+        mobileSheetBackdrop.hidden = true;
+        mobileSheet.setAttribute('aria-hidden', 'true');
+        mobileSheetBackdrop.setAttribute('aria-hidden', 'true');
+        $('#membersButton').setAttribute('aria-expanded', 'false');
+        document.body.classList.remove('sheet-open');
+        mobileSheetOpener = null;
+        selectedUserId = null;
+        renderProfile(null);
+        typingUsers.clear();
+        updateTypingLine();
+        clearUnread();
+        messages = [];
+        users = [];
+        messageNodes.clear();
+        knownMessageKeys.clear();
+        messageList.replaceChildren();
+      }
+
       function finishState(snapshotMessages, snapshotEpoch, forceBottom) {
         const previousEpoch = roomEpoch;
         roomEpoch = snapshotEpoch || roomEpoch || 'legacy';
@@ -2290,6 +2508,11 @@
 
       function connect() {
         if (intentionalLeave || navigator.onLine === false) return;
+        if (!roomInfoReady) {
+          setConnection(false, '正在读取频道配置…');
+          loadRoomInfo().then((info) => { if (info && self?.username && !isSocketReady()) connect(); });
+          return;
+        }
         if (reconnectTimer) window.clearTimeout(reconnectTimer);
         if (socket && socket.readyState !== WebSocket.CLOSED) {
           try { socket.close(); } catch {}
@@ -2310,7 +2533,9 @@
           setConnection(false, '正在进入…');
           const username = self?.username || usernameInput.value.trim();
           const avatarSeed = self?.avatarSeed;
-          const command = { type: 'join', protocolVersion: PROTOCOL_VERSION, clientSessionId: CLIENT_SESSION_ID, username };
+          const savedChannel = channelById(readChannelId());
+          const channelId = currentChannelId || (savedChannel?.enabled ? savedChannel.id : roomInfo.defaultChannelId);
+          const command = { type: 'join', protocolVersion: PROTOCOL_VERSION, clientSessionId: CLIENT_SESSION_ID, username, channelId };
           if (resumeToken) command.resumeToken = resumeToken;
           // Omit the seed when we do not know it: the room generates one for a fresh
           // member, and a reloaded page adopts whatever the original session used.
@@ -2330,12 +2555,16 @@
           socket = null;
           const wasJoined = hasJoined;
           hasJoined = false;
+          switchingChannel = false;
+          requestedChannelId = null;
           historyLoading = false;
           pendingStateEpoch = null;
           deferredEvents = [];
           const serverStopped = event.code === 1001 && event.reason === 'server stopped';
           if (serverStopped) {
             hasJoined = false;
+            switchingChannel = false;
+            requestedChannelId = null;
             intentionalLeave = true;
             if (reconnectTimer) window.clearTimeout(reconnectTimer);
             reconnectTimer = null;
@@ -2351,6 +2580,7 @@
             clearUnread();
             // The room is gone; start the next visit from the login box.
             clearResume();
+            clearChannelId();
             resumeToken = null;
             finishResume();
             setConnection(false, '服务已停止');
@@ -2401,12 +2631,22 @@
           hasJoined = false;
           historyChunks = [];
           deferredEvents = [];
+          const nextChannelId = payload.channelId || currentChannelId || roomInfo?.defaultChannelId;
+          const switchSucceeded = switchingChannel && nextChannelId === requestedChannelId;
+          if (switchSucceeded) {
+            resetChannelView();
+            roomEpoch = null;
+            latestSeq = 0;
+          }
           self = payload.self;
           users = payload.users || [];
+          currentChannelId = nextChannelId;
+          if (currentChannelId) writeChannelId(currentChannelId);
+          renderChannels();
           latestSeq = Number(payload.latestSeq) || 0;
           pendingStateEpoch = payload.roomEpoch || roomEpoch;
-          // Keep the token the room just issued; it is what carries this identity
-          // through a reload or a reconnect.
+          // Keep the token the room just issued; it is what carries this identity and
+          // active channel through a reload or a reconnect.
           if (typeof payload.resumeToken === 'string' && payload.resumeToken) {
             resumeToken = payload.resumeToken;
             writeResume({ token: resumeToken, username: self.username });
@@ -2421,7 +2661,13 @@
           historyLoading = false;
           const wasInRoom = appShell.hidden === false;
           latestSeq = Number(payload.latestSeq) || latestSeq;
-          finishState(historyChunks, pendingStateEpoch || payload.roomEpoch, !wasInRoom);
+          finishState(historyChunks, pendingStateEpoch || payload.roomEpoch, !wasInRoom || switchingChannel);
+          const switchedChannelId = switchingChannel ? currentChannelId : null;
+          switchingChannel = false;
+          requestedChannelId = null;
+          renderChannels();
+          updateComposer();
+          if (switchedChannelId) toast(`已切换到 ${activeChannel()?.name || switchedChannelId}。`, 'success');
           pendingStateEpoch = null;
           historyChunks = [];
           const queued = deferredEvents;
@@ -2432,6 +2678,11 @@
         if (payload.type === 'state') {
           self = payload.self;
           users = payload.users || [];
+          currentChannelId = payload.channelId || currentChannelId || roomInfo?.defaultChannelId;
+          if (currentChannelId) writeChannelId(currentChannelId);
+          switchingChannel = false;
+          requestedChannelId = null;
+          renderChannels();
           finishState(payload.messages || [], payload.roomEpoch || 'legacy', !hasJoined);
           return;
         }
@@ -2489,6 +2740,40 @@
         }
         if (payload.type === 'error') {
           if (payload.clientMessageId) { markPendingError(payload.clientMessageId, payload.message); return; }
+          if (switchingChannel && ['CHANNEL_FULL', 'CHANNEL_UNAVAILABLE', 'NAME_TAKEN', 'RATE_LIMITED', 'SYNC_IN_PROGRESS'].includes(payload.code)) {
+            const targetName = channelById(requestedChannelId)?.name;
+            switchingChannel = false;
+            requestedChannelId = null;
+            setConnection(true, '已连接');
+            renderChannels();
+            updateComposer();
+            const fallback = payload.code === 'CHANNEL_FULL'
+              ? '目标频道人数已满，当前频道保持不变。'
+              : payload.code === 'CHANNEL_UNAVAILABLE'
+                ? '目标频道已停用或不存在，当前频道保持不变。'
+                : payload.code === 'NAME_TAKEN'
+                  ? '目标频道已有同名成员，当前频道保持不变。'
+                  : '暂时无法切换频道，当前频道保持不变。';
+            toast(payload.message ? `${payload.message} 当前频道保持不变。` : `${targetName || '目标频道'}：${fallback}`, true);
+            return;
+          }
+          if (!hasJoined && ['CHANNEL_FULL', 'CHANNEL_UNAVAILABLE', 'SERVER_FULL'].includes(payload.code)) {
+            hasJoined = false;
+            connectionState = 'idle';
+            closeSocketQuietly();
+            clearResume();
+            resumeToken = null;
+            finishResume();
+            document.body.classList.remove('chat-active');
+            appShell.hidden = true;
+            appShell.setAttribute('aria-hidden', 'true');
+            loginScreen.hidden = false;
+            loginScreen.setAttribute('aria-hidden', 'false');
+            loginError.textContent = payload.message || (payload.code === 'CHANNEL_FULL' ? '这个频道人数已满，请稍后重试或选择其他频道。' : '这个频道当前不可用，请稍后重试。');
+            loginForm.querySelector('.enter-button').disabled = false;
+            usernameInput.focus();
+            return;
+          }
           if (['NAME_TAKEN', 'INVALID_NAME', 'SESSION_CONFLICT'].includes(payload.code)) {
             const wasInRoom = appShell.hidden === false;
             hasJoined = false;
@@ -2558,11 +2843,13 @@
       async function prepareImage(file) {
         const source = await fileToDataUrl(file);
         const image = await loadImage(source);
+        const pixels = image.naturalWidth * image.naturalHeight;
+        if (!image.naturalWidth || !image.naturalHeight || pixels > MAX_IMAGE_PIXELS) throw new Error('too large');
         if (file.type === 'image/gif') {
-          if (file.size > MAX_IMAGE_BYTES || image.naturalWidth > 4096 || image.naturalHeight > 4096 || image.naturalWidth * image.naturalHeight > 16_000_000) throw new Error('too large');
+          if (file.size > MAX_IMAGE_BYTES || image.naturalWidth > MAX_IMAGE_DIMENSION || image.naturalHeight > MAX_IMAGE_DIMENSION) throw new Error('too large');
           return { src: source, width: image.naturalWidth, height: image.naturalHeight, bytes: file.size };
         }
-        const scale = Math.min(1, 2048 / image.naturalWidth, 2048 / image.naturalHeight, Math.sqrt(4_000_000 / (image.naturalWidth * image.naturalHeight)));
+        const scale = Math.min(1, MAX_IMAGE_DIMENSION / image.naturalWidth, MAX_IMAGE_DIMENSION / image.naturalHeight, Math.sqrt(MAX_IMAGE_PIXELS / pixels));
         const width = Math.max(1, Math.round(image.naturalWidth * scale));
         const height = Math.max(1, Math.round(image.naturalHeight * scale));
         if (scale === 1 && file.size <= MAX_IMAGE_BYTES) return { src: source, width, height, bytes: file.size };
@@ -2588,13 +2875,25 @@
           if (file) toast('请选择 PNG、JPEG、GIF 或 WebP 图片。', true);
           return;
         }
+        if (switchingChannel || !isSocketReady()) {
+          toast('连接或频道切换尚未完成，暂时不能发送图片。', true);
+          return;
+        }
         const pendingImageBytes = [...pending.values()].reduce((total, item) => total + (item.image?.bytes || 0), 0);
         if (pending.size >= MAX_PENDING || pendingImageBytes + file.size > MAX_PENDING_IMAGE_BYTES) {
           toast('待确认的图片较多，请稍后再试。', true);
           return;
         }
+        imageProcessingCount += 1;
+        updateComposer();
+        renderChannels();
         try {
+          const sourceChannelId = currentChannelId;
           const image = await prepareImage(file);
+          if (switchingChannel || currentChannelId !== sourceChannelId || !isSocketReady()) {
+            toast('图片处理完成，但频道状态已变化，请重新选择后发送。', true);
+            return;
+          }
           const id = makeClientMessageId();
           const item = { id, kind: 'image', image, replyToId: replyTarget?.id, epoch: roomEpoch, status: 'sending', attempts: 1, timer: null };
           pending.set(id, item);
@@ -2602,7 +2901,11 @@
           if (!transmitPending(item)) item.status = 'unconfirmed';
           if (replyTarget?.id === item.replyToId) clearReply();
         } catch {
-          toast('图片无法处理，请换一张尺寸更小的图片。', true);
+          toast('图片无法处理，请换一张符合频道尺寸与大小限制的图片。', true);
+        } finally {
+          imageProcessingCount = Math.max(0, imageProcessingCount - 1);
+          updateComposer();
+          renderChannels();
         }
       }
 
@@ -2615,6 +2918,7 @@
         // session that a reload had parked.
         if (resumeToken && self?.username !== username) {
           clearResume();
+          clearChannelId();
           resumeToken = null;
         }
         self = { username };
@@ -2627,6 +2931,10 @@
       function sendTextMessage() {
         const text = composerText.value.trim();
         if (!text) return false;
+        if (switchingChannel) {
+          toast('正在切换频道，草稿已保留。', true);
+          return false;
+        }
         if (!isSocketReady()) {
           toast('连接尚未恢复，草稿已保留。', true);
           return false;
@@ -2722,8 +3030,9 @@
       });
       $('#imageInput').addEventListener('change', () => { sendImage(imageInput.files[0]); imageInput.value = ''; });
       $('#attachmentButton').addEventListener('click', () => imageInput.click());
+      mobileChannelPicker.addEventListener('change', () => switchChannel(mobileChannelPicker.value));
 
-      const setMobileSheet = (open, opener = null) => {
+      const setMobileSheet = (open, opener = null, restoreFocus = true) => {
         if (window.matchMedia('(min-width: 761px)').matches && open) return;
         if (open) mobileSheetOpener = opener || document.activeElement;
         mobileSheet.hidden = !open;
@@ -2738,7 +3047,7 @@
         } else {
           const target = mobileSheetOpener?.isConnected ? mobileSheetOpener : $('#membersButton');
           mobileSheetOpener = null;
-          target.focus();
+          if (restoreFocus) target.focus();
         }
       };
 
@@ -2861,9 +3170,12 @@
         // Leaving is the one way out: forget the room identity so a reload lands on
         // the login instead of walking back in.
         clearResume();
+        clearChannelId();
         resumeToken = null;
         self = null;
         roomEpoch = null;
+        switchingChannel = false;
+        requestedChannelId = null;
         if (reconnectTimer) window.clearTimeout(reconnectTimer);
         reconnectTimer = null;
         finishResume();
@@ -3026,7 +3338,7 @@
         viewerClose.focus({ preventScroll: true });
       }
 
-      function closeImageViewer() {
+      function closeImageViewer(restoreFocus = true) {
         if (imageViewer.hidden) return;
         imageViewer.hidden = true;
         imageViewer.setAttribute('aria-hidden', 'true');
@@ -3039,7 +3351,7 @@
         viewerShowStatus('', '');
         const target = viewerOpener?.isConnected ? viewerOpener : null;
         viewerOpener = null;
-        target?.focus({ preventScroll: true });
+        if (restoreFocus) target?.focus({ preventScroll: true });
       }
 
       function viewerIsOpen() { return !imageViewer.hidden; }
@@ -3141,11 +3453,12 @@
         // Keep the room on screen while the socket reattaches.
         appShell.hidden = false;
         appShell.setAttribute('aria-hidden', 'false');
+        loginScreen.hidden = true;
         loginScreen.setAttribute('aria-hidden', 'true');
         document.body.classList.add('chat-active');
         renderPeople();
         renderHistory(true);
-        connect();
+        loadRoomInfo().then((info) => { if (info) connect(); });
       } else {
         usernameInput.focus();
       }

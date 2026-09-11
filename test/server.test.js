@@ -265,8 +265,6 @@ test('a name cannot be taken while its session is only leased', async (t) => {
   const clientSessionId = 'session-leaver-0001';
   const first = await openWebSocket({ port });
   const firstState = await join(first, { username: 'Leaver', clientSessionId });
-  first.sendJson({ type: 'leave' });
-  await first.waitForClose();
   await first.destroy();
   // The socket is gone but the member still holds the name, so nobody else can claim
   // it and a stale "you left" presence is not announced yet.

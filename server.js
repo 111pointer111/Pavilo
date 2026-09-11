@@ -5,32 +5,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
+const { DEFAULTS, loadConfig } = require('./config');
 
 const ROOT = __dirname;
-const DEFAULTS = Object.freeze({
-  port: Number.parseInt(process.env.PORT || '4173', 10),
-  host: '0.0.0.0',
-  maxMessages: 300,
-  maxTextLength: 2000,
-  maxImageBytes: 1_500_000,
-  maxJsonBytes: 2_500_000,
-  maxWsFrameBytes: 4_000_000,
-  maxRoomBytes: 32 * 1024 * 1024,
-  maxClients: 80,
-  maxClientsPerIp: 12,
-  maxWritableBytes: 5 * 1024 * 1024,
-  joinTimeoutMs: 12_000,
-  heartbeatIntervalMs: 30_000,
-  heartbeatTimeoutMs: 75_000,
-  typingTtlMs: 4_000,
-  sessionLeaseMs: 15_000,
-  resumeLeaseMs: 8_000,
-  dedupeTtlMs: 10 * 60_000,
-  maxDedupeEntries: 512,
-  allowNoOrigin: true
-});
 const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
-const PROTOCOL_VERSION = 2;
+const PROTOCOL_VERSION = 3;
 const REACTION_EMOJIS = new Set(['👍', '❤️', '😂', '🎉', '👀', '🔥']);
 const CLIENT_ID_RE = /^[A-Za-z0-9_-]{8,96}$/;
 const MIME_TYPES = {
@@ -77,47 +56,85 @@ function cleanText(value, maxLength) {
 
 function createChatServer(options = {}) {
   const config = { ...DEFAULTS, ...options };
+  config.channels = (options.channels || DEFAULTS.channels).map((channel) => ({ ...channel }));
   const clients = new Set();
   const sessions = new Map();
   const leasedSessions = new Map();
-  const messages = [];
   const dedupe = new Map();
-  const roomEpoch = randomId('room');
-  let messageSequence = 0;
-  let roomBytes = 0;
+  const channelStates = new Map(config.channels.map((channel) => [channel.id, {
+    config: channel,
+    epoch: randomId(`room-${channel.id}`),
+    startedAt: Date.now(),
+    messages: [],
+    messageSequence: 0,
+    roomBytes: 0
+  }]));
+  const defaultChannel = channelStates.get(config.defaultChannelId);
+  if (!defaultChannel?.config.enabled) throw new Error(`Default channel "${config.defaultChannelId}" is missing or disabled`);
+  const roomEpoch = defaultChannel.epoch;
   let shuttingDown = false;
   let lifecycle = 'created';
   let heartbeat;
   let pendingStartup = null;
-  const roomStartedAt = Date.now();
 
-  function publicUser(session) {
+  function publicChannel(channel) {
     return {
-      id: session.id,
-      username: session.username,
-      ip: session.ip,
-      avatarSeed: session.avatarSeed,
-      joinedAt: session.joinedAt
+      id: channel.id,
+      name: channel.name,
+      description: channel.description,
+      enabled: channel.enabled,
+      maxUsers: channel.maxUsers
     };
   }
 
-  function rosterUsers() {
-    const active = new Map();
-    for (const [token, session] of sessions) active.set(token, session);
-    const now = Date.now();
-    for (const [token, lease] of leasedSessions) {
-      if (lease.expiresAt > now) active.set(token, lease.session);
-    }
-    return [...active.values()].map(publicUser);
+  function publicChannels() {
+    return config.channels.map(publicChannel);
   }
 
-  function nameIsFree(nameKey) {
+  function publicLimits() {
+    return {
+      maxTextLength: config.maxTextLength,
+      maxImageBytes: config.maxImageBytes,
+      maxImageDimension: config.maxImageDimension,
+      maxImagePixels: config.maxImagePixels,
+      maxMessages: config.maxMessages
+    };
+  }
+
+  function publicUser(session) {
+    const user = {
+      id: session.id,
+      username: session.username,
+      avatarSeed: session.avatarSeed,
+      joinedAt: session.joinedAt
+    };
+    if (config.exposeMemberIps) user.ip = session.ip;
+    return user;
+  }
+
+  function activeMembers(channelId) {
+    const active = new Map();
+    for (const [token, session] of sessions) {
+      if (!channelId || session.channelId === channelId) active.set(token, session);
+    }
+    const now = Date.now();
+    for (const [token, lease] of leasedSessions) {
+      if (lease.expiresAt > now && (!channelId || lease.session.channelId === channelId)) active.set(token, lease.session);
+    }
+    return active;
+  }
+
+  function rosterUsers(channelId) {
+    return [...activeMembers(channelId).values()].map(publicUser);
+  }
+
+  function nameIsFree(nameKey, channelId, excludedToken) {
     const now = Date.now();
     for (const session of sessions.values()) {
-      if (session.nameKey === nameKey) return false;
+      if (session.token !== excludedToken && session.channelId === channelId && session.nameKey === nameKey) return false;
     }
     for (const lease of leasedSessions.values()) {
-      if (lease.expiresAt > now && lease.session.nameKey === nameKey) return false;
+      if (lease.session.token !== excludedToken && lease.expiresAt > now && lease.session.channelId === channelId && lease.session.nameKey === nameKey) return false;
     }
     return true;
   }
@@ -177,11 +194,11 @@ function createChatServer(options = {}) {
     return sendFrame(client.socket, body, 0x1);
   }
 
-  function broadcast(payload, except) {
+  function broadcast(channelId, payload, except) {
     const body = serialize(payload);
     if (body.length > config.maxJsonBytes) return false;
     for (const client of clients) {
-      if (client !== except && client.joined && !client.closing) {
+      if (client !== except && client.joined && client.session?.channelId === channelId && !client.closing) {
         if (client.syncing) queueSyncEvent(client, body);
         else sendFrame(client.socket, body, 0x1);
       }
@@ -298,16 +315,16 @@ function createChatServer(options = {}) {
     if (!decoded.length || decoded.length > config.maxImageBytes || !imageMagicMatches(mime, decoded)) return null;
     const claimedWidth = Number.isFinite(value.width) ? Math.round(value.width) : null;
     const claimedHeight = Number.isFinite(value.height) ? Math.round(value.height) : null;
-    if (!claimedWidth || !claimedHeight || claimedWidth < 1 || claimedHeight < 1 || claimedWidth > 4096 || claimedHeight > 4096) return null;
-    if (claimedWidth * claimedHeight > 16_000_000) return null;
+    if (!claimedWidth || !claimedHeight || claimedWidth < 1 || claimedHeight < 1 || claimedWidth > config.maxImageDimension || claimedHeight > config.maxImageDimension) return null;
+    if (claimedWidth * claimedHeight > config.maxImagePixels) return null;
     const actual = encodedImageDimensions(mime, decoded);
     if (!actual || actual.width !== claimedWidth || actual.height !== claimedHeight) return null;
     return { src: value.src, mime, width: claimedWidth, height: claimedHeight, bytes: decoded.length };
   }
 
-  function findReply(id) {
+  function findReply(channel, id) {
     if (typeof id !== 'string') return null;
-    const original = messages.find((message) => message.id === id);
+    const original = channel.messages.find((message) => message.id === id);
     if (!original) return null;
     return {
       id: original.id,
@@ -338,13 +355,13 @@ function createChatServer(options = {}) {
     return Buffer.byteLength(JSON.stringify(publicMessage(message)));
   }
 
-  function evictMessages() {
+  function evictMessages(channel) {
     const removedIds = [];
-    while (messages.length > config.maxMessages || roomBytes > config.maxRoomBytes) {
-      const removed = messages.shift();
+    while (channel.messages.length > config.maxMessages || channel.roomBytes > config.maxRoomBytes) {
+      const removed = channel.messages.shift();
       if (!removed) break;
       removedIds.push(removed.id);
-      roomBytes = Math.max(0, roomBytes - removed.byteSize);
+      channel.roomBytes = Math.max(0, channel.roomBytes - removed.byteSize);
     }
     return removedIds;
   }
@@ -377,17 +394,17 @@ function createChatServer(options = {}) {
     };
   }
 
-  function historyChunks(snapshot) {
+  function historyChunks(channel, snapshot) {
     const chunks = [];
     let current = [];
-    let currentSize = serialize({ type: 'history', roomEpoch, messages: [] }).length;
+    let currentSize = serialize({ type: 'history', roomEpoch: channel.epoch, messages: [] }).length;
     for (const message of snapshot) {
       const publicEntry = publicMessage(message);
       const entrySize = Buffer.byteLength(JSON.stringify(publicEntry)) + (current.length ? 1 : 0);
       if (current.length && currentSize + entrySize > config.maxJsonBytes) {
         chunks.push(current);
         current = [];
-        currentSize = serialize({ type: 'history', roomEpoch, messages: [] }).length;
+        currentSize = serialize({ type: 'history', roomEpoch: channel.epoch, messages: [] }).length;
       }
       if (currentSize + entrySize <= config.maxJsonBytes) {
         current.push(publicEntry);
@@ -398,12 +415,12 @@ function createChatServer(options = {}) {
     return chunks;
   }
 
-  function legacyMessages() {
+  function legacyMessages(channel) {
     const result = [];
-    for (let index = messages.length - 1; index >= 0; index -= 1) {
-      const candidate = [publicMessage(messages[index]), ...result];
+    for (let index = channel.messages.length - 1; index >= 0; index -= 1) {
+      const candidate = [publicMessage(channel.messages[index]), ...result];
       if (serialize({ type: 'state', messages: candidate }).length > config.maxJsonBytes) break;
-      result.unshift(publicMessage(messages[index]));
+      result.unshift(publicMessage(channel.messages[index]));
     }
     return result;
   }
@@ -434,36 +451,40 @@ function createChatServer(options = {}) {
   }
 
   function sendInitialState(client, session, resumeToken) {
+    const channel = channelStates.get(session.channelId);
     client.syncing = true;
     client.syncQueue.length = 0;
     refreshSyncTimeout(client);
-    if (client.protocolVersion < PROTOCOL_VERSION) {
+    if (client.protocolVersion < 2) {
       const payload = {
         type: 'state',
         self: publicUser(session),
-        users: rosterUsers(),
-        messages: legacyMessages(),
-        roomStartedAt
+        users: rosterUsers(channel.config.id),
+        messages: legacyMessages(channel),
+        roomEpoch: channel.epoch,
+        roomStartedAt: channel.startedAt,
+        channelId: channel.config.id
       };
       sendJson(client, payload);
       flushSyncQueue(client);
       return;
     }
-    const snapshot = [...messages];
-    const snapshotSeq = messageSequence;
+    const snapshot = [...channel.messages];
+    const snapshotSeq = channel.messageSequence;
     const payloads = [{
       type: 'stateStart',
       protocolVersion: PROTOCOL_VERSION,
       capabilities: ['ack', 'historyChunks', 'roomEpoch', 'reconnect', 'reactions', 'typingLease'],
-      roomEpoch,
-      roomStartedAt,
+      roomEpoch: channel.epoch,
+      roomStartedAt: channel.startedAt,
       latestSeq: snapshotSeq,
       resumeToken: resumeToken || null,
       self: publicUser(session),
-      users: rosterUsers()
+      users: rosterUsers(channel.config.id),
+      channelId: channel.config.id
     }];
-    for (const chunk of historyChunks(snapshot)) payloads.push({ type: 'history', roomEpoch, messages: chunk });
-    payloads.push({ type: 'historyEnd', roomEpoch, latestSeq: snapshotSeq });
+    for (const chunk of historyChunks(channel, snapshot)) payloads.push({ type: 'history', roomEpoch: channel.epoch, messages: chunk });
+    payloads.push({ type: 'historyEnd', roomEpoch: channel.epoch, latestSeq: snapshotSeq });
     queueInitialPayloads(client, payloads);
   }
 
@@ -472,14 +493,14 @@ function createChatServer(options = {}) {
     client.typingTimer = null;
     if (!client.typingActive || !client.session) return;
     client.typingActive = false;
-    broadcast({ type: 'typing', userId: client.session.id, username: client.session.username, active: false }, client);
+    broadcast(client.session.channelId, { type: 'typing', userId: client.session.id, username: client.session.username, active: false }, client);
   }
 
   function activateTyping(client) {
     if (client.typingTimer) clearTimeout(client.typingTimer);
     if (!client.typingActive) {
       client.typingActive = true;
-      broadcast({ type: 'typing', userId: client.session.id, username: client.session.username, active: true }, client);
+      broadcast(client.session.channelId, { type: 'typing', userId: client.session.id, username: client.session.username, active: true }, client);
     }
     client.typingTimer = setTimeout(() => deactivateTyping(client), config.typingTtlMs);
     client.typingTimer.unref?.();
@@ -492,55 +513,45 @@ function createChatServer(options = {}) {
   function handOffSession(session) {
     const oldClient = session.client;
     if (oldClient) {
+      deactivateTyping(oldClient);
       closeClient(oldClient, 1000, 'reconnected');
       oldClient.session = null;
+      oldClient.joined = false;
       session.client = null;
     }
-    // A page reload closes the previous socket before the new one joins. Keep the
-    // session in a short lease so the reopen can adopt it instead of waiting for
-    // the old socket's close event to place it there.
+    // Only disconnected sessions hold leases; an active member must never expire.
     const current = leasedSessions.get(session.token);
     if (current) clearTimeout(current.timer);
-    const lease = { session, expiresAt: Date.now() + config.resumeLeaseMs, timer: null };
-    lease.timer = setTimeout(() => {
-      if (leasedSessions.get(session.token) !== lease) return;
-      leasedSessions.delete(session.token);
-      broadcast({ type: 'presence', action: 'leave', userId: session.id, username: session.username, users: rosterUsers() });
-    }, config.resumeLeaseMs);
-    lease.timer.unref?.();
-    leasedSessions.set(session.token, lease);
+    leasedSessions.delete(session.token);
   }
 
   function resolveJoin(command) {
+    const channelId = typeof command.channelId === 'string' && command.channelId ? command.channelId : config.defaultChannelId;
+    const channel = channelStates.get(channelId);
+    if (!channel || !channel.config.enabled) return { error: 'CHANNEL_UNAVAILABLE' };
     const nameKey = command.username.toLocaleLowerCase();
-    // `resumeToken` is the room-issued secret. Falling back to the caller-chosen
-    // `clientSessionId` keeps protocol v2 clients able to reconnect as themselves.
     const offered = typeof command.resumeToken === 'string' && CLIENT_ID_RE.test(command.resumeToken)
       ? command.resumeToken
       : command.clientSessionId;
     if (validateClientId(offered)) {
       const lease = leasedSessions.get(offered);
       if (lease && lease.expiresAt > Date.now()) {
-        if (lease.session.nameKey !== nameKey) return { error: 'SESSION_CONFLICT' };
+        if (lease.session.nameKey !== nameKey || lease.session.channelId !== channelId) return { error: 'SESSION_CONFLICT' };
         clearTimeout(lease.timer);
         leasedSessions.delete(offered);
-        return { nameKey, token: offered, session: lease.session };
+        return { nameKey, channelId, channel, token: offered, session: lease.session };
       }
-      // A live session is adopted whatever name it is asked for: the token is the
-      // identity, and the reconnect path relies on it to carry a lease hand-off.
       const session = sessions.get(offered);
       if (session) {
-        if (session.nameKey !== nameKey) return { error: 'SESSION_CONFLICT' };
-        return { nameKey, token: offered, session };
+        if (session.nameKey !== nameKey || session.channelId !== channelId) return { error: 'SESSION_CONFLICT' };
+        return { nameKey, channelId, channel, token: offered, session };
       }
     }
-    // A token that no longer matches falls through to a fresh join, which is what
-    // makes "leave" final: the name is free again and a reload sees the login.
-    if (!nameIsFree(nameKey)) return { error: 'NAME_TAKEN' };
-    // Holding on to the caller's own key keeps protocol v2 clients able to reconnect
-    // as themselves. The name is free here, so no live session can share this token.
+    if (!nameIsFree(nameKey, channelId)) return { error: 'NAME_TAKEN' };
+    if (activeMembers().size >= config.maxUsers) return { error: 'SERVER_FULL' };
+    if (activeMembers(channelId).size >= channel.config.maxUsers) return { error: 'CHANNEL_FULL' };
     const token = validateClientId(offered) && !leasedSessions.has(offered) ? offered : freshResumeToken();
-    return { nameKey, token, session: null };
+    return { nameKey, channelId, channel, token, session: null };
   }
 
   function handleJoin(client, command) {
@@ -551,9 +562,21 @@ function createChatServer(options = {}) {
       return;
     }
     client.protocolVersion = Number(command.protocolVersion) || 1;
-    const request = resolveJoin({ username, resumeToken: command.resumeToken, clientSessionId: command.clientSessionId });
+    const request = resolveJoin({ username, channelId: command.channelId, resumeToken: command.resumeToken, clientSessionId: command.clientSessionId });
     if (request.error === 'SESSION_CONFLICT') {
-      sendError(client, 'SESSION_CONFLICT', '本页会话与用户名不匹配。');
+      sendError(client, 'SESSION_CONFLICT', '本页会话与频道不匹配。');
+      return;
+    }
+    if (request.error === 'CHANNEL_UNAVAILABLE') {
+      sendError(client, 'CHANNEL_UNAVAILABLE', '这个频道不存在或已停用。');
+      return;
+    }
+    if (request.error === 'SERVER_FULL') {
+      sendError(client, 'SERVER_FULL', '聊天室已达到管理员设置的用户上限。');
+      return;
+    }
+    if (request.error === 'CHANNEL_FULL') {
+      sendError(client, 'CHANNEL_FULL', '这个频道已达到管理员设置的人数上限。');
       return;
     }
     if (request.error) {
@@ -567,12 +590,14 @@ function createChatServer(options = {}) {
       id: randomId('u'),
       username,
       nameKey: request.nameKey,
+      channelId: request.channelId,
       ip: getAddress(client.socket),
       avatarSeed: requestedSeed ?? crypto.randomInt(0, 0x7fffffff),
       joinedAt: Date.now(),
       token: request.token
     };
     session.username = username;
+    session.channelId = request.channelId;
     handOffSession(session);
     session.client = client;
     session.ip = getAddress(client.socket);
@@ -582,12 +607,13 @@ function createChatServer(options = {}) {
     sessions.set(request.token, session);
 
     sendInitialState(client, session, request.token);
-    broadcast({ type: 'presence', action: request.session ? 'reconnect' : 'join', user: publicUser(session), users: rosterUsers() }, client);
+    broadcast(request.channelId, { type: 'presence', action: request.session ? 'reconnect' : 'join', user: publicUser(session), users: rosterUsers(request.channelId) }, client);
   }
 
   function handleMessage(client, command) {
+    const channel = channelStates.get(client.session.channelId);
     const clientMessageId = command.clientMessageId;
-    const legacyMessage = client.protocolVersion < PROTOCOL_VERSION && typeof clientMessageId !== 'string';
+    const legacyMessage = client.protocolVersion < 2 && typeof clientMessageId !== 'string';
     if (!legacyMessage && !validateClientId(clientMessageId)) {
       sendError(client, 'INVALID_MESSAGE_ID', '消息标识无效，请重试。', typeof clientMessageId === 'string' ? clientMessageId : undefined);
       return;
@@ -610,26 +636,27 @@ function createChatServer(options = {}) {
     }
 
     const fingerprint = payloadFingerprint(command, kind, text, image);
-    const dedupeKey = `${client.session.token}:${effectiveClientMessageId}`;
+    const dedupeKey = `${channel.config.id}:${client.session.token}:${effectiveClientMessageId}`;
     const previous = dedupe.get(dedupeKey);
     if (previous) {
       if (previous.fingerprint !== fingerprint) sendError(client, 'MESSAGE_ID_CONFLICT', '消息标识已用于其他内容，请重新发送。', effectiveClientMessageId);
       else sendJson(client, previous.ack);
       return;
     }
-    if (!rateAllows(client, 'message', 8, 5000)) {
+    if (!rateAllows(client, 'message', config.messageRateLimit, config.rateLimitWindowMs)) {
       sendError(client, 'RATE_LIMITED', '发送太快了，请稍等几秒。', effectiveClientMessageId);
       return;
     }
 
+    const sequence = ++channel.messageSequence;
     const message = {
-      id: randomId(`m${++messageSequence}`),
-      seq: messageSequence,
+      id: randomId(`m${sequence}`),
+      seq: sequence,
       clientMessageId: effectiveClientMessageId,
       kind,
       author: publicUser(client.session),
       createdAt: Date.now(),
-      replyTo: findReply(command.replyTo),
+      replyTo: findReply(channel, command.replyTo),
       reactions: {}
     };
     if (kind === 'text') message.text = text;
@@ -637,26 +664,27 @@ function createChatServer(options = {}) {
     message.reactionUsers = new Map();
     message.byteSize = messageByteSize(message);
     if (message.byteSize > config.maxRoomBytes) {
-      sendError(client, 'ROOM_BUDGET_EXCEEDED', '这张图片超过了房间当前可用容量。', clientMessageId);
+      sendError(client, 'ROOM_BUDGET_EXCEEDED', '这张图片超过了频道当前可用容量。', clientMessageId);
       return;
     }
-    const historyEnvelope = serialize({ type: 'history', roomEpoch, messages: [publicMessage(message)] });
+    const historyEnvelope = serialize({ type: 'history', roomEpoch: channel.epoch, messages: [publicMessage(message)] });
     if (historyEnvelope.length > config.maxJsonBytes) {
       sendError(client, 'MESSAGE_TOO_LARGE', '这条内容超过单条历史容量，请压缩后再发送。', clientMessageId);
       return;
     }
-    messages.push(message);
-    roomBytes += message.byteSize;
-    const removedIds = evictMessages();
+    channel.messages.push(message);
+    channel.roomBytes += message.byteSize;
+    const removedIds = evictMessages(channel);
     const ack = messageAck(message);
     dedupe.set(dedupeKey, { acceptedAt: Date.now(), fingerprint, ack });
     pruneDedupe();
     sendJson(client, ack);
-    broadcast({ type: 'message', roomEpoch, message: publicMessage(message), removedIds });
+    broadcast(channel.config.id, { type: 'message', roomEpoch: channel.epoch, message: publicMessage(message), removedIds });
   }
 
   function handleReaction(client, command) {
-    if (!rateAllows(client, 'reaction', 20, 5000)) {
+    const channel = channelStates.get(client.session.channelId);
+    if (!rateAllows(client, 'reaction', config.reactionRateLimit, config.rateLimitWindowMs)) {
       sendError(client, 'REACTION_RATE_LIMITED', '回应太快了，请稍等。');
       return;
     }
@@ -664,7 +692,7 @@ function createChatServer(options = {}) {
       sendError(client, 'INVALID_REACTION', '不支持这个回应。');
       return;
     }
-    const message = messages.find((item) => item.id === command.messageId);
+    const message = channel.messages.find((item) => item.id === command.messageId);
     if (!message) {
       sendError(client, 'MESSAGE_GONE', '这条消息已经离开临时历史。');
       return;
@@ -680,13 +708,29 @@ function createChatServer(options = {}) {
     message.reactions = reactionSummary(message);
     const oldSize = message.byteSize;
     message.byteSize = messageByteSize(message);
-    roomBytes += message.byteSize - oldSize;
-    const removedIds = evictMessages();
+    channel.roomBytes += message.byteSize - oldSize;
+    const removedIds = evictMessages(channel);
     if (removedIds.includes(message.id)) {
-      broadcast({ type: 'prune', roomEpoch, removedIds });
+      broadcast(channel.config.id, { type: 'prune', roomEpoch: channel.epoch, removedIds });
       return;
     }
-    broadcast({ type: 'reaction', roomEpoch, messageId: message.id, reactions: message.reactions, removedIds });
+    broadcast(channel.config.id, { type: 'reaction', roomEpoch: channel.epoch, messageId: message.id, reactions: message.reactions, removedIds });
+  }
+
+  function handleSwitchChannel(client, command) {
+    const session = client.session;
+    const target = channelStates.get(command.channelId);
+    if (!target?.config.enabled) return sendError(client, 'CHANNEL_UNAVAILABLE', '这个频道不存在或已停用。');
+    if (session.channelId === command.channelId) return sendInitialState(client, session, session.token);
+    if (!rateAllows(client, 'switch', 8, 5000)) return sendError(client, 'RATE_LIMITED', '切换太快了，请稍后再试。');
+    if (!nameIsFree(session.nameKey, command.channelId, session.token)) return sendError(client, 'NAME_TAKEN', '目标频道已有同名成员。');
+    if (activeMembers(command.channelId).size >= target.config.maxUsers) return sendError(client, 'CHANNEL_FULL', '这个频道已达到管理员设置的人数上限。');
+    const previousChannelId = session.channelId;
+    deactivateTyping(client);
+    session.channelId = command.channelId;
+    broadcast(previousChannelId, { type: 'presence', action: 'leave', userId: session.id, username: session.username, users: rosterUsers(previousChannelId) });
+    sendInitialState(client, session, session.token);
+    broadcast(session.channelId, { type: 'presence', action: 'join', user: publicUser(session), users: rosterUsers(session.channelId) }, client);
   }
 
   function handleCommand(client, command) {
@@ -705,11 +749,12 @@ function createChatServer(options = {}) {
       return;
     }
     if (command.type === 'typing') {
-      if (!rateAllows(client, 'typing', 12, 5000)) return;
+      if (!rateAllows(client, 'typing', config.typingRateLimit, config.rateLimitWindowMs)) return;
       if (command.active) activateTyping(client);
       else deactivateTyping(client);
       return;
     }
+    if (command.type === 'switchChannel' && client.protocolVersion >= 3) return handleSwitchChannel(client, command);
     if (command.type === 'message') return handleMessage(client, command);
     if (command.type === 'reaction') return handleReaction(client, command);
     if (command.type === 'leave') {
@@ -723,6 +768,7 @@ function createChatServer(options = {}) {
   const TEXT_DECODER = new TextDecoder('utf-8', { fatal: true });
 
   function processText(client, payload) {
+    if (payload.length > config.maxJsonBytes) return closeClient(client, 1009, 'payload too large');
     let text;
     try { text = TEXT_DECODER.decode(payload); }
     catch {
@@ -863,16 +909,16 @@ function createChatServer(options = {}) {
         const current = leasedSessions.get(session.token);
         if (current !== lease) return;
         leasedSessions.delete(session.token);
-        broadcast({ type: 'presence', action: 'leave', userId: session.id, username: session.username, users: rosterUsers() });
+        broadcast(session.channelId, { type: 'presence', action: 'leave', userId: session.id, username: session.username, users: rosterUsers(session.channelId) });
       }, config.sessionLeaseMs);
       lease.timer.unref?.();
       leasedSessions.set(session.token, lease);
     } else if (!shuttingDown) {
-      broadcast({ type: 'presence', action: 'leave', userId: session.id, username: session.username, users: rosterUsers() });
+      broadcast(session.channelId, { type: 'presence', action: 'leave', userId: session.id, username: session.username, users: rosterUsers(session.channelId) });
     }
   }
 
-  function serveVendorFile(request, response, pathname, headOnly = false) {
+  async function serveVendorFile(request, response, pathname, headOnly = false) {
     const relative = pathname.slice('/vendor/'.length);
     if (relative.startsWith('/') || relative.includes('..') || relative.includes('\0')) {
       response.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -880,7 +926,17 @@ function createChatServer(options = {}) {
       return;
     }
     const extension = path.extname(relative).toLowerCase();
-    fs.readFile(path.join(ROOT, 'vendor', relative), (error, data) => {
+    let filename;
+    try {
+      const vendorRoot = path.join(ROOT, 'vendor');
+      filename = await fs.promises.realpath(path.join(vendorRoot, relative));
+      if (!filename.startsWith(`${vendorRoot}${path.sep}`) || (!MIME_TYPES[extension] && path.basename(relative) !== 'LICENSE')) throw new Error('Not public');
+    } catch {
+      response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+      response.end(headOnly ? undefined : 'Not found');
+      return;
+    }
+    fs.readFile(filename, (error, data) => {
       if (error) {
         response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
         response.end(headOnly ? undefined : 'Not found');
@@ -957,7 +1013,13 @@ function createChatServer(options = {}) {
     }
     const isHead = request.method === 'HEAD';
     if ((request.method === 'GET' || isHead) && requestUrl.pathname === '/healthz') {
-      jsonResponse(response, 200, { ok: true, users: sessions.size, messages: messages.length, roomBytes, clients: clients.size, ephemeral: true }, isHead);
+      const channelStats = [...channelStates.values()].map((channel) => ({
+        id: channel.config.id,
+        users: activeMembers(channel.config.id).size,
+        messages: channel.messages.length,
+        roomBytes: channel.roomBytes
+      }));
+      jsonResponse(response, 200, { ok: true, users: sessions.size, messages: channelStats.reduce((total, item) => total + item.messages, 0), roomBytes: channelStats.reduce((total, item) => total + item.roomBytes, 0), clients: clients.size, ephemeral: true }, isHead);
       return;
     }
     if ((request.method === 'GET' || isHead) && requestUrl.pathname === '/room-info') {
@@ -967,6 +1029,10 @@ function createChatServer(options = {}) {
         roomEpoch,
         localUrl: `http://localhost:${activePort}`,
         lanUrls: localAddresses().map((address) => `http://${address}:${activePort}`),
+        roomTitle: config.roomTitle,
+        defaultChannelId: config.defaultChannelId,
+        channels: publicChannels(),
+        limits: publicLimits(),
         ephemeral: true
       }, isHead);
       return;
@@ -1063,6 +1129,7 @@ function createChatServer(options = {}) {
     clients.add(client);
     socket.on('data', (chunk) => consumeFrames(client, chunk));
     socket.on('error', () => removeClient(client));
+    socket.on('end', () => { removeClient(client); socket.destroy(); });
     socket.on('close', () => removeClient(client));
     if (head?.length) consumeFrames(client, head);
   });
@@ -1139,8 +1206,11 @@ function createChatServer(options = {}) {
     if (heartbeat) clearInterval(heartbeat);
     for (const lease of leasedSessions.values()) clearTimeout(lease.timer);
     leasedSessions.clear();
-    messages.length = 0;
-    roomBytes = 0;
+    for (const channel of channelStates.values()) {
+      channel.messages.length = 0;
+      channel.roomBytes = 0;
+      channel.messageSequence = 0;
+    }
     sessions.clear();
     dedupe.clear();
     for (const client of clients) {
@@ -1164,14 +1234,32 @@ function createChatServer(options = {}) {
     stop,
     roomEpoch,
     localAddresses,
-    state: () => ({ clients: clients.size, sessions: sessions.size, messages: messages.length, roomBytes, latestSeq: messageSequence })
+    config,
+    state: () => {
+      const channels = [...channelStates.values()].map((channel) => ({ id: channel.config.id, messages: channel.messages.length, roomBytes: channel.roomBytes, latestSeq: channel.messageSequence }));
+      return {
+        clients: clients.size,
+        sessions: sessions.size,
+        messages: channels.reduce((total, channel) => total + channel.messages, 0),
+        roomBytes: channels.reduce((total, channel) => total + channel.roomBytes, 0),
+        latestSeq: channelStates.get(config.defaultChannelId).messageSequence
+      };
+    }
   };
 }
 
 module.exports = { createChatServer, DEFAULTS, PROTOCOL_VERSION, REACTION_EMOJIS: [...REACTION_EMOJIS] };
 
 if (require.main === module) {
-  const app = createChatServer();
+  let loaded;
+  try {
+    loaded = loadConfig();
+  } catch (error) {
+    process.stderr.write(`无法加载语亭配置：${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  const app = createChatServer(loaded.config);
   app.listen().then((address) => {
     const port = typeof address === 'object' && address ? address.port : DEFAULTS.port;
     process.stdout.write(`Pavilo / 语亭 listening on http://localhost:${port}\n`);
@@ -1181,10 +1269,11 @@ if (require.main === module) {
     } else {
       process.stdout.write('LAN access: use the host machine\'s local IP address.\n');
     }
+    process.stdout.write(`Config: ${loaded.configPath || 'built-in defaults'} (restart to apply changes)\n`);
     process.stdout.write('Ephemeral mode: messages and presence live in memory only.\n');
   }).catch((error) => {
     if (error.code === 'EADDRINUSE') {
-      process.stderr.write(`无法启动：端口 ${DEFAULTS.port} 已被占用。可使用 PORT=4187 npm start 更换端口。\n`);
+      process.stderr.write(`无法启动：端口 ${loaded.config.port} 已被占用。可使用 PORT=4187 npm start 更换端口。\n`);
     } else {
       process.stderr.write(`无法启动语亭聊天室：${error.message}\n`);
     }

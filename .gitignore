@@ -9,6 +9,7 @@ coverage/
 dist/
 
 # Local configuration and logs
+/pavilo.yaml
 .env
 .env.*
 !.env.example

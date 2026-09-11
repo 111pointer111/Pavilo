@@ -10,6 +10,10 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node --test test/server.test.js"
+    "config:check": "node config.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "yaml": "2.9.0"
   }
 }

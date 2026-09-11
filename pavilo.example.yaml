@@ -1,0 +1,69 @@
+# 复制为 pavilo.yaml 后修改；每次改动都需重启 Pavilo 才会生效。
+# pavilo.yaml 不在 Pavilo 的 HTTP 静态文件白名单内，请勿放入 vendor/。
+version: 1
+
+server:
+  # 0.0.0.0 允许局域网访问；只供本机使用可改为 127.0.0.1。
+  host: 0.0.0.0
+  port: 4173
+  # 全局人数包含仍在断线租约期内、可恢复身份的成员。
+  maxUsers: 64
+  # 未加入的 WebSocket 连接也计入连接数，但不计入 maxUsers。
+  maxConnections: 80
+  maxConnectionsPerIp: 12
+  # 浏览器通常会带 Origin；命令行或部分代理客户端可能不带。
+  allowNoOrigin: true
+  # 外部域名反向代理时列出准确 Origin（不能含路径）。同源请求始终允许。
+  # allowedOrigins:
+  #   - https://chat.example.test
+
+room:
+  title: 语亭 · 临时频道
+  defaultChannel: general
+  # 与当前产品行为一致：频道成员可以看到彼此连接 IP。
+  exposeMemberIps: true
+
+channels:
+  - id: general
+    name: 闲聊
+    description: 轻松聊聊，只留当下。
+    enabled: true
+    maxUsers: 64
+  - id: projects
+    name: 项目讨论
+    description: 第二个可加入的临时频道示例。
+    enabled: true
+    maxUsers: 32
+  - id: announcements
+    name: 公告
+    description: 停用频道不可加入；Pavilo 当前没有只读频道权限。
+    enabled: false
+    maxUsers: 64
+
+limits:
+  maxMessagesPerChannel: 300
+  maxTextLength: 2000
+  maxImageBytes: 1500000
+  maxImageDimension: 4096
+  maxImagePixels: 16000000
+  # 以下值须能容纳最大图片的 base64、文字、成员列表和 WebSocket 帧开销。
+  maxJsonBytes: 2500000
+  maxWebSocketFrameBytes: 4000000
+  maxChannelBytes: 33554432
+  maxWritableBytes: 5242880
+  maxDedupeEntries: 512
+
+timeouts:
+  joinMs: 12000
+  heartbeatIntervalMs: 30000
+  heartbeatTimeoutMs: 75000
+  typingTtlMs: 4000
+  # 意外断线后身份及人数名额保留时间；0 表示立即释放。
+  sessionLeaseMs: 15000
+  dedupeTtlMs: 600000
+
+rateLimits:
+  windowMs: 5000
+  messages: 8
+  reactions: 20
+  typing: 12
