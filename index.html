@@ -283,7 +283,11 @@
 
     .room-privacy { min-width: 0; max-width: 190px; flex: 0 1 190px; overflow-wrap: anywhere; color: var(--ink-faint); font-family: var(--mono); font-size: 9px; letter-spacing: .08em; line-height: 1.55; text-align: right; text-transform: uppercase; }
 
-    .message-scroll { position: relative; min-width: 0; min-height: 0; overflow: hidden auto; overscroll-behavior: contain; scrollbar-gutter: stable; scroll-behavior: smooth; }
+    /* Scroll position across a history rebuild is owned by captureReadingOffset /
+       restoreReadingOffset. The browser's own scroll anchoring would apply a second,
+       partial correction on top of that one and the two would fight, walking the
+       viewport up the list as messages arrive. */
+    .message-scroll { position: relative; min-width: 0; min-height: 0; overflow: hidden auto; overscroll-behavior: contain; overflow-anchor: none; scrollbar-gutter: stable; scroll-behavior: smooth; }
     .message-scroll:focus-visible { outline: 3px solid rgba(232, 111, 87, .42); outline-offset: -3px; }
     .new-message-jump { position: sticky; z-index: 3; top: 12px; display: block; min-height: 35px; margin: 0 auto -35px; padding: 7px 13px; border: 1px solid var(--teal); border-radius: 999px; background: var(--paper); box-shadow: 0 8px 20px rgba(24, 64, 64, .15); color: var(--teal-deep); cursor: pointer; font-size: 11px; font-weight: 800; }
     .new-message-jump:hover { background: var(--teal-pale); }
@@ -1414,7 +1418,7 @@
       let viewerMeta = null;
       const pending = new Map();
       const messageNodes = new Map();
-      const knownMessageKeys = new Set();
+      let knownMessageKeys = new Set();
       const typingUsers = new Map();
 
       function channelById(channelId) {
@@ -2160,8 +2164,38 @@
         }
       }
 
-      function renderHistory(forceBottom = false) {
-        const shouldBottom = forceBottom || isNearBottom();
+      // Where the reader is looking, across a rebuild that is not a deliberate jump.
+      // A message anchor is preferred because it keeps the exact content the reader
+      // was looking at in place. The distance from the bottom is the fallback for
+      // when that message is itself evicted: history leaves from the top as often as
+      // it arrives at the bottom, so there is no offset in this list that could keep
+      // the same text still forever, and holding the distance from the bottom at
+      // least moves the reader toward the live conversation instead of stranding
+      // them at the top of a shrinking list.
+      function captureReadingOffset() {
+        const top = messageScroll.scrollTop;
+        for (const [id, node] of messageNodes) {
+          if (node.offsetTop + node.offsetHeight > top) {
+            return { id, delta: node.offsetTop - top, bottom: messageScroll.scrollHeight - top };
+          }
+        }
+        return { id: null, bottom: messageScroll.scrollHeight - top };
+      }
+
+      function restoreReadingOffset(anchor) {
+        // The scroller has `scroll-behavior: smooth`, which would animate this
+        // correction. While messages keep arriving, every frame would re-anchor from
+        // a mid-animation position and the real offset would drift. This is a
+        // correction, not a gesture, so it has to land immediately.
+        const previousBehavior = messageScroll.style.scrollBehavior;
+        messageScroll.style.scrollBehavior = 'auto';
+        const node = anchor.id ? messageNodes.get(anchor.id) : null;
+        messageScroll.scrollTop = node ? node.offsetTop - anchor.delta : messageScroll.scrollHeight - anchor.bottom;
+        messageScroll.style.scrollBehavior = previousBehavior;
+      }
+
+      function renderHistory(forceBottom = false, readingOffset = null, pinToBottom = false) {
+        const shouldBottom = forceBottom || pinToBottom || isNearBottom();
         messageNodes.clear();
         messageList.replaceChildren();
         if (!messages.length) {
@@ -2185,12 +2219,15 @@
         messageList.append(fragment);
         $('#messageCount').textContent = `${messages.length} 条消息`;
         if (shouldBottom) messageScroll.scrollTop = messageScroll.scrollHeight;
+        else if (readingOffset) restoreReadingOffset(readingOffset);
       }
 
-      function trimMessages() {
-        if (messages.length <= MAX_MESSAGES) return;
-        messages = messages.slice(-MAX_MESSAGES);
-        renderHistory(isNearBottom());
+      // Rebuilds the list from `messages`, dropping the oldest entries beyond the
+      // cap. This is the single place the list is painted from state, so every
+      // caller gets the same scroll handling for free.
+      function trimMessages(readingOffset = null, pinToBottom = false) {
+        if (messages.length > MAX_MESSAGES) messages = messages.slice(-MAX_MESSAGES);
+        renderHistory(false, readingOffset, pinToBottom);
       }
 
       function updateReactionNode(messageId, reactions) {
@@ -2288,35 +2325,32 @@
         updateComposer();
       });
 
-      function applyPrune(removedIds) {
-        if (!Array.isArray(removedIds) || !removedIds.length) return;
-        const removed = new Set(removedIds);
-        const before = messages.length;
-        messages = messages.filter((message) => !removed.has(message.id));
-        if (messages.length !== before) renderHistory(isNearBottom());
+      // Both eviction and the arriving message are applied here so a single payload
+      // rebuilds the list exactly once. Letting the caller prune and then append
+      // would render twice, and the second render would sample its reading position
+      // from a DOM the first render had already shifted — an error that compounds
+      // on every message and walks the reader up the list.
+      function applyPrune(removedIds, appended = null) {
+        const removed = new Set(Array.isArray(removedIds) ? removedIds : []);
+        if (!removed.size && !appended) return;
+        // Sampled before any DOM mutation, while the layout still matches what the
+        // reader is looking at. Sending your own message is the one case that should
+        // pull you back to the bottom instead of preserving where you were reading.
+        const ownMessage = Boolean(appended && appended.author?.id === self?.id);
+        const pinToBottom = ownMessage || isNearBottom();
+        const readingOffset = pinToBottom ? null : captureReadingOffset();
+        let changed = removed.size > 0;
+        if (removed.size) messages = messages.filter((message) => !removed.has(message.id));
+        if (appended) {
+          const known = messages.some((message) => message.id === appended.id
+            || appended.clientMessageId && message.clientMessageId === appended.clientMessageId);
+          if (!known) { messages.push(appended); changed = true; }
+        }
+        if (!changed) return;
+        messages = sortAndDedupeMessages(messages);
+        trimMessages(readingOffset, pinToBottom);
       }
 
-      function appendMessage(message, { initial = false, notify = true, forceBottom = false } = {}) {
-        if (!message || typeof message.id !== 'string') return false;
-        const existing = messages.find((item) => item.id === message.id || item.clientMessageId && item.clientMessageId === message.clientMessageId);
-        if (existing) { if (message.reactions) updateReactionNode(existing.id, message.reactions); return false; }
-        const nearBottom = isNearBottom();
-        const previousIds = new Set(messages.map((item) => item.id));
-        messages.push(message);
-        messages = sortAndDedupeMessages(messages);
-        const pruned = [...previousIds].some((id) => !messages.some((item) => item.id === id));
-        if (pruned || messages[messages.length - 1] !== message) { renderHistory(nearBottom || forceBottom); return true; }
-        messageList.querySelector('.message-empty')?.remove();
-        const previous = messages.length > 1 ? messages[messages.length - 2] : null;
-        if (!previous || formatDay(previous.createdAt) !== formatDay(message.createdAt)) messageList.append(createDayDivider(message.createdAt));
-        messageList.append(createMessageNode(message));
-        $('#messageCount').textContent = `${messages.length} 条消息`;
-        if (nearBottom || forceBottom || message.author?.id === self?.id) messageScroll.scrollTop = messageScroll.scrollHeight;
-        if (notify && !initial && message.author?.id !== self?.id && !canMarkRead()) notifyNewMessage(message);
-        if (canMarkRead()) clearUnread();
-        trimMessages();
-        return true;
-      }
 
       function renderPending(item) {
         let node = messageList.querySelector(`[data-pending-id="${CSS.escape(item.id)}"]`);
@@ -2478,7 +2512,6 @@
         messages = [];
         users = [];
         messageNodes.clear();
-        knownMessageKeys.clear();
         messageList.replaceChildren();
       }
 
@@ -2486,8 +2519,9 @@
         const previousEpoch = roomEpoch;
         roomEpoch = snapshotEpoch || roomEpoch || 'legacy';
         messages = sortAndDedupeMessages(snapshotMessages);
-        knownMessageKeys.clear();
-        for (const message of messages) knownMessageKeys.add(`${roomEpoch}:${message.id}`);
+        // Rebuilt rather than cleared: a full state snapshot is authoritative for
+        // this channel, so anything no longer in it must not be retried as missing.
+        knownMessageKeys = new Set(messages.map((message) => `${roomEpoch}:${message.id}`));
         typingUsers.clear();
         hasJoined = true;
         connectionState = 'joined';
@@ -2721,11 +2755,15 @@
         }
         if (payload.type === 'message') {
           if (payload.roomEpoch && roomEpoch && payload.roomEpoch !== roomEpoch) return;
-          applyPrune(payload.removedIds);
-          latestSeq = Math.max(latestSeq, Number(payload.message?.seq) || 0);
-          appendMessage(payload.message);
           const item = pending.get(payload.message?.clientMessageId);
+          // `isNew` is decided before the list changes, because applying the payload
+          // can move the reader's reading position and flip canMarkRead().
+          const isNew = !messages.some((message) => message.id === payload.message?.id);
+          applyPrune(payload.removedIds, payload.message);
+          latestSeq = Math.max(latestSeq, Number(payload.message?.seq) || 0);
           if (item) { pending.delete(item.id); removePending(item); }
+          if (isNew && payload.message?.author?.id !== self?.id && !canMarkRead()) notifyNewMessage(payload.message);
+          if (canMarkRead()) clearUnread();
           return;
         }
         if (payload.type === 'reaction') {
