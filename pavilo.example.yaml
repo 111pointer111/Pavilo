@@ -22,6 +22,9 @@ room:
   defaultChannel: general
   # 与当前产品行为一致：频道成员可以看到彼此连接 IP。
   exposeMemberIps: true
+  # /room-info 会列出本机所有局域网地址，方便把入口发给同网段的人。
+  # 不需要时设为 false，接口仍返回空数组，不会暴露主机的网络位置。
+  exposeLanUrls: true
 
 channels:
   - id: general

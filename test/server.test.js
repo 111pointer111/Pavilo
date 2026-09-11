@@ -478,6 +478,20 @@ test('negotiates gzip for static assets without breaking identity clients', asyn
   assert.equal(tiny.headers['content-encoding'], undefined);
 });
 
+test('room-info only advertises LAN addresses when the deployment asks for it', async (t) => {
+  const exposed = await startServer(t);
+  const exposedInfo = await (await fetch(`${exposed.baseUrl}/room-info`)).json();
+  assert.ok(Array.isArray(exposedInfo.lanUrls));
+  assert.equal(exposedInfo.lanUrls.length, exposed.app.localAddresses().length);
+
+  const hidden = await startServer(t, { exposeLanUrls: false });
+  const hiddenInfo = await (await fetch(`${hidden.baseUrl}/room-info`)).json();
+  assert.deepEqual(hiddenInfo.lanUrls, [], 'the host network position is opt-in');
+  // The rest of the metadata still has to work, or the page cannot boot.
+  assert.equal(hiddenInfo.roomTitle, exposed.app.config.roomTitle);
+  assert.ok(hiddenInfo.channels.length >= 1);
+});
+
 test('serves the vendored Lucide icon set used by the interface', async (t) => {
   const { baseUrl } = await startServer(t);
 

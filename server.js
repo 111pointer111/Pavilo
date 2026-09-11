@@ -1079,7 +1079,10 @@ function createChatServer(options = {}) {
         protocolVersion: PROTOCOL_VERSION,
         roomEpoch,
         localUrl: `http://localhost:${activePort}`,
-        lanUrls: localAddresses().map((address) => `http://${address}:${activePort}`),
+        // Every interface address the host has is more than a convenience: it maps
+        // the machine's network position for anyone who can reach the port. The
+        // roster has its own switch for the same reason.
+        lanUrls: config.exposeLanUrls ? localAddresses().map((address) => `http://${address}:${activePort}`) : [],
         roomTitle: config.roomTitle,
         defaultChannelId: config.defaultChannelId,
         channels: publicChannels(),

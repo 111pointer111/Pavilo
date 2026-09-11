@@ -46,10 +46,17 @@ const DEFAULTS = deepFreeze({
   roomTitle: '语亭 · 临时频道',
   defaultChannelId: 'general',
   exposeMemberIps: true,
+  exposeLanUrls: true,
   channels: [{
     id: 'general',
     name: '闲聊',
     description: '轻松聊聊，只留当下。',
+    enabled: true,
+    maxUsers: 64
+  },{
+    id: 'awesome-ai',
+    name: '智能硬件项目聚集地',
+    description: '我们是最棒的👍',
     enabled: true,
     maxUsers: 64
   }]
@@ -57,7 +64,7 @@ const DEFAULTS = deepFreeze({
 
 const ROOT_KEYS = new Set(['version', 'server', 'room', 'channels', 'limits', 'timeouts', 'rateLimits']);
 const SERVER_KEYS = new Set(['host', 'port', 'maxUsers', 'maxConnections', 'maxConnectionsPerIp', 'allowNoOrigin', 'allowedOrigins']);
-const ROOM_KEYS = new Set(['title', 'defaultChannel', 'exposeMemberIps']);
+const ROOM_KEYS = new Set(['title', 'defaultChannel', 'exposeMemberIps', 'exposeLanUrls']);
 const CHANNEL_KEYS = new Set(['id', 'name', 'description', 'enabled', 'maxUsers']);
 const LIMIT_KEYS = new Set(['maxMessagesPerChannel', 'maxTextLength', 'maxImageBytes', 'maxImageDimension', 'maxImagePixels', 'maxJsonBytes', 'maxWebSocketFrameBytes', 'maxChannelBytes', 'maxWritableBytes', 'maxDedupeEntries']);
 const TIMEOUT_KEYS = new Set(['joinMs', 'heartbeatIntervalMs', 'heartbeatTimeoutMs', 'typingTtlMs', 'sessionLeaseMs', 'dedupeTtlMs']);
@@ -200,6 +207,7 @@ function normalizeConfig(document = {}, { requireVersion = false } = {}) {
   if (room.title !== undefined) config.roomTitle = text(room.title, 'room.title', 1, 80);
   if (room.defaultChannel !== undefined) config.defaultChannelId = text(room.defaultChannel, 'room.defaultChannel', 1, 32);
   if (room.exposeMemberIps !== undefined) config.exposeMemberIps = boolean(room.exposeMemberIps, 'room.exposeMemberIps');
+  if (room.exposeLanUrls !== undefined) config.exposeLanUrls = boolean(room.exposeLanUrls, 'room.exposeLanUrls');
 
   optionalInteger(config, 'maxMessages', limits, 'maxMessagesPerChannel', 'limits.maxMessagesPerChannel', 1, 10_000);
   optionalInteger(config, 'maxTextLength', limits, 'maxTextLength', 'limits.maxTextLength', 1, 100_000);
