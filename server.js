@@ -29,6 +29,7 @@ const DEFAULTS = Object.freeze({
 });
 const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 const PROTOCOL_VERSION = 2;
+const REACTION_EMOJIS = new Set(['👍', '❤️', '😂', '🎉', '👀', '🔥']);
 const CLIENT_ID_RE = /^[A-Za-z0-9_-]{8,96}$/;
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -38,18 +39,7 @@ const MIME_TYPES = {
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon'
 };
-
-// Accept any renderable emoji (including ZWJ families, skin tones, flags, keycaps),
-// while rejecting plain text, control characters, and oversized payloads.
-const EMOJI_STRING_RE = /^[\p{Emoji}\p{Emoji_Modifier}\p{Regional_Indicator}\u200D\uFE0F\u20E3]+$/u;
-const EMOJI_CORE_RE = /[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}\u20E3]/u;
-const MAX_REACTION_EMOJI_POINTS = 12;
-
-function isReactionEmoji(value) {
-  if (typeof value !== 'string' || !value) return false;
-  if ([...value].length > MAX_REACTION_EMOJI_POINTS) return false;
-  return EMOJI_STRING_RE.test(value) && EMOJI_CORE_RE.test(value);
-}
+const vendorEtagCache = new Map();
 
 function randomId(prefix) {
   return `${prefix}_${crypto.randomBytes(8).toString('hex')}`;
@@ -608,7 +598,7 @@ function createChatServer(options = {}) {
       sendError(client, 'REACTION_RATE_LIMITED', '回应太快了，请稍等。');
       return;
     }
-    if (typeof command.messageId !== 'string' || !isReactionEmoji(command.emoji) || typeof command.active !== 'boolean') {
+    if (typeof command.messageId !== 'string' || !REACTION_EMOJIS.has(command.emoji) || typeof command.active !== 'boolean') {
       sendError(client, 'INVALID_REACTION', '不支持这个回应。');
       return;
     }
@@ -834,9 +824,18 @@ function createChatServer(options = {}) {
         response.end(headOnly ? undefined : 'Not found');
         return;
       }
+      // ETag lets the emoji picker validate its cache with a cheap HEAD request,
+      // avoiding its fallback checksum path which needs crypto.subtle (missing on
+      // plain-HTTP LAN origins where Pavilo is typically accessed).
+      let etag = vendorEtagCache.get(relative);
+      if (!etag) {
+        etag = `"sha1-${crypto.createHash('sha1').update(data).digest('hex')}"`;
+        vendorEtagCache.set(relative, etag);
+      }
       response.writeHead(200, {
         'Content-Type': MIME_TYPES[extension] || 'application/octet-stream',
         'Content-Length': data.length,
+        ETag: etag,
         'Cache-Control': 'public, max-age=300',
         'X-Content-Type-Options': 'nosniff'
       });
@@ -1105,7 +1104,7 @@ function createChatServer(options = {}) {
   };
 }
 
-module.exports = { createChatServer, DEFAULTS, PROTOCOL_VERSION };
+module.exports = { createChatServer, DEFAULTS, PROTOCOL_VERSION, REACTION_EMOJIS: [...REACTION_EMOJIS] };
 
 if (require.main === module) {
   const app = createChatServer();

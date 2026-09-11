@@ -232,29 +232,30 @@ test('reaction updates are idempotent and expose canonical counts', async (t) =>
   assert.deepEqual(secondInactive.reactions, {});
 });
 
-test('reactions accept any renderable emoji and reject plain text', async (t) => {
+test('reactions only accept the six fixed emoji', async (t) => {
   const { port } = await startServer(t);
+  const { REACTION_EMOJIS } = require('../server');
   const client = await openWebSocket({ port });
   const { stateStart } = await join(client);
 
   client.sendJson({
     type: 'message',
-    clientMessageId: 'message-reaction-full-set',
+    clientMessageId: 'message-reaction-fixed-set',
     kind: 'text',
     text: 'react here too'
   });
   const ack = await client.nextJson((payload) => payload.type === 'ack');
   client.nextJson((payload) => payload.type === 'message');
 
-  const complexEmoji = ['👨‍👩‍👧‍👦', '🇨🇳', '👍🏻', '1️⃣', '❤', '⛷️'];
-  for (const emoji of complexEmoji) {
+  for (const emoji of REACTION_EMOJIS) {
     client.sendJson({ type: 'reaction', messageId: ack.messageId, emoji, active: true });
     const event = await client.nextJson((payload) => payload.type === 'reaction');
     assert.equal(event.reactions[emoji].count, 1, `${emoji} should be accepted`);
     assert.equal(event.reactions[emoji].userIds[0], stateStart.self.id);
   }
 
-  for (const emoji of ['hello', '你好', '👍🏼' + '文本', ''] ) {
+  const rejected = ['hello', '你好', '👨‍👩‍👧‍👦', '🇨🇳', '👍🏻', '1️⃣', ''];
+  for (const emoji of rejected) {
     client.sendJson({ type: 'reaction', messageId: ack.messageId, emoji, active: true });
     const error = await client.nextJson((payload) => payload.type === 'error');
     assert.equal(error.code, 'INVALID_REACTION', JSON.stringify(emoji));
@@ -273,6 +274,7 @@ test('serves vendored emoji picker assets without path traversal', async (t) => 
   const data = await fetch(`${baseUrl}/vendor/emoji-picker/data.json`);
   assert.equal(data.status, 200);
   assert.match(data.headers.get('content-type'), /^application\/json/);
+  assert.ok(data.headers.get('etag'), 'data.json should expose an ETag for the picker cache');
   assert.ok((await data.json()).length > 1000);
 
   // Raw request keeps `..` intact on the wire; the server must not serve source files.
