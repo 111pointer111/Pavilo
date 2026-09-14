@@ -175,7 +175,13 @@
     $('#roomTitle').textContent = roomInfo?.roomTitle || '语亭 · 临时频道';
     if (!channel) return;
     $('#roomHeading').textContent = `${channel.name} · ${channel.id}`;
-    $('#roomKicker').textContent = `Local / ${String(roomChannels.indexOf(channel) + 1).padStart(2, '0')}`;
+    const channelIndex = roomChannels.indexOf(channel);
+    const totalChannels = roomChannels.length;
+    if (totalChannels > 1) {
+      $('#roomKicker').textContent = `频道 ${channelIndex + 1} / ${totalChannels}`;
+    } else {
+      $('#roomKicker').textContent = '临时房间';
+    }
     channelDescription.textContent = channel.description || '同一 Wi‑Fi 的人可以看见这里';
   }
 
@@ -201,7 +207,14 @@
     const channelId = state.channelId || selectedChannelId;
     const switching = Boolean(state.channel?.switching);
     const joined = Boolean(state.connection?.joined);
-    $('#channelCount').textContent = String(roomChannels.filter((channel) => channel.enabled).length).padStart(2, '0');
+    const enabledCount = roomChannels.filter((channel) => channel.enabled).length;
+    const channelCountEl = $('#channelCount');
+    if (enabledCount > 1) {
+      channelCountEl.textContent = `${enabledCount} 个`;
+      channelCountEl.hidden = false;
+    } else {
+      channelCountEl.hidden = true;
+    }
     channelList.replaceChildren(...roomChannels.map((channel) => {
       const button = document.createElement('button');
       const active = channel.id === channelId;
