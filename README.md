@@ -35,6 +35,10 @@ Pavilo（**Pavilion + Local**）是一个浏览器即用、默认临时、可以
 
 **界面与资源**
 
+- 完整的**深色模式**支持，自动适配系统主题偏好
+- 现代**玻璃态（Glassmorphism）**设计，半透明背景与模糊效果
+- 流畅的**微交互动画**：按钮弹性反馈、表情弹跳、脉冲动画等
+- 精心设计的**色彩系统**和间距规范，详见 [设计语言文档](docs/design-language.md)
 - 图标来自自托管的 [Lucide](https://lucide.dev)（`vendor/lucide`，ISC 许可）
 - 表情选择器来自自托管的 `vendor/emoji-picker`（Apache-2.0 许可）
 - 服务端静态白名单只提供聊天页、样式、明确列出的 `client/` 模块及所需的 `vendor/` 资源，不提供任意仓库文件
@@ -186,7 +190,7 @@ PAVILO_PLAYWRIGHT_PATH=/tmp/pavilo-browser-verify/node_modules/playwright npm ru
 
 脚本自动创建仓库外临时 YAML、分配回环端口、驱动双页面，并只关闭自己启动的进程。覆盖频道隔离/切换失败、刷新/断线恢复、IME、图片查看器、阅读位置、移动端抽屉和正常停服；移动键盘使用缩小视口模拟，不能代替真机输入法验收。
 
-模块边界和维护约定见 [架构概览](docs/architecture/overview.md)、[协议契约](docs/architecture/chat-protocol.md) 和 [状态契约](docs/architecture/state-model.md)。
+模块边界和维护约定见 [架构概览](docs/architecture/overview.md)、[协议契约](docs/architecture/chat-protocol.md)、[状态契约](docs/architecture/state-model.md) 和 [设计语言](docs/design-language.md)。
 
 ## 项目结构
 
@@ -195,7 +199,7 @@ PAVILO_PLAYWRIGHT_PATH=/tmp/pavilo-browser-verify/node_modules/playwright npm ru
 ├── config.js           # YAML / 环境变量配置加载与校验
 ├── pavilo.example.yaml # 完整配置示例
 ├── index.html          # 页面骨架、资源引用与启动入口
-├── chat.css            # 页面样式（保持既有视觉）
+├── chat.css            # 页面样式（深色模式、玻璃态、微交互）
 ├── client/             # 协议、连接、状态、pending 与独立视图模块
 ├── server.js           # 配置、core/transport 组合与兼容启动入口
 ├── src/core/           # 不依赖网络的房间、会话、命令与领域事件
@@ -203,7 +207,9 @@ PAVILO_PLAYWRIGHT_PATH=/tmp/pavilo-browser-verify/node_modules/playwright npm ru
 ├── vendor/             # 自托管的第三方前端资源
 ├── scripts/            # Lucide 资源构建脚本
 ├── test/               # Node 单元/集成测试及独立浏览器验收
-├── docs/architecture/  # 架构、协议与状态契约
+├── docs/
+│   ├── architecture/   # 架构、协议与状态契约
+│   └── design-language.md  # 设计语言、色彩系统与组件规范
 ├── package.json        # 元数据、依赖与命令
 ├── ROADMAP.md          # 已实现状态与后续计划
 └── LICENSE             # MIT 许可证
