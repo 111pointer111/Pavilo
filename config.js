@@ -16,6 +16,7 @@ const MAX_ROSTER_USER_BYTES = 512;
 // Files Pavilo serves from its own root. Anything else there (including the YAML
 // config) stays private, see assertPrivateConfigPath below.
 const HTTP_PUBLIC_FILES = new Set(['index.html', 'chat.css']);
+const HTTP_PUBLIC_DIRECTORIES = new Set(['vendor', 'client']);
 
 const DEFAULTS = deepFreeze({
   port: 4173,
@@ -272,14 +273,14 @@ function isHttpPublicPath(candidatePath, rootPath) {
   const relative = path.relative(rootPath, candidatePath);
   if (relative.startsWith('..') || path.isAbsolute(relative)) return false;
   const firstPart = relative.split(path.sep)[0];
-  return firstPart === 'vendor' || HTTP_PUBLIC_FILES.has(relative);
+  return HTTP_PUBLIC_DIRECTORIES.has(firstPart) || HTTP_PUBLIC_FILES.has(relative);
 }
 
 function assertPrivateConfigPath(resolvedPath) {
   const realRoot = fs.realpathSync(ROOT);
   const realPath = fs.realpathSync(resolvedPath);
   if (isHttpPublicPath(resolvedPath, ROOT) || isHttpPublicPath(realPath, realRoot)) {
-    throw new Error('配置文件不能位于 Pavilo 的 HTTP 公开路径（index.html 或 vendor/）');
+    throw new Error('配置文件不能位于 Pavilo 的 HTTP 公开路径（index.html、vendor/ 或 client/）');
   }
 }
 

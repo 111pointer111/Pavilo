@@ -130,8 +130,11 @@ test('public metadata is allowlisted and private files or vendor symlinks cannot
   const metadata = await (await fetch(`${url}/room-info`)).json();
   assert.deepEqual(Object.keys(metadata).sort(), ['channels', 'defaultChannelId', 'ephemeral', 'lanUrls', 'limits', 'localUrl', 'protocolVersion', 'roomEpoch', 'roomTitle'].sort());
   assert.ok(!JSON.stringify(metadata).includes('private.example'));
-  for (const file of ['/pavilo.yaml', '/pavilo.example.yaml', '/config.js', '/server.js', '/.env', '/package.json', '/vendor/../config.js', '/vendor/%2e%2e/config.js']) {
+  for (const file of ['/pavilo.yaml', '/pavilo.example.yaml', '/config.js', '/server.js', '/.env', '/package.json', '/vendor/../config.js', '/vendor/%2e%2e/config.js', '/client/unknown.js', '/client/../config.js']) {
     for (const method of ['GET', 'HEAD']) assert.notEqual((await fetch(`${url}${file}`, { method })).status, 200, `${method} ${file}`);
+  }
+  for (const file of ['/client/pending.js', '/client/images.js']) {
+    for (const method of ['GET', 'HEAD']) assert.equal((await fetch(`${url}${file}`, { method })).status, 200, `${method} ${file}`);
   }
   const link = path.join(__dirname, '..', 'vendor', `test-private-${process.pid}.js`);
   fs.symlinkSync(path.join(__dirname, '..', 'config.js'), link);

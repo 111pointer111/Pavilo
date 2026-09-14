@@ -68,13 +68,8 @@ rateLimits:
   assert.equal(config.exposeMemberIps, false);
   assert.equal(config.messageRateLimit, 4);
   assert.equal(config.maxImageBytes, DEFAULTS.maxImageBytes);
-  assert.deepEqual(config.channels, [{
-    id: 'general',
-    name: '闲聊',
-    description: '轻松聊聊，只留当下。',
-    enabled: true,
-    maxUsers: 10
-  }]);
+  assert.deepEqual(config.channels, DEFAULTS.channels.map((channel) => ({ ...channel, maxUsers: 10 })));
+  assert.deepEqual(config.channels.map((channel) => channel.id), ['general', 'awesome-ai']);
 });
 
 test('explicit channels replace general and support a non-general default', () => {
@@ -271,6 +266,17 @@ test('rejects HTTP-public config paths and symlinks resolving to them', (t) => {
   const directory = temporaryDirectory(t);
   const symlink = path.join(directory, 'linked.yaml');
   fs.symlinkSync(vendorConfig, symlink);
+  throwsMatch(() => loadConfig({ env: {}, configPath: symlink }), /HTTP 公开路径/);
+});
+
+test('rejects configs in the client asset directory and symlinks into it', (t) => {
+  const clientConfig = path.join(ROOT, 'client', `config-test-${process.pid}.yaml`);
+  fs.writeFileSync(clientConfig, 'version: 1\n');
+  t.after(() => fs.rmSync(clientConfig, { force: true }));
+  throwsMatch(() => loadConfig({ env: {}, configPath: clientConfig }), /HTTP 公开路径/);
+  const directory = temporaryDirectory(t);
+  const symlink = path.join(directory, 'linked-client.yaml');
+  fs.symlinkSync(clientConfig, symlink);
   throwsMatch(() => loadConfig({ env: {}, configPath: symlink }), /HTTP 公开路径/);
 });
 

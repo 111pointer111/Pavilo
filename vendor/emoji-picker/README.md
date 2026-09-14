@@ -12,7 +12,7 @@ jsdelivr, which the app's CSP rejects).
 | `database.js` | emoji-picker-element 1.29.1 | IndexedDB-backed emoji store / search |
 | `i18n/zh_CN.js` | emoji-picker-element 1.29.1 | official Simplified Chinese UI labels |
 | `data.json` | emoji-picker-element-data 1.8.0 `zh/emojibase-native/data.json` | full Unicode emoji dataset with Chinese search keywords (1923 emoji) |
-| `LICENSE` | MIT, © 2018–present Nolan Lawson | covers both npm packages |
+| `LICENSE` | Apache-2.0 | both npm package versions above declare Apache-2.0; the vendored license text matches |
 
 ## Usage
 

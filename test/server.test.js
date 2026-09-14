@@ -575,7 +575,13 @@ test('serves the vendored Lucide icon set used by the interface', async (t) => {
   const used = [...new Set([...source.matchAll(/data-icon="([a-z0-9-]+)"/g)].map((match) => match[1]))];
   const index = await fetch(`${baseUrl}/`);
   const indexBody = await index.text();
-  const requested = [...new Set([...indexBody.matchAll(/data-icon="([a-z0-9-]+)"/g), ...indexBody.matchAll(/iconMarkup\('([a-z0-9-]+)'/g)].map((match) => match[1]))];
+  const clientSources = await Promise.all([...indexBody.matchAll(/src="(\/client\/[a-z-]+\.js)"/g)].map(async ([, pathname]) => {
+    const response = await fetch(`${baseUrl}${pathname}`);
+    assert.equal(response.status, 200, pathname);
+    return response.text();
+  }));
+  const interfaceSource = [indexBody, ...clientSources].join('\n');
+  const requested = [...new Set([...interfaceSource.matchAll(/data-icon="([a-z0-9-]+)"/g), ...interfaceSource.matchAll(/iconMarkup\('([a-z0-9-]+)'/g)].map((match) => match[1]))];
   assert.ok(requested.length >= 15, `expected the interface to use Lucide icons, saw ${requested.length}`);
   for (const name of requested) {
     const markup = createIcon(name);

@@ -36,16 +36,16 @@ Pavilo（**Pavilion + Local**）是一个浏览器即用、默认临时、可以
 **界面与资源**
 
 - 图标来自自托管的 [Lucide](https://lucide.dev)（`vendor/lucide`，ISC 许可）
-- 表情选择器来自自托管的 `vendor/emoji-picker`（MIT 许可）
-- 服务端静态白名单只提供聊天页及所需的 `vendor/` 资源，不提供任意仓库文件
-- 静态文本资源按 `Accept-Encoding` 协商 gzip：聊天页 162 KB → 40 KB，图标数据 680 KB → 84 KB。压缩结果按 ETag 缓存，响应带 `Vary: Accept-Encoding`；不支持 gzip 的客户端仍收到原始字节
+- 表情选择器来自自托管的 `vendor/emoji-picker`（Apache-2.0 许可）
+- 服务端静态白名单只提供聊天页、样式、明确列出的 `client/` 模块及所需的 `vendor/` 资源，不提供任意仓库文件
+- 静态文本资源按 `Accept-Encoding` 协商 gzip，压缩结果按 ETag 缓存，响应带 `Vary: Accept-Encoding`；不支持 gzip 的客户端仍收到原始字节
 
 **可靠性**
 
 - 消息由服务端确认接收（ACK），未确认或失败的内容可在当前页面重试
 - 相同消息 ID 幂等去重，短暂断线或刷新可恢复临时身份
 - 图片发送前在浏览器内降采样到长边 1600 px 并按大小在质量 0.5–0.82 之间收敛；GIF 保留动画、不降采样，仍受同一条上限约束
-- 服务重启产生新的房间纪元，旧的未确认内容不会自动发入新房间，页面也会回到登录状态
+- 正常停服会让页面回到登录状态；意外断线继续重连。新进程产生新的频道纪元，旧的未确认内容不会自动发入新房间
 - YAML 配置使用版本、严格类型、未知键、重复键、别名和交叉容量校验
 
 **当前只读边界**
@@ -114,7 +114,7 @@ PAVILO_CONFIG=/etc/pavilo/config.yaml npm start
 
 ### 频道和人数语义
 
-- 不提供 `channels` 时，会保留内置 `general`，其 `maxUsers` 自动收紧到 `server.maxUsers`，因此可以只调低全局人数。
+- 不提供 `channels` 时，会保留内置 `general` 和 `awesome-ai`，各频道 `maxUsers` 自动收紧到 `server.maxUsers`，因此可以只调低全局人数。
 - 一旦提供 `channels`，列表就是完整替换而非与 `general` 合并；**非 `general` 默认频道**需同时出现在列表中、启用，并由 `room.defaultChannel` 指定。
 - `server.maxUsers` 是全局成员上限；`channels[].maxUsers` 是单频道上限，且不得超过全局上限。
 - 全局和频道人数都包含 `timeouts.sessionLeaseMs` 内暂时断线、仍可恢复身份的成员。连接总数由 `server.maxConnections` 单独限制。
@@ -135,9 +135,9 @@ channels:
 
 ### 配置文件安全
 
-Pavilo 的 HTTP 服务采用静态白名单，`pavilo.yaml` 和 `pavilo.example.yaml` 不会被应用直接提供；配置加载器也拒绝把 `index.html`、`chat.css` 或 `vendor/` 内文件（包括通过符号链接指向它们的文件）用作配置。但这不是认证机制：聊天页面、房间元数据和 vendor 资源对任何能访问监听端口的人开放。
+Pavilo 的 HTTP 服务采用静态白名单，`pavilo.yaml` 和 `pavilo.example.yaml` 不会被应用直接提供；配置加载器也拒绝把 `index.html`、`chat.css` 或 `vendor/`、`client/` 内文件（包括通过符号链接指向它们的文件）用作配置。但这不是认证机制：聊天页面、房间元数据和前端资源对任何能访问监听端口的人开放。
 
-- 不要把真实配置放入 `vendor/`、其他 Web 根目录、对象存储公开目录或反向代理的静态目录。
+- 不要把真实配置放入 `vendor/`、`client/`、其他 Web 根目录、对象存储公开目录或反向代理的静态目录。
 - 反向代理只能转发 Pavilo 的应用端口，不得额外把整个仓库目录作为静态站点；否则代理可能绕过应用白名单，泄漏原始 YAML、源码或其他文件。
 - 原始 YAML **不得提供下载**。如配置包含内部域名或网络策略，更应放在仓库外并设置操作系统文件权限。
 - `allowedOrigins` 只校验 WebSocket 浏览器 Origin，**不是用户认证或访问控制**；`allowNoOrigin: true` 还允许没有 Origin 的客户端。
@@ -175,7 +175,18 @@ node --check config.js
 node --check server.js
 ```
 
-测试覆盖配置默认值、部分覆盖、错误、环境变量、文件加载与示例，以及 HTTP / WebSocket 的历史分块、ACK、幂等去重、恢复身份、Origin、心跳、回应、静态资源和生命周期；频道测试覆盖隔离、原子切换、人数租约与容量淘汰（淘汰 ID 随消息下发、超预算拒绝、同步中断线恢复、同步中拒发并保留消息 ID）。
+测试覆盖配置、客户端协议/状态/pending/图片规则、无网络聊天内核，以及 HTTP / WebSocket 的历史分块、ACK、幂等去重、恢复身份、Origin、心跳、回应、静态资源和生命周期；频道测试覆盖隔离、原子切换、人数租约与容量淘汰。
+
+浏览器验收使用已安装的 Google Chrome，Playwright 单独安装到仓库外，不进入运行时依赖：
+
+```bash
+npm install --prefix /tmp/pavilo-browser-verify --no-package-lock playwright
+PAVILO_PLAYWRIGHT_PATH=/tmp/pavilo-browser-verify/node_modules/playwright npm run test:browser
+```
+
+脚本自动创建仓库外临时 YAML、分配回环端口、驱动双页面，并只关闭自己启动的进程。覆盖频道隔离/切换失败、刷新/断线恢复、IME、图片查看器、阅读位置、移动端抽屉和正常停服；移动键盘使用缩小视口模拟，不能代替真机输入法验收。
+
+模块边界和维护约定见 [架构概览](docs/architecture/overview.md)、[协议契约](docs/architecture/chat-protocol.md) 和 [状态契约](docs/architecture/state-model.md)。
 
 ## 项目结构
 
@@ -183,12 +194,16 @@ node --check server.js
 .
 ├── config.js           # YAML / 环境变量配置加载与校验
 ├── pavilo.example.yaml # 完整配置示例
-├── index.html          # 单页聊天界面与浏览器端逻辑
-├── chat.css            # 页面样式（由 index.html 引用）
-├── server.js           # HTTP、WebSocket、频道、会话与临时消息服务
+├── index.html          # 页面骨架、资源引用与启动入口
+├── chat.css            # 页面样式（保持既有视觉）
+├── client/             # 协议、连接、状态、pending 与独立视图模块
+├── server.js           # 配置、core/transport 组合与兼容启动入口
+├── src/core/           # 不依赖网络的房间、会话、命令与领域事件
+├── src/transport/      # HTTP 静态白名单、WebSocket 连接与帧协议
 ├── vendor/             # 自托管的第三方前端资源
 ├── scripts/            # Lucide 资源构建脚本
-├── test/               # Node 原生配置、HTTP 与 WebSocket 测试
+├── test/               # Node 单元/集成测试及独立浏览器验收
+├── docs/architecture/  # 架构、协议与状态契约
 ├── package.json        # 元数据、依赖与命令
 ├── ROADMAP.md          # 已实现状态与后续计划
 └── LICENSE             # MIT 许可证
