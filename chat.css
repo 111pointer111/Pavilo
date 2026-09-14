@@ -157,7 +157,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:fo
 .rail, .info-panel {
   min-width: 0;
   min-height: 0;
-  overflow: hidden auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
   background: rgba(246, 250, 248, .56);
@@ -206,8 +207,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:fo
 .channel {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
+  min-width: 0;
   min-height: 39px;
   padding: 8px 10px;
   border: 0;
@@ -226,7 +228,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:fo
 .channel:disabled:hover { background: transparent; color: var(--ink-soft); }
 .channel.active:disabled { background: var(--teal-pale); color: var(--teal-deep); opacity: .7; }
 .channel-hash { flex: 0 0 auto; color: var(--teal); font-family: var(--mono); font-size: 16px; font-weight: 400; }
-.channel-name { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.channel-name { flex: 1 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .channel-meta {
   display: inline-flex;
   flex: 0 0 auto;
@@ -234,7 +236,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:fo
   align-items: center;
   justify-content: flex-end;
   gap: 5px;
-  margin-left: auto;
   color: var(--ink-faint);
   font-family: var(--mono);
   font-size: 9px;
