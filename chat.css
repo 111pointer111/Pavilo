@@ -282,7 +282,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:fo
 }
 
 .chat-heading { min-width: 0; }
-.chat-heading h1 { max-width: 100%; margin: 6px 0 0; overflow: hidden; font-family: var(--display); font-size: clamp(25px, 2.7vw, 37px); font-weight: 400; letter-spacing: -.05em; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+.chat-heading h1 { max-width: 100%; margin: 6px 0 0; overflow: hidden; font-family: var(--display); font-size: clamp(25px, 2.7vw, 37px); font-weight: 400; letter-spacing: -.02em; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
 .chat-subline { display: flex; min-width: 0; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin: 10px 0 0; color: var(--ink-soft); font-size: 11px; }
 .live-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 4px rgba(15, 119, 114, .12); }
 .live-dot.offline { background: var(--coral); box-shadow: 0 0 0 4px rgba(232, 111, 87, .12); }
