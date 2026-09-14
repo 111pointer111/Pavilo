@@ -225,10 +225,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:fo
 .channel:disabled { cursor: not-allowed; opacity: .48; }
 .channel:disabled:hover { background: transparent; color: var(--ink-soft); }
 .channel.active:disabled { background: var(--teal-pale); color: var(--teal-deep); opacity: .7; }
-.channel-hash { color: var(--teal); font-family: var(--mono); font-size: 16px; font-weight: 400; }
-.channel-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.channel-hash { flex: 0 0 auto; color: var(--teal); font-family: var(--mono); font-size: 16px; font-weight: 400; }
+.channel-name { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .channel-meta {
   display: inline-flex;
+  flex: 0 0 auto;
   min-width: 51px;
   align-items: center;
   justify-content: flex-end;
