@@ -6,7 +6,7 @@ const { PROTOCOL_VERSION, REACTION_EMOJIS, publicMessage } = require('./events')
 const serialize = (payload) => Buffer.from(JSON.stringify(payload));
 function createCommandHandler(config, rooms, sessionStore, messageStore, peerEffects, { now, randomId, randomAvatarSeed, cancel }) {
   const { resolveJoin, rosterUsers, nameIsFree, activeMembers } = sessionStore;
-  const { parseImage, payloadFingerprint, findReply, messageByteSize, messageAck, pruneDedupe, reactionSummary } = messageStore;
+  const { parseImage, normalizeMentions, payloadFingerprint, findReply, messageByteSize, messageAck, pruneDedupe, reactionSummary } = messageStore;
   const { publicUser, sendError, sendJson, broadcast, broadcastOccupancy, sendInitialState, activateTyping, deactivateTyping, closeClient, handOffSession } = peerEffects;
   const evictMessages = rooms.evictMessages;
   function rateAllows(client, bucket = 'message', maximum = 8, windowMs = 5000) {
@@ -113,6 +113,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       return;
     }
 
+    const mentions = kind === 'text' ? normalizeMentions(command.mentions, rosterUsers(client.session.channelId), text) : [];
     const sequence = ++channel.messageSequence;
     const message = {
       id: randomId(`m${sequence}`),
@@ -122,7 +123,8 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       author: publicUser(client.session),
       createdAt: now(),
       replyTo: findReply(channel, command.replyTo),
-      reactions: {}
+      reactions: {},
+      ...(mentions.length ? { mentions } : {})
     };
     if (kind === 'text') message.text = text;
     else message.image = image;

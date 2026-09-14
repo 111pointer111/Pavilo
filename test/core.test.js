@@ -101,6 +101,26 @@ test('core broadcasts privacy-safe occupancy snapshots across channel lifecycle'
 });
 
 
+test('core normalizes mentions against the current roster and strips invalid IDs', () => {
+  const { core } = createHarness();
+  join(core, 'alice-peer', 'Alice', 'session-alice-0001');
+  join(core, 'bob-peer', 'Bob', 'session-bob-0001');
+  const sent = core.dispatch('alice-peer', { type: 'message', clientMessageId: 'mention-core-0001', kind: 'text', text: 'Hi @Bob @Ghost', mentions: ['u_missing', 'u_missing'] });
+  const event = sent.effects.find((effect) => effect.kind === 'broadcast').payload;
+  assert.equal(event.message.mentions, undefined);
+  const bob = core.dispatch('alice-peer', { type: 'message', clientMessageId: 'mention-core-0002', kind: 'text', text: 'Hi @Bob', mentions: [event.message.author.id] });
+  assert.equal(bob.effects.find((effect) => effect.kind === 'broadcast').payload.message.mentions, undefined);
+});
+
+test('core accepts a real member ID and authoritative username in a mention', () => {
+  const { core } = createHarness();
+  const alice = join(core, 'alice-peer', 'Alice', 'session-alice-0001');
+  const bob = join(core, 'bob-peer', 'Bob', 'session-bob-0001');
+  const bobId = bob.users.find((user) => user.username === 'Bob').id;
+  const sent = core.dispatch('alice-peer', { type: 'message', clientMessageId: 'mention-core-0003', kind: 'text', text: 'Hi @Bob', mentions: [bobId] });
+  assert.deepEqual(sent.effects.find((effect) => effect.kind === 'broadcast').payload.message.mentions, [{ id: bobId, username: 'Bob' }]);
+  assert.notEqual(alice.self.id, bobId);
+});
 test('core accepts commands and returns routed effects without a network transport', () => {
   const { core } = createHarness();
   const state = join(core, 'alice-peer', 'Alice', 'session-alice-0001');

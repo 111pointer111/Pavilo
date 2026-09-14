@@ -105,8 +105,10 @@
       this.emit('changed', item, { reason: 'sending' });
       const command = { type: 'message', kind: item.kind, clientMessageId: item.id,
         replyTo: item.replyToId || undefined };
-      if (item.kind === 'text') command.text = item.text;
-      else command.image = item.image;
+      if (item.kind === 'text') {
+        command.text = item.text;
+        if (item.mentions?.length) command.mentions = item.mentions.map((mention) => mention.id || mention);
+      } else command.image = item.image;
       let sent = false;
       try { sent = Boolean(send && send(command)); } catch { /* Treat transport exceptions as failed sends. */ }
       // A synchronous adapter may already have delivered an ACK or canonical echo.

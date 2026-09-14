@@ -33,17 +33,24 @@
       REACTION_EMOJIS.includes(emoji) && isRecord(summary) && isSequence(summary.count)
       && Array.isArray(summary.userIds) && summary.userIds.every(isId));
   }
+  function isMentions(value) {
+    return Array.isArray(value) && new Set(value.map((mention) => mention?.id)).size === value.length
+      && value.every((mention) => isRecord(mention) && isId(mention.id)
+        && typeof mention.username === 'string' && mention.username.length > 0 && mention.username.length <= 24);
+  }
+
   function isMessage(message) {
     if (!isRecord(message) || !isId(message.id) || !isUser(message.author)
       || !optional(message.seq, isSequence) || !Number.isFinite(message.createdAt)
       || !optional(message.clientMessageId, isClientMessageId)
+      || !optional(message.mentions, isMentions)
       || !optional(message.reactions, isReactions)) return false;
     if (message.replyTo !== undefined && message.replyTo !== null
       && (!isRecord(message.replyTo) || !isId(message.replyTo.id)
         || typeof message.replyTo.username !== 'string' || !['text', 'image'].includes(message.replyTo.kind)
         || typeof message.replyTo.text !== 'string')) return false;
     if (message.kind === 'text') return typeof message.text === 'string';
-    return message.kind === 'image' && isRecord(message.image) && typeof message.image.src === 'string'
+    return message.kind === 'image' && !message.mentions?.length && isRecord(message.image) && typeof message.image.src === 'string'
       && Number.isFinite(message.image.width) && message.image.width > 0
       && Number.isFinite(message.image.height) && message.image.height > 0;
   }
@@ -105,5 +112,5 @@
   }
 
   return { PROTOCOL_VERSION, COMMANDS, EVENTS, ACK_FIELDS, ERROR_FIELDS, SYNC_EVENTS, DEFERRED_EVENTS,
-    REACTION_EMOJIS, isId, isClientMessageId, isChannelId, isRoomEpoch, isUser, isMessage, parseServerEvent };
+    REACTION_EMOJIS, isId, isClientMessageId, isChannelId, isRoomEpoch, isUser, isMessage, isMentions, parseServerEvent };
 });

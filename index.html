@@ -114,17 +114,21 @@
               <button class="composer-button" id="emojiButton" type="button" aria-label="打开表情" aria-expanded="false" aria-controls="emojiPopover">
                 <span class="icon" data-icon="smile" aria-hidden="true"></span>
               </button>
+              <button class="composer-button" id="mentionButton" type="button" aria-label="提及成员" title="提及成员（@）" aria-controls="mentionList">
+                <span class="icon" data-icon="at-sign" aria-hidden="true"></span>
+              </button>
               <button class="composer-button" id="attachmentButton" type="button" aria-label="发送图片">
                 <span class="icon" data-icon="image-plus" aria-hidden="true"></span>
               </button>
             </div>
-            <textarea class="composer-text" id="composerText" rows="1" maxlength="2000" enterkeyhint="send" placeholder="说点什么…  Enter 发送，Shift + Enter 换行" aria-label="消息内容"></textarea>
+            <textarea class="composer-text" id="composerText" rows="1" maxlength="2000" enterkeyhint="send" placeholder="说点什么… 输入 @ 提及成员" aria-label="消息内容" aria-autocomplete="list" aria-controls="mentionList" aria-expanded="false" aria-describedby="composerHint"></textarea>
             <button class="send-button" id="sendButton" type="submit" disabled>
               发送
               <span class="icon" data-icon="send" data-icon-size="14" aria-hidden="true"></span>
             </button>
             <input id="imageInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
           </form>
+          <p class="composer-hint" id="composerHint">Enter 发送 · Shift + Enter 换行 · @ 提及成员</p>
         </div>
       </section>
 
@@ -167,6 +171,11 @@
 
   <div class="reaction-popover" id="reactionPopover" hidden>
     <div class="reaction-choice-grid" id="reactionChoices" role="group" aria-label="表情回应"></div>
+  </div>
+  <div class="mention-popover" id="mentionPopover" hidden>
+    <div class="mention-heading"><strong>提及成员</strong><span id="mentionStatus" role="status" aria-live="polite"></span></div>
+    <div class="mention-list" id="mentionList" role="listbox" aria-label="提及成员"></div>
+    <div class="mention-footer">↑ ↓ 选择 <span>Enter 确认 · Esc 取消</span></div>
   </div>
   <div class="composer-popover" id="composerPopover" hidden>
     <emoji-picker id="composerPicker" locale="zh" data-source="/vendor/emoji-picker/data.json"></emoji-picker>
@@ -232,6 +241,7 @@
   <script src="/client/images.js"></script>
   <script src="/client/messages.js"></script>
   <script src="/client/overlays.js"></script>
+  <script src="/client/mentions.js"></script>
   <script src="/client/composer.js"></script>
   <script src="/client/notifications.js"></script>
   <script src="/client/app.js"></script>

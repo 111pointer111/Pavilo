@@ -98,6 +98,29 @@ function createMessageStore(config, now) {
     }
   }
 
+  function mentionIds(value) {
+    return [...new Set((Array.isArray(value) ? value : [])
+      .filter((id) => typeof id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(id)))].sort();
+  }
+
+  function normalizeMentions(value, users, text) {
+    const ids = new Set(mentionIds(value));
+    const candidates = users.filter((user) => ids.has(user.id)).sort((a, b) => b.username.length - a.username.length);
+    const found = new Set();
+    const mentions = [];
+    // Match the same literal, longest-name-first token boundaries as the client.
+    // The cleaned body must actually name the recipient: IDs alone cannot ping.
+    for (let start = text.indexOf('@'); start !== -1; start = text.indexOf('@', start + 1)) {
+      if (start && !/\s/u.test(text[start - 1])) continue;
+      const user = candidates.find(({ username }) => text.startsWith(`@${username}`, start)
+        && (start + username.length + 1 === text.length || /[\s.,!?;:，。！？；：、）)\]】}》」』…]/u.test(text[start + username.length + 1])));
+      if (!user) continue;
+      if (!found.has(user.id)) { mentions.push({ id: user.id, username: user.username }); found.add(user.id); }
+      start += user.username.length;
+    }
+    return mentions;
+  }
+
   function payloadFingerprint(command, kind, text, image) {
     const hash = crypto.createHash('sha256');
     hash.update(kind);
@@ -105,6 +128,10 @@ function createMessageStore(config, now) {
     hash.update(text || image?.src || '');
     hash.update('\0');
     hash.update(typeof command.replyTo === 'string' ? command.replyTo : '');
+    hash.update('\0');
+    // Fingerprint the submitted identity set, not today's roster. An accepted
+    // retry must get its original ACK even after the recipient leaves.
+    hash.update(JSON.stringify(kind === 'text' ? mentionIds(command.mentions) : []));
     return hash.digest('hex');
   }
 
@@ -119,7 +146,7 @@ function createMessageStore(config, now) {
   }
 
 
-  return { parseImage, findReply, reactionSummary, messageByteSize, pruneDedupe, payloadFingerprint, messageAck,
+  return { parseImage, normalizeMentions, findReply, reactionSummary, messageByteSize, pruneDedupe, payloadFingerprint, messageAck,
     previous: (key) => dedupe.get(key), remember: (key, value) => dedupe.set(key, value), clear: () => dedupe.clear() };
 }
 module.exports = { createMessageStore, cleanText };

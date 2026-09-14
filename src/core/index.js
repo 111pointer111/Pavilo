@@ -75,7 +75,7 @@ function createChatCore(config, runtime = {}) {
     } else {
       const snapshot = [...channel.messages];
       const latestSeq = channel.messageSequence;
-      const capabilities = ['ack', 'historyChunks', 'roomEpoch', 'reconnect', 'reactions', 'typingLease'];
+      const capabilities = ['ack', 'historyChunks', 'roomEpoch', 'reconnect', 'reactions', 'typingLease', 'mentions'];
       if (peer.protocolVersion >= 4) capabilities.push('channelOccupancy');
       payloads = [{ type: 'stateStart', protocolVersion: events.PROTOCOL_VERSION,
         capabilities,
