@@ -54,7 +54,7 @@ async function encodedBodyFor(request, etag, type, data) {
 }
 
 
-const CLIENT_FILES = new Set(['protocol', 'connection', 'state', 'pending', 'messages', 'composer', 'images', 'overlays', 'notifications', 'app'].map((name) => `/client/${name}.js`));
+const CLIENT_FILES = new Set(['protocol', 'connection', 'state', 'pending', 'messages', 'composer', 'mentions', 'images', 'overlays', 'notifications', 'app'].map((name) => `/client/${name}.js`));
 function localAddresses() {
   const addresses = [];
   for (const entries of Object.values(os.networkInterfaces())) for (const entry of entries || []) if (entry.family === 'IPv4' && !entry.internal) addresses.push(entry.address);

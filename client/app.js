@@ -299,6 +299,7 @@
   function clearDraftFor(item) {
     if (!item || item.kind !== 'text' || !draftMatches(item, composerText.value)) return;
     composerText.value = '';
+    mentionController.clear();
     if (replyTarget?.id === item.replyToId) composerController?.clearReply();
     composerController?.update();
   }
@@ -383,6 +384,7 @@
       return;
     }
     messagesController?.closeReactionPopover();
+    mentionController.close();
     composerPopover.hidden = false;
     composerPopoverOpen = true;
     emojiButton.setAttribute('aria-expanded', 'true');
@@ -412,7 +414,10 @@
     if (!action) return;
     if (action.type === 'retry') return retryPending(action.pendingId);
     if (action.type === 'image') return overlaysController?.openImageViewer(action.messageId, action.anchor);
-    if (action.type === 'profile') return overlaysController?.openProfile(action.userId, action.anchor);
+    if (action.type === 'profile') {
+      if (!store.getState().users.some((user) => user.id === action.userId)) return notificationsController.toast('这位成员已离开当前频道。');
+      return overlaysController?.openProfile(action.userId, action.anchor);
+    }
     if (action.type === 'reply') {
       const message = findMessage(action.messageId);
       if (message) composerController?.setReply(message);
@@ -426,6 +431,7 @@
   const controllerElements = {
     messageList, messageScroll, messageCount,
     reactionPopover: $('#reactionPopover'), reactionChoices: $('#reactionChoices'),
+    mentionPopover: $('#mentionPopover'), mentionList: $('#mentionList'), mentionButton: $('#mentionButton'), mentionStatus: $('#mentionStatus'),
     peopleList: $('#peopleList'), mobilePeopleList: $('#mobilePeopleList'), peopleCount: $('#peopleCount'),
     profile: $('#profile'), profileEmpty: $('#profileEmpty'), profileAvatar: $('#profileAvatar'), profileName: $('#profileName'),
     profileYou: $('#profileYou'), profileIp: $('#profileIp'), profileDuration: $('#profileDuration'), profileJoined: $('#profileJoined'),
@@ -446,6 +452,7 @@
     getState: () => store.getState(),
     onAction: handleModularAction,
     iconMarkup, avatarMarkup, escapeHtml, formatTime, formatDay,
+    renderMentionText: (text, mentions) => PaviloMentions.renderMentionText(text, mentions, escapeHtml, store.getState().self?.id),
   });
   let overlaysController = PaviloOverlays.createOverlays({
     elements: controllerElements,
@@ -458,12 +465,22 @@
     onAction: (action) => store.dispatch(action),
     iconMarkup, escapeHtml,
   });
+  const mentionController = PaviloMentions.createMentions({ elements: controllerElements,
+    getUsers: () => store.getState().users, getSelf: () => store.getState().self,
+    isReady: () => connection.isReady() && !store.getState().channel.switching,
+    avatarMarkup,
+    onOpen: () => { closeComposerPopover(); messagesController.closeReactionPopover(); },
+    onLimit: () => notificationsController.toast('剩余字数不足，无法插入完整的成员名字。', 'error'),
+    onCandidates: (users) => { window.__paviloMentionCandidates = users; },
+  });
+  mentionController.bind();
   let composerController = PaviloComposer.createComposer({
     elements: controllerElements,
     getState: () => store.getState(),
     dispatch: (event) => store.dispatch(event),
     connection: { send: (command) => connection.send(command), isReady: () => connection.isReady() },
     pending: pendingQueue,
+    mentions: mentionController,
     images: imagePipeline,
     toast: (...args) => notificationsController.toast(...args),
     clearReply: () => { replyTarget = null; },
@@ -503,6 +520,9 @@
   }
 
   store.subscribe((next, event, previous) => {
+    if (next.channelId !== previous.channelId || next.self?.id !== previous.self?.id
+      || previous.room.epoch && next.room.epoch && next.room.epoch !== previous.room.epoch
+      || next.connection.status === 'stopped') mentionController.clear();
     syncChrome(next, event, previous);
     messagesController.onState(next, event, previous);
     overlaysController.onState(next, event, previous);
@@ -747,18 +767,21 @@
     composerText.value = `${composerText.value.slice(0, start)}${emoji}${composerText.value.slice(end)}`;
     composerText.selectionStart = composerText.selectionEnd = start + emoji.length;
     composerText.focus();
-    composerController.update();
+    composerText.dispatchEvent(new Event('input', { bubbles: true }));
   });
   document.addEventListener('pointerdown', (event) => {
+    if (mentionController.isOpen() && !$('#mentionPopover').contains(event.target) && event.target !== composerText) mentionController.close();
     if (!$('#reactionPopover').hidden && !$('#reactionPopover').contains(event.target)) messagesController.closeReactionPopover();
     if (composerPopoverOpen && !composerPopover.contains(event.target) && event.target !== emojiButton) closeComposerPopover();
   });
   document.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape' || !$('#mobileSheet').hidden) return;
-    if (!$('#reactionPopover').hidden) messagesController.closeReactionPopover();
+    if (event.key !== 'Escape' || event.defaultPrevented || !$('#mobileSheet').hidden) return;
+    if (mentionController.isOpen()) mentionController.close();
+    else if (!$('#reactionPopover').hidden) messagesController.closeReactionPopover();
     else if (composerPopoverOpen) closeComposerPopover(true);
   });
   messageScroll.addEventListener('scroll', () => {
+    mentionController.close();
     messagesController.closeReactionPopover();
     closeComposerPopover();
   }, { passive: true });

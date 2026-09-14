@@ -130,6 +130,13 @@ test('nested messages/history, replies, removed IDs and reactions reject invalid
   }
 });
 
+test('optional mentions validate as unique public member snapshots', () => {
+  const valid = message({ mentions: [{ id: user.id, username: user.username }] });
+  assert.ok(parseServerEvent({ type: 'message', message: valid }));
+  for (const mentions of [null, [{ id: 'bad id', username: 'Bob' }], [{ id: user.id, username: '' }], [{ id: user.id, username: user.username }, { id: user.id, username: user.username }]]) {
+    assert.equal(parseServerEvent({ type: 'message', message: message({ mentions }) }), null);
+  }
+});
 test('ACK validates correlation fields, but errors can echo invalid submission IDs', () => {
   const ack = frames().find((frame) => frame.type === 'ack');
   for (const patch of [{ clientMessageId: 'tiny' }, { messageId: '' }, { seq: '1' }, { createdAt: Infinity }]) {

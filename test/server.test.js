@@ -110,6 +110,7 @@ test('current protocol sends stateStart, history, and historyEnd in order', asyn
     'reconnect',
     'reactions',
     'typingLease',
+    'mentions',
     'channelOccupancy'
   ]);
   assert.equal(initial.stateStart.self.username, 'Alice');

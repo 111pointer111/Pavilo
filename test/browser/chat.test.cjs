@@ -505,6 +505,88 @@ rateLimits:
     });
   });
 
+  await contract('mention picker selects a roster member and highlights only confirmed tokens', async () => {
+    await alice.locator('#composerText').fill('ping');
+    await alice.locator('#mentionButton').click();
+    await alice.waitForFunction(() => !document.querySelector('#mentionPopover').hidden);
+    assert.equal(await alice.locator('#composerText').inputValue(), 'ping @');
+    assert.equal(await alice.locator('#composerText').getAttribute('aria-expanded'), 'true');
+    await alice.locator('#composerText').pressSequentially('Bob');
+    await alice.waitForFunction(() => document.querySelector('#mentionList .mention-option-name')?.textContent === 'Browser Bob'
+      && document.querySelectorAll('#mentionList .mention-option').length === 1);
+    await alice.locator('#composerText').press('Enter');
+    await alice.waitForFunction(() => document.querySelector('#mentionPopover').hidden);
+    assert.equal(await alice.locator('#composerText').inputValue(), 'ping @Browser Bob ');
+    await alice.locator('#composerText').pressSequentially('hi');
+    await alice.locator('#composerText').press('Enter');
+    await Promise.all(pages.map((page, index) => page.waitForFunction(() => {
+      const body = [...document.querySelectorAll('#messageList .message-body')].at(-1);
+      return body?.textContent === 'ping @Browser Bob hi' && body.querySelectorAll('.message-mention').length === 1;
+    }).catch((error) => {
+      throw new Error(`${index === 0 ? 'Alice' : 'Bob'} never rendered the mention: ${error.message}`);
+    })));
+    const sentCommand = await alice.evaluate(() => window.__paviloBrowserTest.sent
+      .filter((c) => c.type === 'message' && c.text?.includes('@Browser Bob')).at(-1));
+    assert.ok(sentCommand, 'mention command was sent');
+    assert.equal(sentCommand.mentions.length, 1);
+    assert.equal(typeof sentCommand.mentions[0], 'string');
+    const receivedMessage = await alice.evaluate((clientMessageId) => {
+      const event = window.__paviloBrowserTest.received
+        .find((e) => e.type === 'message' && e.message?.clientMessageId === clientMessageId);
+      return event?.message;
+    }, sentCommand.clientMessageId);
+    assert.ok(receivedMessage, `message echo with clientMessageId ${sentCommand.clientMessageId} was received`);
+    assert.ok(receivedMessage.mentions);
+    assert.equal(receivedMessage.mentions.length, 1);
+    assert.equal(receivedMessage.mentions[0].username, 'Browser Bob');
+    const mentionNode = alice.locator('#messageList .message-body').filter({ hasText: 'ping @Browser Bob hi' }).locator('.message-mention');
+    assert.equal(await mentionNode.count(), 1);
+    assert.equal(await mentionNode.evaluate((node) => node.dataset.userId), receivedMessage.mentions[0].id);
+    await mentionNode.hover();
+    await alice.screenshot({ path: path.join(directory, 'mentions.png') });
+    await mentionNode.click();
+    await alice.waitForFunction(() => document.querySelector('#profileName')?.textContent === 'Browser Bob');
+    assert.equal(await mentionNode.getAttribute('aria-label'), '提及 Browser Bob');
+  });
+
+  await contract('hand-typed mention text stays plain and picker edits degrade safely', async () => {
+    await sendText(alice, '@Browser Bob typed by hand');
+    assert.equal(await alice.evaluate(() => window.__paviloBrowserTest.sent
+      .filter((command) => command.type === 'message' && command.text === '@Browser Bob typed by hand').at(-1).mentions), undefined);
+    await bob.waitForFunction(() => {
+      const body = [...document.querySelectorAll('#messageList .message-body')].at(-1);
+      return body.textContent === '@Browser Bob typed by hand' && body.querySelectorAll('.message-mention').length === 0;
+    });
+    await alice.locator('#mentionButton').click();
+    await alice.locator('#composerText').pressSequentially('B');
+    await alice.waitForFunction(() => !document.querySelector('#mentionPopover').hidden);
+    await alice.locator('#composerText').press('Escape');
+    await alice.waitForFunction(() => document.querySelector('#mentionPopover').hidden);
+    assert.equal(await alice.locator('#composerText').getAttribute('aria-expanded'), 'false');
+    await alice.locator('#composerText').press('Backspace');
+    assert.equal(await alice.locator('#composerText').inputValue(), '@');
+  });
+
+  await contract('mobile mention picker stays inside a keyboard-sized viewport', async () => {
+    await bob.locator('#composerText').focus();
+    await bob.setViewportSize({ width: 390, height: 430 });
+    await bob.locator('#mentionButton').click();
+    await bob.waitForFunction(() => !document.querySelector('#mentionPopover').hidden);
+    await frames(bob);
+    const bounds = await bob.locator('#mentionPopover').evaluate((node) => {
+      const box = node.getBoundingClientRect();
+      return { top: box.top, bottom: box.bottom, left: box.left, right: box.right, width: window.innerWidth, height: window.innerHeight };
+    });
+    assert.ok(bounds.top >= -1 && bounds.bottom <= bounds.height + 1, `Mention popover escaped the keyboard-sized viewport: ${JSON.stringify(bounds)}`);
+    assert.ok(bounds.left >= -1 && bounds.right <= bounds.width + 1, `Mention popover overflowed horizontally: ${JSON.stringify(bounds)}`);
+    await bob.screenshot({ path: path.join(directory, 'mobile-mentions.png') });
+    assert.ok(await bob.locator('#mentionList .mention-option').count() >= 2);
+    await bob.locator('#composerText').press('Escape');
+    await bob.waitForFunction(() => document.querySelector('#mentionPopover').hidden);
+    await bob.locator('#composerText').fill('');
+    await bob.setViewportSize({ width: 390, height: 844 });
+  });
+
   await contract('mobile drawer traps keyboard focus and composer survives a keyboard-sized viewport', async () => {
     await bob.locator('#membersButton').click();
     await bob.waitForFunction(() => !document.querySelector('#mobileSheet').hidden);

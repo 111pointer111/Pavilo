@@ -28,8 +28,9 @@
   }
 
   function createMessages({ elements, getSelf, getState, onAction, iconMarkup,
-    avatarMarkup, escapeHtml, formatTime, formatDay }) {
+    avatarMarkup, escapeHtml, formatTime, formatDay, renderMentionText }) {
     const { messageList, messageScroll, messageCount, reactionPopover, reactionChoices } = elements;
+    const textMarkup = renderMentionText || ((text) => escapeHtml(text));
     const document = messageList.ownerDocument;
     const window = document.defaultView || globalThis;
     const messageNodes = new Map();
@@ -73,7 +74,7 @@
 
     function messageBodyMarkup(message, author) {
       const body = message.kind === 'image' ? imageMarkup(message, author)
-        : `<div class="message-body${/^\s*(?:\p{Extended_Pictographic}|\p{Emoji_Presentation}|\s)+$/u.test(message.text || '') ? ' emoji-only' : ''}">${escapeHtml(message.text || '')}</div>`;
+        : `<div class="message-body${/^\s*(?:\p{Extended_Pictographic}|\p{Emoji_Presentation}|\s)+$/u.test(message.text || '') ? ' emoji-only' : ''}">${textMarkup(message.text || '', message.mentions)}</div>`;
       return `${renderReply(message)}${body}${reactionMarkup(message)}`;
     }
 
@@ -117,7 +118,7 @@
         node.className = 'message self pending-message';
         node.dataset.pendingId = item.id;
         const self = getSelf();
-        const body = item.kind === 'image' ? `<img class="pending-image" src="${escapeHtml(item.image.src)}" alt="待发送图片">` : `<div class="message-body">${escapeHtml(item.text)}</div>`;
+        const body = item.kind === 'image' ? `<img class="pending-image" src="${escapeHtml(item.image.src)}" alt="待发送图片">` : `<div class="message-body">${textMarkup(item.text, item.mentions)}</div>`;
         node.innerHTML = `<div class="message-avatar">${avatarMarkup(self || { username: '你', avatarSeed }, '', false)}</div><div class="message-main"><div class="message-meta"><span class="message-author">${escapeHtml(self?.username || '你')}</span><span class="message-time">现在</span></div>${body}<div class="pending-status" role="status" aria-live="polite"></div></div>`;
         hydrateIcons(node);
         pendingNodes.set(item.id, node);

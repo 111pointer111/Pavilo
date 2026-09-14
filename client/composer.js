@@ -12,7 +12,7 @@
 
   function createComposer({ elements, getState, dispatch, connection, pending, images,
     toast = () => {}, clearReply: onClearReply, getReplyTarget, setReplyTarget,
-    getLimits = () => ({}) }) {
+    getLimits = () => ({}), mentions }) {
     const { composer, composerText, sendButton, emojiButton, attachmentButton, imageInput,
       replyingBar, replyingName, replyingText, cancelReplyButton } = elements;
     // Resolve browser scheduling through an explicit element, never a DOM lookup.
@@ -76,6 +76,7 @@
       composerText.style.height = 'auto';
       composerText.style.height = `${Math.min(composerText.scrollHeight, 145)}px`;
       paintReply(readReply());
+      mentions?.update();
     }
 
     function scheduleTyping(active) {
@@ -144,7 +145,8 @@
         toast('上一条文字仍在等待确认。', true);
         return false;
       }
-      const item = addPending({ kind: 'text', text, replyToId: readReply()?.id,
+      const selected = mentions?.getMentions() || [];
+      const item = addPending({ kind: 'text', text, ...(selected.length ? { mentions: selected } : {}), replyToId: readReply()?.id,
         epoch: state.room?.epoch, status: 'sending', attempts: 1 });
       if (!transmit(item)) {
         pending.remove(item.id);
@@ -155,6 +157,7 @@
       }
       // The draft and reply remain until the app reconciles an ACK/canonical echo.
       stopTyping();
+      mentions?.close();
       update();
       return true;
     }
@@ -224,6 +227,7 @@
     function onCompositionEnd() { composing = false; update(); }
     function onKeydown(event) {
       if (composing || event.isComposing || event.keyCode === 229) return;
+      if (event.defaultPrevented || mentions?.handleKeydown(event)) return;
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         composer.requestSubmit();

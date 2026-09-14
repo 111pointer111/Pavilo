@@ -280,12 +280,14 @@
 
     function notifyNewMessage(message, state) {
       if (message.author?.id === state.self?.id || canMarkRead()) return;
+      const mentioned = message.mentions?.some((mention) => mention.id === state.self?.id);
+      if (mentioned) createToast(`${message.author.username} 在频道中提到了你`, { title: '有人提到了你' });
       const Notification = window.Notification;
       if (typeof Notification !== 'function' || Notification.permission !== 'granted'
         || !document.hidden && document.hasFocus()) return;
       closeNative();
       try {
-        nativeNotification = new Notification('语亭有新消息', {
+        nativeNotification = new Notification(mentioned ? '有人提到了你' : '语亭有新消息', {
           body: '回到房间查看', tag: 'pavilo-messages', renotify: false,
         });
         nativeNotification.onclick = () => {
