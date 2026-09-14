@@ -35,8 +35,25 @@ function createChatCore(config, runtime = {}) {
     emit(events.channelEvent(channelId, payload, peerIds));
     return true;
   }
+  function broadcastAll(payload, except, minimumProtocolVersion = 1) {
+    if (Buffer.byteLength(JSON.stringify(payload)) > config.maxJsonBytes) return false;
+    const peerIds = [...peers.values()]
+      .filter((peer) => peer !== except && peer.joined && !peer.closing && peer.protocolVersion >= minimumProtocolVersion)
+      .map((peer) => peer.id);
+    emit({ kind: 'broadcast', payload, peerIds });
+    return true;
+  }
   const sessionStore = createSessionStore(config, rooms, { now, randomResumeToken, cancel, schedule: (fn, ms) => schedule(() => timerTask(fn), ms) }, publicUser,
-    (session) => broadcast(session.channelId, { type: 'presence', action: 'leave', userId: session.id, username: session.username, users: sessionStore.rosterUsers(session.channelId) }));
+    (session) => {
+      broadcast(session.channelId, { type: 'presence', action: 'leave', userId: session.id, username: session.username, users: sessionStore.rosterUsers(session.channelId) });
+      broadcastOccupancy();
+    });
+  function occupancySnapshot() {
+    return Object.fromEntries(config.channels.map((channel) => [channel.id, sessionStore.activeMembers(channel.id).size]));
+  }
+  function broadcastOccupancy(except) {
+    return broadcastAll({ type: 'channelOccupancy', occupancy: occupancySnapshot() }, except, 4);
+  }
   const messageStore = createMessageStore(config, now);
   function sendJson(peer, payload) { emit(events.directed(peer.id, payload)); }
   function sendError(peer, code, message, clientMessageId) {
@@ -58,10 +75,13 @@ function createChatCore(config, runtime = {}) {
     } else {
       const snapshot = [...channel.messages];
       const latestSeq = channel.messageSequence;
+      const capabilities = ['ack', 'historyChunks', 'roomEpoch', 'reconnect', 'reactions', 'typingLease'];
+      if (peer.protocolVersion >= 4) capabilities.push('channelOccupancy');
       payloads = [{ type: 'stateStart', protocolVersion: events.PROTOCOL_VERSION,
-        capabilities: ['ack', 'historyChunks', 'roomEpoch', 'reconnect', 'reactions', 'typingLease'],
+        capabilities,
         roomEpoch: channel.epoch, roomStartedAt: channel.startedAt, latestSeq, resumeToken: resumeToken || null,
-        self: publicUser(session), users: sessionStore.rosterUsers(session.channelId), channelId: channel.config.id }];
+        self: publicUser(session), users: sessionStore.rosterUsers(session.channelId), channelId: channel.config.id,
+        ...(peer.protocolVersion >= 4 ? { occupancy: occupancySnapshot() } : {}) }];
       for (const chunk of rooms.historyChunks(channel, snapshot)) payloads.push({ type: 'history', roomEpoch: channel.epoch, messages: chunk });
       payloads.push({ type: 'historyEnd', roomEpoch: channel.epoch, latestSeq });
     }
@@ -92,7 +112,7 @@ function createChatCore(config, runtime = {}) {
     session.client = null;
   }
   const handleCommand = createCommandHandler(config, rooms, sessionStore, messageStore,
-    { publicUser, sendError, sendJson, broadcast, sendInitialState, activateTyping, deactivateTyping, closeClient, handOffSession },
+    { publicUser, sendError, sendJson, broadcast, broadcastOccupancy, sendInitialState, activateTyping, deactivateTyping, closeClient, handOffSession },
     { now, randomId, randomAvatarSeed, cancel });
   function connect(peerId, ip = 'unknown') {
     if (shuttingDown || peers.has(peerId)) return false;
@@ -121,7 +141,10 @@ function createChatCore(config, runtime = {}) {
       peer.session = null;
       peer.joined = false;
       sessionStore.detach(session, !shuttingDown && !peer.intentionalLeave);
-      if (!shuttingDown && peer.intentionalLeave) broadcast(session.channelId, { type: 'presence', action: 'leave', userId: session.id, username: session.username, users: sessionStore.rosterUsers(session.channelId) });
+      if (!shuttingDown && peer.intentionalLeave) {
+        broadcast(session.channelId, { type: 'presence', action: 'leave', userId: session.id, username: session.username, users: sessionStore.rosterUsers(session.channelId) });
+        broadcastOccupancy();
+      }
     }
     return takeEffects();
   }

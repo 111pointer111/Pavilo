@@ -179,6 +179,24 @@
     channelDescription.textContent = channel.description || '同一 Wi‑Fi 的人可以看见这里';
   }
 
+  function updateChannelOccupancy(state = store.getState()) {
+    for (const channel of roomChannels) {
+      const meta = channelList.querySelector(`[data-channel-id="${CSS.escape(channel.id)}"] .channel-meta`);
+      if (!meta || !channel.enabled) continue;
+      const online = state.channelOccupancy?.[channel.id];
+      const known = Number.isSafeInteger(online) && online >= 0;
+      const count = known ? online : 0;
+      const full = known && count >= channel.maxUsers;
+      meta.classList.toggle('occupied', known && count > 0 && !full);
+      meta.classList.toggle('full', full);
+      meta.setAttribute('aria-label', known
+        ? `${count} 人在线，最多 ${channel.maxUsers} 人${full ? '，已满' : ''}`
+        : `在线人数同步中，最多 ${channel.maxUsers} 人`);
+      meta.title = known ? `${count} 人在线 / 最多 ${channel.maxUsers} 人${full ? ' · 已满' : ''}` : '在线人数同步中';
+      meta.innerHTML = `${iconMarkup('users-round', 12)}<span class="channel-meta-value"><strong>${known ? count : '–'}</strong><span aria-hidden="true">/</span><span>${channel.maxUsers}</span></span>`;
+    }
+  }
+
   function renderChannels(state = store.getState()) {
     const channelId = state.channelId || selectedChannelId;
     const switching = Boolean(state.channel?.switching);
@@ -188,11 +206,12 @@
       const button = document.createElement('button');
       const active = channel.id === channelId;
       button.className = `channel${active ? ' active' : ''}`;
+      button.dataset.channelId = channel.id;
       button.type = 'button';
       button.disabled = switching || !channel.enabled;
       button.title = !channel.enabled ? `${channel.name}（已停用）` : channel.description || channel.name;
       button.setAttribute('aria-current', active ? 'page' : 'false');
-      button.innerHTML = `<span class="channel-hash">#</span><span>${escapeHtml(channel.name)} · ${escapeHtml(channel.id)}</span><span class="channel-meta">${channel.enabled ? `≤${channel.maxUsers}` : '停用'}</span>`;
+      button.innerHTML = `<span class="channel-hash">#</span><span class="channel-name">${escapeHtml(channel.name)} · ${escapeHtml(channel.id)}</span><span class="channel-meta${channel.enabled ? '' : ' unavailable'}">${channel.enabled ? '' : '停用'}</span>`;
       button.addEventListener('click', () => switchChannel(channel.id));
       return button;
     }));
@@ -205,6 +224,7 @@
     }));
     if (channelId) mobileChannelPicker.value = channelId;
     mobileChannelPicker.disabled = switching || !joined || !roomChannels.some((channel) => channel.enabled);
+    updateChannelOccupancy(state);
     renderChannelChrome(state);
     channelRenderKey = `${channelId || ''}|${switching}|${joined}|${roomChannels.length}`;
   }
@@ -457,6 +477,7 @@
     if (next.channelId) selectedChannelId = next.channelId;
     const key = `${next.channelId || selectedChannelId || ''}|${Boolean(next.channel?.switching)}|${Boolean(next.connection?.joined)}|${roomChannels.length}`;
     if (key !== channelRenderKey) renderChannels(next);
+    else if (next.channelOccupancy !== previous?.channelOccupancy) updateChannelOccupancy(next);
     renderChannelChrome(next);
     switch (event.type) {
       case 'connection/connect': setConnection(false, previous?.connection?.joined ? '重新连接中…' : '连接中…'); break;

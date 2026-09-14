@@ -116,7 +116,7 @@ test('UMD loads without DOM access and exposes identical browser and Node APIs',
   assert.equal(browser.document, undefined);
 });
 
-test('connect emits lifecycle and sends the protocol-v3 join with identity', () => {
+test('connect emits lifecycle and sends the current protocol join with identity', () => {
   const { connection, sockets, events } = harness();
   assert.equal(connection.connect(), true);
   assert.equal(sockets.length, 1);
@@ -139,7 +139,7 @@ test('join omits unknown optional identity fields and HTTPS selects wss', () => 
   connection.connect();
   sockets[0].open();
   assert.deepEqual(sent(sockets[0]), {
-    type: 'join', protocolVersion: 3, clientSessionId: 'client-session-1', username: 'guest', channelId: 'random',
+    type: 'join', protocolVersion: 4, clientSessionId: 'client-session-1', username: 'guest', channelId: 'random',
   });
   assert.equal(sockets[0].url, 'wss://secure.local/ws');
 });

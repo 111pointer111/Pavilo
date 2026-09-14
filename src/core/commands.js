@@ -7,7 +7,7 @@ const serialize = (payload) => Buffer.from(JSON.stringify(payload));
 function createCommandHandler(config, rooms, sessionStore, messageStore, peerEffects, { now, randomId, randomAvatarSeed, cancel }) {
   const { resolveJoin, rosterUsers, nameIsFree, activeMembers } = sessionStore;
   const { parseImage, payloadFingerprint, findReply, messageByteSize, messageAck, pruneDedupe, reactionSummary } = messageStore;
-  const { publicUser, sendError, sendJson, broadcast, sendInitialState, activateTyping, deactivateTyping, closeClient, handOffSession } = peerEffects;
+  const { publicUser, sendError, sendJson, broadcast, broadcastOccupancy, sendInitialState, activateTyping, deactivateTyping, closeClient, handOffSession } = peerEffects;
   const evictMessages = rooms.evictMessages;
   function rateAllows(client, bucket = 'message', maximum = 8, windowMs = 5000) {
     const timestamp = now();
@@ -72,6 +72,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
 
     sendInitialState(client, session, resolution.token);
     broadcast(resolution.channelId, { type: 'presence', action: resolution.session ? 'reconnect' : 'join', user: publicUser(session), users: rosterUsers(resolution.channelId) }, client);
+    if (!resolution.session) broadcastOccupancy(client);
   }
 
   function handleMessage(client, command) {
@@ -195,6 +196,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     broadcast(previousChannelId, { type: 'presence', action: 'leave', userId: session.id, username: session.username, users: rosterUsers(previousChannelId) });
     sendInitialState(client, session, session.token);
     broadcast(session.channelId, { type: 'presence', action: 'join', user: publicUser(session), users: rosterUsers(session.channelId) }, client);
+    broadcastOccupancy(client);
   }
 
   function handleCommand(client, command) {

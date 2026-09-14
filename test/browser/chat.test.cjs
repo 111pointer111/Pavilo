@@ -298,6 +298,7 @@ rateLimits:
     assert.match(await alice.locator('#roomTitle').textContent(), /Browser contract room/);
     for (const page of pages) {
       await page.waitForFunction(() => document.querySelector('#peopleCount').textContent === '2 在线');
+      await page.waitForFunction(() => document.querySelector('[data-channel-id="projects"] .channel-meta-value').textContent.replace(/\s/g, '') === '2/64');
       assert.equal(await page.locator('#roomHeading').textContent(), 'Projects · projects');
       assert.equal(await page.locator('#channelDescription').textContent(), 'Shared browser contracts');
       assert.equal(Object.hasOwn(await identity(page), 'ip'), false);

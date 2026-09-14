@@ -4,7 +4,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const DEFERRED_EVENTS = new Set(['presence', 'message', 'reaction', 'typing', 'ack', 'error']);
+  const DEFERRED_EVENTS = new Set(['presence', 'message', 'reaction', 'typing', 'channelOccupancy', 'ack', 'error']);
   const EPOCH_ERROR = '房间已经重启，请确认后重试。';
   const TYPING_EXPIRY = 4_500;
   // Tombstones stay non-enumerable so the public sync shape remains backwards
@@ -24,11 +24,19 @@
     return makeSync({ ...sync, ...values }, pruned);
   }
   function cap(value) { return Number.isSafeInteger(value) && value > 0 ? value : 300; }
+  function occupancyMap(occupancy, fallback = {}) {
+    if (!occupancy || typeof occupancy !== 'object' || Array.isArray(occupancy)) return fallback;
+    const result = {};
+    for (const [channelId, online] of Object.entries(occupancy)) {
+      if (typeof channelId === 'string' && Number.isSafeInteger(online) && online >= 0) result[channelId] = online;
+    }
+    return result;
+  }
   function createInitialState(options = {}) {
     return {
       connection: { status: 'idle', joined: false, attempt: 0, intentionalLeave: false },
       room: { epoch: null, startedAt: null, latestSeq: 0, resumeToken: null },
-      self: null, channelId: null, channel: { switching: false, requestedId: null }, channels: [],
+      self: null, channelId: null, channel: { switching: false, requestedId: null }, channels: [], channelOccupancy: {},
       users: [], messages: [], pending: {}, sync: emptySync(), typing: {}, unread: 0,
       error: null, maxMessages: cap(options.maxMessages),
     };
@@ -98,6 +106,7 @@
         const channelId = event.channelId || state.channelId || event.defaultChannelId || null;
         const switched = state.channel.switching && channelId === state.channel.requestedId;
         return { ...state, self: event.self, users: event.users || [], channelId,
+          channelOccupancy: occupancyMap(event.occupancy),
           messages: switched ? [] : state.messages, typing: switched ? {} : state.typing,
           unread: switched ? 0 : state.unread,
           room: { ...state.room, epoch: switched ? null : state.room.epoch,
@@ -124,6 +133,7 @@
       case 'state':
         return finishSnapshot({ ...state, self: event.self, users: event.users || [],
           channelId: event.channelId || state.channelId,
+          channelOccupancy: occupancyMap(event.occupancy),
           room: { ...state.room, startedAt: event.roomStartedAt ?? state.room.startedAt } },
         event.messages || [], event.roomEpoch || 'legacy', state.room.latestSeq);
     }
@@ -173,6 +183,8 @@
         }
         return { ...state, typing: { ...state.typing, [event.userId]: {
           username: event.username, expiresAt: (Number(event.now) || 0) + TYPING_EXPIRY } } };
+      case 'channelOccupancy':
+        return { ...state, channelOccupancy: occupancyMap(event.occupancy, state.channelOccupancy) };
       case 'typing/expire': {
         let typing = state.typing;
         for (const [id, item] of Object.entries(typing)) if (item.expiresAt <= event.now) typing = without(typing, id);
@@ -258,7 +270,7 @@
         for (const [id, item] of Object.entries(state.pending)) Object.defineProperty(pending, id, {
           value: item.status === 'sending' ? { ...item, status: 'unconfirmed' } : item,
           enumerable: true, configurable: true, writable: true });
-        return { ...state, pending, typing: {}, sync: emptySync(),
+        return { ...state, pending, typing: {}, sync: emptySync(), channelOccupancy: {},
           channel: { switching: false, requestedId: null },
           connection: { ...state.connection, status: event.intentional || state.connection.intentionalLeave ? 'idle' : 'reconnecting',
             joined: false, intentionalLeave: Boolean(event.intentional || state.connection.intentionalLeave) } };
@@ -266,7 +278,7 @@
       case 'serviceStopped':
       case 'service/stopped':
         // Retain self/epoch like the original exact close-code branch; clear transient chat data.
-        return { ...state, users: [], messages: [], pending: {}, typing: {}, unread: 0, sync: emptySync(),
+        return { ...state, users: [], messages: [], pending: {}, typing: {}, unread: 0, sync: emptySync(), channelOccupancy: {},
           channelId: null, channel: { switching: false, requestedId: null },
           room: { ...state.room, resumeToken: null },
           connection: { ...state.connection, status: 'stopped', joined: false, intentionalLeave: true } };

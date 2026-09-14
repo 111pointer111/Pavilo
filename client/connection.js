@@ -4,7 +4,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const PROTOCOL_VERSION = 3;
+  const PROTOCOL_VERSION = 4;
   const RESUME_KEY = 'pavilo.resume';
   const CHANNEL_KEY = 'pavilo.channel';
   const RECONNECT_BASE = 700;

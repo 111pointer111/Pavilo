@@ -34,6 +34,10 @@ test('initial state is complete, isolated per call, and honors a positive messag
   assert.deepEqual(first.connection, { status: 'idle', joined: false, attempt: 0, intentionalLeave: false });
   assert.deepEqual(first.room, { epoch: null, startedAt: null, latestSeq: 0, resumeToken: null });
   assert.deepEqual(first.channel, { switching: false, requestedId: null });
+  assert.deepEqual(first.channelOccupancy, {});
+  const occupancy = reduce(first, { type: 'channelOccupancy', occupancy: { general: 2, games: 0 } });
+  assert.deepEqual(occupancy.channelOccupancy, { general: 2, games: 0 });
+  assert.deepEqual(reduce(occupancy, { type: 'stateStart', self: alice, users: [alice], occupancy: { general: 1 } }).channelOccupancy, { general: 1 });
   assert.deepEqual(first.sync, { active: false, epoch: null, messages: [], deferred: [], latestSeq: 0 });
   assert.deepEqual(first.pending, {});
   assert.deepEqual(first.typing, {});
@@ -58,7 +62,7 @@ test('stateStart enters sync and a successful requested switch clears the old ch
   state = reduce(state, { type: 'channel/request', channelId: 'games' });
   assert.deepEqual(state.messages.map((item) => item.id), ['old'], 'request retains source view');
   state = reduce(state, { type: 'stateStart', channelId: 'games', roomEpoch: 'epoch-games', roomStartedAt: 200,
-    latestSeq: 4, resumeToken: 'new-token-0001', self: alice, users: [alice] });
+    latestSeq: 4, resumeToken: 'new-token-0001', self: alice, users: [alice], occupancy: { games: 1, general: 2 } });
   assert.equal(state.connection.status, 'syncing');
   assert.equal(state.connection.joined, false);
   assert.equal(state.channel.switching, true, 'switch is not finalized until historyEnd');

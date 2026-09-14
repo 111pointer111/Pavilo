@@ -1,6 +1,6 @@
 # 阶段一、二：模块边界
 
-本次只结构化基础聊天，不引入构建工具、前端框架、数据库、新 WebSocket 库或新协议。配置默认值、v1/v2/v3 兼容、CSS 和页面 DOM 保持既有契约。详见 [聊天协议](chat-protocol.md)、[状态模型](state-model.md)。
+本次只结构化基础聊天，不引入构建工具、前端框架、数据库、新 WebSocket 库或新协议。配置默认值、v1/v2/v3/v4 兼容、CSS 和页面 DOM 保持既有契约。详见 [聊天协议](chat-protocol.md)、[状态模型](state-model.md)。
 
 ## 客户端
 

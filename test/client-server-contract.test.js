@@ -9,7 +9,7 @@ const { reduce, createInitialState } = require('../client/state');
 
 // Validate real domain output, not a second hand-written copy of the protocol.
 // In particular, public avatar seeds are numbers, including zero and uint32 max.
-for (const version of [1, 2, PROTOCOL_VERSION]) {
+for (const version of [1, 2, 3, PROTOCOL_VERSION]) {
   test(`client parser accepts actual v${version} core events and snapshots`, () => {
     const core = createChatCore({ ...DEFAULTS, maxMessages: 2 }, {
       schedule: () => Symbol('timer'), cancel() {}, now: () => 1_700_000_000_000

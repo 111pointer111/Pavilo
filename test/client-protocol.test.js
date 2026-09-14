@@ -15,14 +15,16 @@ function message(overrides = {}) {
 }
 function frames() {
   return [
-    { type: 'stateStart', protocolVersion: 3, capabilities: ['ack', 'historyChunks'], roomEpoch: epoch,
-      roomStartedAt: 100, latestSeq: 1, resumeToken: 'abcdefghijkl', self: user, users: [user], channelId: 'general' },
+    { type: 'stateStart', protocolVersion: 4, capabilities: ['ack', 'historyChunks', 'channelOccupancy'], roomEpoch: epoch,
+      roomStartedAt: 100, latestSeq: 1, resumeToken: 'abcdefghijkl', self: user, users: [user], channelId: 'general',
+      occupancy: { general: 1, quiet: 0 } },
     { type: 'history', roomEpoch: epoch, messages: [message()] },
     { type: 'historyEnd', roomEpoch: epoch, latestSeq: 1 },
     { type: 'state', self: user, users: [user], messages: [message()], roomEpoch: epoch, channelId: 'general' },
     { type: 'presence', action: 'join', user, users: [user] },
     { type: 'presence', action: 'reconnect', user, users: [user] },
     { type: 'presence', action: 'leave', userId: user.id, username: user.username, users: [] },
+    { type: 'channelOccupancy', occupancy: { general: 1, quiet: 0 } },
     { type: 'message', roomEpoch: epoch, message: message(), removedIds: [] },
     { type: 'reaction', roomEpoch: epoch, messageId: message().id, reactions: { '👍': { count: 1, userIds: [user.id] } }, removedIds: [] },
     { type: 'prune', roomEpoch: epoch, removedIds: [message().id] },
@@ -42,9 +44,9 @@ test('UMD exposes matching browser/Node API without accessing DOM', () => {
 });
 
 test('protocol version and frozen command/event names match wire contract', () => {
-  assert.equal(PROTOCOL_VERSION, 3);
+  assert.equal(PROTOCOL_VERSION, 4);
   assert.deepEqual(Object.values(COMMANDS), ['join', 'message', 'reaction', 'typing', 'switchChannel', 'leave']);
-  assert.deepEqual(Object.values(EVENTS), ['stateStart', 'history', 'historyEnd', 'state', 'presence', 'message', 'reaction', 'prune', 'typing', 'ack', 'error']);
+  assert.deepEqual(Object.values(EVENTS), ['stateStart', 'history', 'historyEnd', 'state', 'presence', 'message', 'reaction', 'prune', 'typing', 'channelOccupancy', 'ack', 'error']);
   assert.deepEqual(protocol.ACK_FIELDS, ['clientMessageId', 'messageId', 'seq', 'createdAt']);
   assert.deepEqual(protocol.ERROR_FIELDS, ['code', 'message', 'clientMessageId']);
   assert.deepEqual(protocol.SYNC_EVENTS, ['stateStart', 'history', 'historyEnd']);
@@ -68,7 +70,7 @@ test('malformed JSON, non-object frames, unsupported types and missing event fie
   }
   for (const frame of frames()) {
     for (const field of ({ stateStart: ['self', 'users', 'latestSeq'], history: ['messages'], historyEnd: ['latestSeq'],
-      state: ['self', 'users', 'messages'], presence: ['users', 'action'], message: ['message'], reaction: ['messageId', 'reactions'],
+      state: ['self', 'users', 'messages'], presence: ['users', 'action'], channelOccupancy: ['occupancy'], message: ['message'], reaction: ['messageId', 'reactions'],
       prune: ['removedIds'], typing: ['userId', 'username', 'active'], ack: ['clientMessageId', 'messageId', 'seq', 'createdAt'],
       error: ['code', 'message'] })[frame.type]) {
       const invalid = { ...frame };

@@ -38,7 +38,7 @@ function join(core, peerId, username, clientSessionId, channelId) {
   assert.equal(core.connect(peerId, `192.0.2.${peerId.length}`), true);
   const result = core.dispatch(peerId, {
     type: 'join',
-    protocolVersion: 3,
+    protocolVersion: 4,
     username,
     clientSessionId,
     channelId,
@@ -50,6 +50,56 @@ function join(core, peerId, username, clientSessionId, channelId) {
   core.completeSync(peerId);
   return initial.payloads[0];
 }
+
+test('core broadcasts privacy-safe occupancy snapshots across channel lifecycle', () => {
+  const channels = [
+    { id: 'general', name: 'General', description: '', enabled: true, maxUsers: 2 },
+    { id: 'other', name: 'Other', description: '', enabled: true, maxUsers: 2 },
+    { id: 'disabled', name: 'Disabled', description: '', enabled: false, maxUsers: 2 }
+  ];
+  const { core, advance } = createHarness({ channels, defaultChannelId: 'general', maxUsers: 4, sessionLeaseMs: 50 });
+  const first = join(core, 'alice-peer', 'Alice', 'session-alice-0001', 'general');
+  assert.deepEqual(first.occupancy, { general: 1, other: 0, disabled: 0 });
+
+  assert.equal(core.connect('bob-peer'), true);
+  const joined = core.dispatch('bob-peer', {
+    type: 'join', protocolVersion: 4, username: 'Bob', clientSessionId: 'session-bob-0001', channelId: 'other'
+  });
+  const joinedOccupancy = joined.effects.find((effect) => effect.payload?.type === 'channelOccupancy');
+  assert.deepEqual(joinedOccupancy.payload.occupancy, { general: 1, other: 1, disabled: 0 });
+  assert.deepEqual(joinedOccupancy.peerIds, ['alice-peer']);
+  core.completeSync('bob-peer');
+
+  const switched = core.dispatch('alice-peer', { type: 'switchChannel', channelId: 'other' });
+  const switchedStart = switched.effects.find((effect) => effect.kind === 'initial').payloads[0];
+  assert.deepEqual(switchedStart.occupancy, { general: 0, other: 2, disabled: 0 });
+  const switchedOccupancy = switched.effects.find((effect) => effect.payload?.type === 'channelOccupancy');
+  assert.deepEqual(switchedOccupancy.peerIds, ['bob-peer']);
+  assert.deepEqual(switchedOccupancy.payload.occupancy, switchedStart.occupancy);
+  core.completeSync('alice-peer');
+
+  core.dispatch('bob-peer', { type: 'leave' });
+  const left = core.disconnect('bob-peer');
+  const leaveOccupancy = left.find((effect) => effect.payload?.type === 'channelOccupancy');
+  assert.deepEqual(leaveOccupancy.payload.occupancy, { general: 0, other: 1, disabled: 0 });
+  assert.deepEqual(leaveOccupancy.peerIds, ['alice-peer']);
+
+  core.connect('carol-peer');
+  const carol = core.dispatch('carol-peer', {
+    type: 'join', protocolVersion: 3, username: 'Carol', clientSessionId: 'session-carol-0001', channelId: 'general'
+  });
+  assert.equal(carol.effects.some((effect) => effect.payload?.type === 'channelOccupancy' && effect.peerIds.includes('carol-peer')), false,
+    'older clients must not receive occupancy events');
+  core.completeSync('carol-peer');
+  core.disconnect('carol-peer');
+  const expiry = core.drainEffects();
+  assert.equal(expiry.some((effect) => effect.payload?.type === 'channelOccupancy'), false,
+    'a leased disconnect does not change occupancy');
+  advance(51);
+  const expired = core.drainEffects().find((effect) => effect.payload?.type === 'channelOccupancy');
+  assert.deepEqual(expired.payload.occupancy, { general: 0, other: 1, disabled: 0 });
+});
+
 
 test('core accepts commands and returns routed effects without a network transport', () => {
   const { core } = createHarness();

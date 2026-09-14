@@ -5,7 +5,7 @@
 ## 1. 传输与版本
 
 - 浏览器以 WebSocket 连接同源 `/ws`，客户端命令和服务端事件均为 UTF-8 JSON 文本对象。
-- 当前服务端协议常量为 **v3**；`GET /room-info` 的 `protocolVersion` 也为 `3`。
+- 当前服务端协议常量为 **v4**；`GET /room-info` 的 `protocolVersion` 也为 `4`。
 - 新连接必须先发送 `join`；在 `timeouts.joinMs` 内未加入会以 WebSocket `1008 / join timeout` 关闭。加入前的其他命令返回 `NOT_JOINED`。
 - 客户端声明的版本按数字读取；缺失或不能转成非零数字时按 v1 处理。当前实现没有单独的“版本不支持”错误，因此迁移不得擅自增加严格协商。
 
@@ -15,9 +15,12 @@
 |---|---|---|---|
 | v1（缺省） | 单个 `state`；历史会从尾部截取到能放进一个 JSON payload | `message` 可省略 `clientMessageId`，服务端生成内部 ID；接受后仍可收到 ACK 和房间回显 | 不支持，`switchChannel` 返回 `UNKNOWN_COMMAND` |
 | v2 | `stateStart` → 一个或多个 `history` → `historyEnd` | 要求合法 `clientMessageId`，支持 ACK 和幂等 | 不支持 |
-| v3（当前浏览器） | 与 v2 相同 | 与 v2 相同 | 支持 `switchChannel` |
+| v3 | 与 v2 相同 | 与 v2 相同 | 支持 `switchChannel` |
+| v4（当前浏览器） | 与 v3 相同，`stateStart` 附带所有频道的占用摘要 | 与 v3 相同 | 支持 `switchChannel`；实时接收 `channelOccupancy` |
 
-v2/v3 的 `stateStart.protocolVersion` 是服务端当前版本 `3`；其 `capabilities` 当前为 `ack`、`historyChunks`、`roomEpoch`、`reconnect`、`reactions`、`typingLease`。这只是当前广告值，不应据此推断尚未实现的能力。
+v2/v3 的 `stateStart.protocolVersion` 是服务端当前版本 `4`；其 `capabilities` 当前为 `ack`、`historyChunks`、`roomEpoch`、`reconnect`、`reactions`、`typingLease`。v4 另外声明 `channelOccupancy`，并在 `stateStart` 附带占用摘要。这只是当前广告值，不应据此推断尚未实现的能力。
+
+v4 的 `channelOccupancy` 事件会向所有已加入的 v4 客户端广播完整摘要；摘要只包含频道 ID 与在线人数，不包含成员身份。
 
 ## 2. 加入、身份与恢复
 
@@ -26,7 +29,7 @@ v2/v3 的 `stateStart.protocolVersion` 是服务端当前版本 `3`；其 `capab
 ```json
 {
   "type": "join",
-  "protocolVersion": 3,
+  "protocolVersion": 4,
   "clientSessionId": "每个页面加载周期的随机 ID",
   "resumeToken": "可选，先前由服务端签发",
   "username": "Alice",
@@ -65,9 +68,9 @@ v2/v3 的 `stateStart.protocolVersion` 是服务端当前版本 `3`；其 `capab
 - `/room-info.roomEpoch` 目前只是**默认频道 epoch**的兼容字段；各频道的真实 epoch 以该频道初始状态和事件为准。
 - `seq` 在频道内单调增加，但当前实现先分配序号再做部分容量检查，所以被拒绝的消息可能造成空洞；客户端不得要求连续序号，也不得跨频道或跨 epoch 比较。
 
-v2/v3 的同步顺序：
+v2/v3/v4 的同步顺序：
 
-1. `stateStart`：包含 `roomEpoch`、`roomStartedAt`、快照 `latestSeq`、`resumeToken`、`self`、`users`、`channelId`；
+1. `stateStart`：包含 `roomEpoch`、`roomStartedAt`、快照 `latestSeq`、`resumeToken`、`self`、`users`、`channelId`；v4 还包含 `occupancy`，其形状为 `{ "频道 ID": 在线人数 }`，人数包含仍在有效断线租约期内的成员；
 2. 一个或多个 `history`：每块包含相同 `roomEpoch` 和一段 `messages`，即使历史为空也会有一个空块；
 3. `historyEnd`：包含相同 `roomEpoch` 和快照 `latestSeq`；
 4. 快照期间发生的频道广播按到达顺序排在 `historyEnd` 后发送。
@@ -78,7 +81,7 @@ v2/v3 的同步顺序：
 
 ## 5. 发送、ACK 与幂等
 
-v2/v3 发送文本或图片：
+v2/v3/v4 发送文本或图片：
 
 ```json
 {
@@ -161,6 +164,7 @@ v3 客户端发送 `{ "type": "switchChannel", "channelId": "…" }`。服务端
 | `reaction` | 服务端按用户集合归并后的权威回应摘要，可能附淘汰 ID | 结果写入消息，留存期间可同步恢复 |
 | `prune` | 权威 FIFO 淘汰 ID；当前由 reaction 导致目标消息自身被淘汰时单独发送 | 淘汰结果由下次快照体现 |
 | `presence` | 当前频道权威 roster 投影及 join/reconnect/leave 提示 | roster 可重同步；提示不重放，lease 期间断线仍在 roster |
+| `channelOccupancy` | v4 所有频道的在线人数摘要（包含有效 lease） | 可通过下一次 `stateStart` 恢复；不包含成员身份 |
 | `typing` | 即时展示的租约提示，服务端默认 4 秒自动撤销 | **临时、允许丢失、不进历史**；客户端还以本地到期兜底 |
 | `ack` / `error` | 仅发给命令发起者的结果 | 不广播、不进历史；重复消息可在去重窗口内重得 ACK |
 

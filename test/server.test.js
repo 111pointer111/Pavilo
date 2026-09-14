@@ -95,7 +95,7 @@ test('serves the room, health, and room metadata over GET and HEAD', async (t) =
   assert.ok(Number(roomInfoHead.headers.get('content-length')) > 0);
 });
 
-test('protocol v2 sends stateStart, history, and historyEnd in order', async (t) => {
+test('current protocol sends stateStart, history, and historyEnd in order', async (t) => {
   const { app, port } = await startServer(t);
   const client = await openWebSocket({ port });
 
@@ -109,7 +109,8 @@ test('protocol v2 sends stateStart, history, and historyEnd in order', async (t)
     'roomEpoch',
     'reconnect',
     'reactions',
-    'typingLease'
+    'typingLease',
+    'channelOccupancy'
   ]);
   assert.equal(initial.stateStart.self.username, 'Alice');
   assert.deepEqual(initial.stateStart.users, [initial.stateStart.self]);

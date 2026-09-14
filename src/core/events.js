@@ -1,6 +1,6 @@
 'use strict';
 
-const PROTOCOL_VERSION = 3;
+const PROTOCOL_VERSION = 4;
 const REACTION_EMOJIS = new Set(['👍', '❤️', '😂', '🎉', '👀', '🔥']);
 function publicChannel(channel) {
   return { id: channel.id, name: channel.name, description: channel.description, enabled: channel.enabled, maxUsers: channel.maxUsers };

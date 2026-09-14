@@ -226,7 +226,26 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:fo
 .channel:disabled:hover { background: transparent; color: var(--ink-soft); }
 .channel.active:disabled { background: var(--teal-pale); color: var(--teal-deep); opacity: .7; }
 .channel-hash { color: var(--teal); font-family: var(--mono); font-size: 16px; font-weight: 400; }
-.channel-meta { margin-left: auto; color: var(--ink-faint); font-family: var(--mono); font-size: 9px; }
+.channel-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.channel-meta {
+  display: inline-flex;
+  min-width: 51px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-left: auto;
+  color: var(--ink-faint);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.channel-meta .icon { width: 12px; height: 12px; }
+.channel-meta-value { display: inline-flex; align-items: baseline; gap: 2px; }
+.channel-meta strong { color: inherit; font-size: 10px; font-weight: 800; }
+.channel-meta.occupied { color: var(--teal-deep); }
+.channel-meta.full { color: var(--coral); }
+.channel-meta.unavailable { min-width: auto; }
 .mobile-channel-picker { display: none; }
 
 .ephemeral-note {
