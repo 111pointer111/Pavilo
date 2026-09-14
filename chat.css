@@ -20,6 +20,75 @@
   --display: "Iowan Old Style", "Baskerville", "Songti SC", STSong, Georgia, serif;
   --body: "Avenir Next", "PingFang SC", "Noto Sans CJK SC", "Segoe UI", sans-serif;
   --mono: "SFMono-Regular", "Cascadia Code", "Roboto Mono", Menlo, monospace;
+
+  /* 动效时序 */
+  --transition-fast: 150ms;
+  --transition-base: 250ms;
+  --transition-slow: 400ms;
+  --ease-smooth: cubic-bezier(.4, 0, .2, 1);
+  --ease-bounce: cubic-bezier(.68, -0.55, .27, 1.55);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1b1d;
+    --bg-deep: #091419;
+    --paper: #162a2e;
+    --paper-warm: #1a2428;
+    --ink: #e8f1f0;
+    --ink-soft: #a8c3bf;
+    --ink-faint: #6b8581;
+    --line: #2a3f42;
+    --line-strong: #3d5558;
+    --teal: #4dd4c7;
+    --teal-deep: #6de8db;
+    --teal-pale: rgba(77, 212, 199, .15);
+    --coral: #ff8a6d;
+    --coral-pale: rgba(255, 138, 109, .15);
+    --yellow: #ffd666;
+    --yellow-pale: rgba(255, 214, 102, .15);
+    --shadow: 0 18px 48px rgba(0, 0, 0, .4);
+    --shadow-float: 0 20px 56px rgba(0, 0, 0, .6);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background:
+      radial-gradient(circle at 5% 0%, rgba(77, 212, 199, .08), transparent 30rem),
+      radial-gradient(circle at 100% 100%, rgba(15, 119, 114, .06), transparent 34rem),
+      var(--bg);
+  }
+
+  .workspace {
+    border-color: rgba(255, 255, 255, .08);
+    box-shadow:
+      0 18px 48px rgba(0, 0, 0, .4),
+      inset 0 1px 0 rgba(255, 255, 255, .05);
+  }
+
+  .message-body {
+    color: var(--ink-soft);
+  }
+
+  .avatar {
+    border-color: rgba(77, 212, 199, .2);
+  }
+
+  .login-input {
+    background: var(--bg-deep);
+    border-color: var(--line);
+  }
+
+  .login-input:focus {
+    background: var(--paper);
+  }
+
+  .viewer-image {
+    box-shadow: 0 24px 60px rgba(0, 0, 0, .8);
+  }
 }
 
 * { box-sizing: border-box; }
