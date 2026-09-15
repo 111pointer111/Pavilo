@@ -235,7 +235,8 @@ test('disconnect schedules exact exponential jitter backoff and reconnect uses l
 test('markJoined resets reconnect attempt and exact base caps at 30 seconds', () => {
   const { connection, sockets, events, fireTimer } = harness({ random: () => .5 });
   connection.connect();
-  for (let attempt = 0; attempt < 9; attempt += 1) {
+  // 测试 3 次重试（MAX_RECONNECT_ATTEMPTS = 3）
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     sockets.at(-1).open();
     sockets.at(-1).serverClose();
     const retry = events.at(-1);
