@@ -77,7 +77,9 @@ function createChatCore(config, runtime = {}) {
       const latestSeq = channel.messageSequence;
       const capabilities = ['ack', 'historyChunks', 'roomEpoch', 'reconnect', 'reactions', 'typingLease', 'mentions'];
       if (peer.protocolVersion >= 4) capabilities.push('channelOccupancy');
+      const deprecationWarning = peer.protocolVersion < 4 ? 'Protocol v1-v3 are deprecated and will be removed in v0.9.0. Please upgrade to v4.' : undefined;
       payloads = [{ type: 'stateStart', protocolVersion: events.PROTOCOL_VERSION,
+        ...(deprecationWarning ? { deprecationWarning } : {}),
         capabilities,
         roomEpoch: channel.epoch, roomStartedAt: channel.startedAt, latestSeq, resumeToken: resumeToken || null,
         self: publicUser(session), users: sessionStore.rosterUsers(session.channelId), channelId: channel.config.id,
@@ -171,7 +173,7 @@ function createChatCore(config, runtime = {}) {
     const channels = rooms.snapshot();
     return { clients: peers.size, sessions: sessionStore.size(), messages: channels.reduce((n, c) => n + c.messages, 0), roomBytes: channels.reduce((n, c) => n + c.roomBytes, 0), latestSeq: rooms.get(config.defaultChannelId).messageSequence };
   }
-  function roomInfo() { return { protocolVersion: events.PROTOCOL_VERSION, roomEpoch: rooms.epoch, roomTitle: config.roomTitle, defaultChannelId: config.defaultChannelId, channels: config.channels.map(events.publicChannel), limits: events.publicLimits(config), ephemeral: true }; }
+  function roomInfo() { return { protocolVersion: events.PROTOCOL_VERSION, deprecatedProtocols: [1, 2, 3], roomEpoch: rooms.epoch, roomTitle: config.roomTitle, defaultChannelId: config.defaultChannelId, channels: config.channels.map(events.publicChannel), limits: events.publicLimits(config), ephemeral: true }; }
   function health() { const value = state(); return { ok: true, users: value.sessions, messages: value.messages, roomBytes: value.roomBytes, clients: value.clients, ephemeral: true }; }
   return { connect, dispatch, disconnect, connectionStatus, completeSync, markClosing, shutdown, state, health, roomInfo, roomEpoch: rooms.epoch, pruneDedupe: messageStore.pruneDedupe, drainEffects: takeEffects };
 }

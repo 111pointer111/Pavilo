@@ -1,0 +1,112 @@
+name: Bug 报告
+description: 报告一个问题或错误
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你报告 Bug！请尽可能详细地填写以下信息。
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 简要描述遇到的问题
+      placeholder: 例如：发送图片后服务崩溃
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤
+      description: 如何复现这个问题？
+      placeholder: |
+        1. 启动服务
+        2. 打开两个浏览器标签
+        3. 用户 A 发送一张 PNG 图片
+        4. 服务进程退出
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+      description: 你期望发生什么？
+      placeholder: 图片应该成功发送并显示
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+      description: 实际发生了什么？
+      placeholder: 服务进程崩溃，终端显示 "Error: ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志输出
+      description: 如果有错误日志，请粘贴在这里
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: Pavilo 版本
+      description: 运行 `git rev-parse --short HEAD` 或查看 package.json
+      placeholder: 例如：v0.1.0 或 commit hash abc1234
+    validations:
+      required: true
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js 版本
+      description: 运行 `node --version`
+      placeholder: 例如：v22.0.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统
+      options:
+        - macOS
+        - Linux (Ubuntu/Debian)
+        - Linux (其他)
+        - Windows (WSL2)
+        - Windows (原生)
+        - 其他
+    validations:
+      required: true
+
+  - type: dropdown
+    id: browser
+    attributes:
+      label: 浏览器（如果相关）
+      options:
+        - Chrome / Edge
+        - Firefox
+        - Safari
+        - 其他
+        - 不涉及浏览器
+
+  - type: textarea
+    id: config
+    attributes:
+      label: 配置文件（可选）
+      description: 如果使用了自定义配置，请粘贴（**注意移除敏感信息**）
+      render: yaml
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 其他信息
+      description: 任何可能有帮助的额外信息
