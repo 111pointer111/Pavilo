@@ -162,7 +162,7 @@
       } else {
         let lastDay = '';
         const fragment = document.createDocumentFragment();
-        const channel = state.channels?.find((ch) => ch.id === state.activeChannel);
+        const channel = state.channels?.find((ch) => ch.id === state.channelId);
         const welcomeCard = createWelcomeCard(channel);
         if (welcomeCard) fragment.append(welcomeCard);
         for (const message of messages) {
