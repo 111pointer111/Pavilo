@@ -102,6 +102,15 @@
       return divider;
     }
 
+    function createWelcomeCard(channel) {
+      if (!channel?.welcome) return null;
+      const card = document.createElement('div');
+      card.className = 'welcome-card';
+      card.innerHTML = `<div class="welcome-icon" data-icon="megaphone" data-icon-size="20" aria-hidden="true"></div><div class="welcome-content"><div class="welcome-title">欢迎来到 ${escapeHtml(channel.name)}</div><div class="welcome-text">${escapeHtml(channel.welcome)}</div></div>`;
+      hydrateIcons(card);
+      return card;
+    }
+
     function restoreReadingOffset(anchor) {
       // Corrections must land immediately even when gestures use smooth scrolling.
       const previousBehavior = messageScroll.style.scrollBehavior;
@@ -153,6 +162,9 @@
       } else {
         let lastDay = '';
         const fragment = document.createDocumentFragment();
+        const channel = state.channels?.find((ch) => ch.id === state.activeChannel);
+        const welcomeCard = createWelcomeCard(channel);
+        if (welcomeCard) fragment.append(welcomeCard);
         for (const message of messages) {
           const day = formatDay(message.createdAt);
           if (day !== lastDay) { fragment.append(createDayDivider(message.createdAt)); lastDay = day; }
