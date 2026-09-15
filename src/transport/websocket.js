@@ -156,8 +156,13 @@ function createWebSocketTransport(server, config, core) {
       }
       const client = connections.get(effect.peerId);
       if (!client) continue;
-      if (effect.kind === 'send') sendJson(client, effect.payload);
-      else if (effect.kind === 'close') closeClient(client, effect.code, effect.reason);
+      if (effect.kind === 'send') {
+        // Errors (especially SYNC_IN_PROGRESS) must bypass the sync queue
+        // so the client knows why its command was rejected
+        const isError = effect.payload && effect.payload.type === 'error';
+        if (isError || !client.syncing) sendJson(client, effect.payload);
+        else queueSyncEvent(client, serialize(effect.payload));
+      } else if (effect.kind === 'close') closeClient(client, effect.code, effect.reason);
       else if (effect.kind === 'initial') {
         client.syncing = true;
         client.syncQueue.length = 0;
