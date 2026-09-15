@@ -52,16 +52,16 @@ const DEFAULTS = deepFreeze({
   exposeLanUrls: true,
   channels: [{
     id: 'general',
-    name: '智询',
+    name: '闲聊',
     description: '轻松聊聊，只留当下。',
     enabled: true,
     maxUsers: 64
   },{
-    id: 'awesome-ai',
-    name: '热血聚集地',
-    description: '我们是最棒的👍',
+    id: 'project',
+    name: '项目讨论',
+    description: '聚焦项目，高效协作。',
     enabled: true,
-    maxUsers: 64
+    maxUsers: 32
   }]
 });
 
