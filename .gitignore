@@ -10,6 +10,8 @@ dist/
 
 # Local configuration and logs
 /pavilo.yaml
+/pavilo.*.yaml
+!pavilo.example.yaml
 .env
 .env.*
 !.env.example

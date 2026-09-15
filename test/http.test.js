@@ -16,7 +16,7 @@ async function fixture(t) {
   fs.writeFileSync(path.join(root, 'index.html'), '<!doctype html><title>Fixture</title>');
   fs.writeFileSync(path.join(root, 'chat.css'), 'body { color: black; }');
   for (const file of CLIENT_FILES) fs.writeFileSync(path.join(root, file), `// ${file}\n${'/* self-hosted module */\n'.repeat(100)}`);
-  const metadata = { protocolVersion: 3, roomTitle: 'Public fixture', channels: [], limits: {}, ephemeral: true };
+  const metadata = { protocolVersion: 3, deprecatedProtocols: [1, 2, 3], roomTitle: 'Public fixture', channels: [], limits: {}, ephemeral: true };
   const health = { ok: true, users: 0, messages: 0, roomBytes: 0, clients: 0, ephemeral: true };
   // HTTP only requires these public projections, not a real room or session Map.
   const core = { roomInfo: () => metadata, health: () => health };

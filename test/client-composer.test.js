@@ -34,7 +34,20 @@ function harness(options = {}) {
     return {
       value: '', style: {}, hidden: false, disabled: false, scrollHeight: 30, maxLength: 2000,
       ownerDocument: { defaultView: clock },
-      classList: { add: (value) => classes.add(value), remove: (value) => classes.delete(value), contains: (value) => classes.has(value) },
+      classList: {
+        add: (value) => classes.add(value),
+        remove: (value) => classes.delete(value),
+        toggle: (value, force) => {
+          if (force === undefined) {
+            if (classes.has(value)) classes.delete(value);
+            else classes.add(value);
+          } else {
+            if (force) classes.add(value);
+            else classes.delete(value);
+          }
+        },
+        contains: (value) => classes.has(value)
+      },
       addEventListener(type, handler) { if (!callbacks.has(type)) callbacks.set(type, new Set()); callbacks.get(type).add(handler); },
       removeEventListener(type, handler) { callbacks.get(type)?.delete(handler); },
       focus() { this.focusCount = (this.focusCount || 0) + 1; },

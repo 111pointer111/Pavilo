@@ -320,7 +320,7 @@ test('connection actions, room metadata, unread and explicit leave have stable r
   assert.equal(state.connection.status, 'connecting');
   state = reduce(state, { type: 'connection/open' });
   assert.equal(state.connection.status, 'joining');
-  state = reduce(state, { type: 'connection/retry' });
+  state = reduce(state, { type: 'connection/retry', attempt: 1, max: 10 });
   assert.equal(state.connection.status, 'reconnecting');
   assert.equal(state.connection.attempt, 1);
   state = { ...state, unread: 3 };
