@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # 提取从上一个 tag 到当前的提交
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"- %s (%h)" HEAD)
+          else
+            COMMITS=$(git log --pretty=format:"- %s (%h)" ${PREV_TAG}..HEAD)
+          fi
+
+          # 保存到文件
+          cat > release_notes.md << EOF
+          ## 🚀 What's Changed
+
+          ${COMMITS}
+
+          ## 📦 Installation
+
+          \`\`\`bash
+          git clone https://github.com/caigg188/Pavilo.git
+          cd Pavilo
+          git checkout ${{ steps.version.outputs.VERSION }}
+          npm install
+          npm start
+          \`\`\`
+
+          Visit http://localhost:4173
+
+          ## 📚 Documentation
+
+          - [ROADMAP](https://github.com/caigg188/Pavilo/blob/main/ROADMAP.md)
+          - [Architecture Principles](https://github.com/caigg188/Pavilo/blob/main/docs/architecture/principles.md)
+          - [Contributing Guide](https://github.com/caigg188/Pavilo/blob/main/CONTRIBUTING.md)
+
+          ⚠️ **Note**: v0.x is in Alpha stage. Breaking changes may occur between versions.
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.VERSION, '-') || startsWith(steps.version.outputs.VERSION, 'v0.') }}
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
