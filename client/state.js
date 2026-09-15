@@ -262,6 +262,8 @@
         return { ...state, connection: { ...state.connection, status: 'joining', joined: false } };
       case 'connection/retry':
         return { ...state, connection: { ...state.connection, status: 'reconnecting', attempt: state.connection.attempt + 1 } };
+      case 'connection/failed':
+        return { ...state, connection: { ...state.connection, status: 'failed' }, error: { code: 'CONNECTION_FAILED', message: '无法连接到服务' } };
       case 'connection/error':
         return { ...state, error: event };
       case 'connection/close': {

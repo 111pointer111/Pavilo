@@ -9,6 +9,7 @@
   const CHANNEL_KEY = 'pavilo.channel';
   const RECONNECT_BASE = 700;
   const RECONNECT_CAP = 30_000;
+  const MAX_RECONNECT_ATTEMPTS = 5;
 
   function defaultStorage() {
     try { return globalThis.sessionStorage; } catch { return null; }
@@ -170,6 +171,13 @@
 
     function scheduleReconnect() {
       if (intentional || stopped || !isOnline() || reconnectTimer != null) return false;
+
+      // 检查是否超过最大重试次数
+      if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
+        emit({ type: 'maxRetriesReached', attempts: reconnectAttempt });
+        return false;
+      }
+
       const attempt = reconnectAttempt;
       const base = Math.min(RECONNECT_CAP, RECONNECT_BASE * 2 ** Math.min(reconnectAttempt++, 6));
       const delay = Math.round(base * (.75 + random() * .5));
@@ -300,6 +308,7 @@
       intentional = false;
       stopped = false;
       offline = false;
+      reconnectAttempt = 0; // 重置重试计数
       cancelReconnect();
       return connect();
     }

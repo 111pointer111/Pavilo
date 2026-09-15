@@ -161,6 +161,7 @@
     document.body.classList.remove('chat-active', 'sheet-open', 'viewer-open');
     loginError.textContent = message;
     loginForm.querySelector('.enter-button').disabled = false;
+    loginError.textContent = message;
     if (focus) usernameInput.focus();
   }
 
@@ -675,6 +676,16 @@
     if (event.type === 'payload') { handleServerMessage(event.payload); return; }
     if (event.type === 'error') { store.dispatch({ type: 'connection/error', error: event.error || event.event || null }); return; }
     if (event.type === 'retryScheduled') { store.dispatch({ type: 'connection/retry', attempt: event.attempt }); return; }
+    if (event.type === 'maxRetriesReached') {
+      store.dispatch({ type: 'connection/failed' });
+      if (!store.getState().connection.joined) {
+        showLogin('无法连接到服务，请检查服务是否正在运行。');
+        notificationsController.toast('连接失败，请稍后重试或联系管理员。', 'error');
+      } else {
+        notificationsController.toast('无法重新连接到服务，请刷新页面或稍后再试。', 'error');
+      }
+      return;
+    }
     if (event.type === 'close') {
       reconnectingAfterClose = Boolean(event.wasJoined);
       pendingQueue.disconnect();
@@ -733,9 +744,15 @@
     if (!username) { loginError.textContent = '请输入一个名字。'; return; }
     if (!roomInfoReady) {
       loginForm.querySelector('.enter-button').disabled = true;
+      loginError.textContent = '正在加载房间信息…';
       loadRoomInfo().then((info) => {
-        if (info) submitLogin({ preventDefault() {} });
-        else loginForm.querySelector('.enter-button').disabled = false;
+        if (info) {
+          loginError.textContent = '';
+          submitLogin({ preventDefault() {} });
+        } else {
+          loginForm.querySelector('.enter-button').disabled = false;
+          loginError.textContent = '无法加载房间信息，请检查服务是否正在运行。';
+        }
       });
       return;
     }
@@ -747,7 +764,7 @@
     }
     identity = { username, channelId: selectedChannelId || roomInfo.defaultChannelId };
     resumeToken = null;
-    loginError.textContent = '';
+    loginError.textContent = '正在连接…';
     loginForm.querySelector('.enter-button').disabled = true;
     connection.connect(identity);
   }
