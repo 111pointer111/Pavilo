@@ -63,6 +63,7 @@ room:
   # 默认频道 ID
   #   用户加入时未指定频道则进入此频道
   #   必须在 channels 列表中存在且 enabled: true
+  #   默认频道不能是 readOnly: true 的频道
   defaultChannel: general
 
   # 是否向频道成员显示彼此的 IP 地址

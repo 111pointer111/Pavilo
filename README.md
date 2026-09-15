@@ -122,7 +122,7 @@ PAVILO_CONFIG=/etc/pavilo/config.yaml npm start
 
 ### 频道和人数语义
 
-- 不提供 `channels` 时，会保留内置 `general` 和 `awesome-ai`，各频道 `maxUsers` 自动收紧到 `server.maxUsers`，因此可以只调低全局人数。
+- 不提供 `channels` 时，会保留内置 `general` 和 `project`，各频道 `maxUsers` 自动收紧到 `server.maxUsers`，因此可以只调低全局人数。
 - 一旦提供 `channels`，列表就是完整替换而非与 `general` 合并；**非 `general` 默认频道**需同时出现在列表中、启用，并由 `room.defaultChannel` 指定。
 - `server.maxUsers` 是全局成员上限；`channels[].maxUsers` 是单频道上限，且不得超过全局上限。
 - 全局和频道人数都包含 `timeouts.sessionLeaseMs` 内暂时断线、仍可恢复身份的成员。连接总数由 `server.maxConnections` 单独限制。
@@ -195,6 +195,12 @@ PAVILO_PLAYWRIGHT_PATH=/tmp/pavilo-browser-verify/node_modules/playwright npm ru
 脚本自动创建仓库外临时 YAML、分配回环端口、驱动双页面，并只关闭自己启动的进程。覆盖频道隔离/切换失败、刷新/断线恢复、IME、图片查看器、阅读位置、移动端抽屉和正常停服；移动键盘使用缩小视口模拟，不能代替真机输入法验收。
 
 模块边界和维护约定见 [架构概览](docs/architecture/overview.md)、[协议契约](docs/architecture/chat-protocol.md)、[状态契约](docs/architecture/state-model.md) 和 [设计语言](docs/design-language.md)。
+
+架构决策与演进策略见：
+- [架构原则](docs/architecture/principles.md) — 核心设计哲学与不变量
+- [架构演进](docs/architecture/evolution.md) — 未来扩展边界
+- [架构决策记录](docs/adr/) — 重大技术决策的背景与权衡
+- [产品路线图](ROADMAP.md) — 版本规划与发布门槛
 
 ## 项目结构
 
