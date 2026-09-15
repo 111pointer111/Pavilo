@@ -54,10 +54,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install Playwright
+        run: npm install --no-save playwright
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
       - name: Run browser tests
         run: npm run test:browser
-        env:
-          PAVILO_PLAYWRIGHT_PATH: ${{ github.workspace }}/node_modules/playwright
