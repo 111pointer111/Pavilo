@@ -30,6 +30,14 @@
     let generation = 0;
     let bound = false;
 
+    function currentChannel(state) {
+      return (state.channels || []).find((c) => c.id === state.channelId) || null;
+    }
+
+    function isReadOnly(state = getState()) {
+      return Boolean(currentChannel(state)?.readOnly);
+    }
+
     function isReady(state = getState()) {
       return Boolean(state.connection?.joined && (!connection.isReady || connection.isReady()));
     }
@@ -64,13 +72,16 @@
     function update() {
       const state = getState();
       const switching = Boolean(state.channel?.switching);
+      const readOnly = isReadOnly(state);
       const locked = switching || imageProcessingCount > 0;
       const ready = isReady(state);
       const sendingText = [...pending.values()].some((item) => item.kind === 'text' && item.status === 'sending');
-      if (sendButton) sendButton.disabled = locked || !composerText.value.trim() || !ready || sendingText;
-      composerText.disabled = switching;
-      if (emojiButton) emojiButton.disabled = locked;
-      if (attachmentButton) attachmentButton.disabled = locked || !ready;
+      if (sendButton) sendButton.disabled = locked || readOnly || !composerText.value.trim() || !ready || sendingText;
+      composerText.disabled = switching || readOnly;
+      if (emojiButton) emojiButton.disabled = locked || readOnly;
+      if (attachmentButton) attachmentButton.disabled = locked || readOnly || !ready;
+      composer.classList.toggle('has-notice', readOnly);
+      if (elements.channelReadonlyNotice) elements.channelReadonlyNotice.hidden = !readOnly;
       const maxTextLength = Number(getLimits()?.maxTextLength);
       if (Number.isFinite(maxTextLength) && maxTextLength > 0) composerText.maxLength = Math.floor(maxTextLength);
       composerText.style.height = 'auto';
@@ -82,7 +93,7 @@
     function scheduleTyping(active) {
       clearTimer(typingTimer);
       typingTimer = null;
-      if (!isReady() || getState().channel?.switching) return;
+      if (!isReady() || getState().channel?.switching || isReadOnly()) return;
       const elapsed = now() - typingLastSent;
       if (active && elapsed < TYPING_INTERVAL) {
         typingTimer = setTimer(() => scheduleTyping(true), TYPING_INTERVAL - elapsed);
@@ -137,6 +148,10 @@
         toast('正在切换频道，草稿已保留。', true);
         return false;
       }
+      if (isReadOnly(state)) {
+        toast('这个频道是只读频道，无法发送消息。', true);
+        return false;
+      }
       if (!isReady(state)) {
         toast('连接尚未恢复，草稿已保留。', true);
         return false;
@@ -170,6 +185,10 @@
       const state = getState();
       if (state.channel?.switching || !isReady(state)) {
         toast('连接或频道切换尚未完成，暂时不能发送图片。', true);
+        return false;
+      }
+      if (isReadOnly(state)) {
+        toast('这个频道是只读频道，无法发送图片。', true);
         return false;
       }
       if (pending.size >= MAX_PENDING) {

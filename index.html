@@ -104,6 +104,10 @@
         </div>
         <div class="typing-line" id="typingLine" aria-live="polite"></div>
         <div class="composer-wrap">
+          <div class="channel-readonly-notice" id="channelReadonlyNotice" hidden>
+            <span class="icon" data-icon="megaphone" aria-hidden="true"></span>
+            <span>这是一个只读频道，你可以查看和回应表情，但无法发送消息。</span>
+          </div>
           <div class="replying" id="replyingBar" hidden>
             <span class="replying-copy">回复 <strong id="replyingName"></strong>：<span id="replyingText"></span></span>
             <button class="cancel-reply" id="cancelReplyButton" type="button" aria-label="取消回复">

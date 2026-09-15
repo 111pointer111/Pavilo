@@ -223,9 +223,12 @@
       button.dataset.channelId = channel.id;
       button.type = 'button';
       button.disabled = switching || !channel.enabled;
-      button.title = !channel.enabled ? `${channel.name}（已停用）` : channel.description || channel.name;
+      button.title = !channel.enabled ? `${channel.name}（已停用）` : channel.readOnly ? `${channel.name}（只读频道）` : channel.description || channel.name;
       button.setAttribute('aria-current', active ? 'page' : 'false');
-      button.innerHTML = `<span class="channel-hash">#</span><span class="channel-name">${escapeHtml(channel.name)} · ${escapeHtml(channel.id)}</span><span class="channel-meta${channel.enabled ? '' : ' unavailable'}">${channel.enabled ? '' : '停用'}</span>`;
+      const badge = channel.readOnly
+        ? `<span class="channel-hash channel-hash-readonly">${iconMarkup('megaphone', 13)}</span>`
+        : `<span class="channel-hash">#</span>`;
+      button.innerHTML = `${badge}<span class="channel-name">${escapeHtml(channel.name)} · ${escapeHtml(channel.id)}</span><span class="channel-meta${channel.enabled ? '' : ' unavailable'}">${channel.enabled ? '' : '停用'}</span>`;
       button.addEventListener('click', () => switchChannel(channel.id));
       return button;
     }));
@@ -233,7 +236,7 @@
       const option = document.createElement('option');
       option.value = channel.id;
       option.disabled = !channel.enabled;
-      option.textContent = `${channel.name} · ${channel.id}${channel.enabled ? '' : '（已停用）'}`;
+      option.textContent = `${channel.name} · ${channel.id}${channel.enabled ? '' : '（已停用）'}${channel.readOnly ? '（只读）' : ''}`;
       return option;
     }));
     if (channelId) mobileChannelPicker.value = channelId;
@@ -464,6 +467,7 @@
     toastRegion: $('#toastRegion'), newMessageJump, newMessageCount: $('#newMessageCount'), notifyButton: $('#notifyButton'), appFavicon: $('#appFavicon'),
     composer, composerText, sendButton: $('#sendButton'), emojiButton, attachmentButton: $('#attachmentButton'), imageInput: $('#imageInput'),
     replyingBar: $('#replyingBar'), replyingName: $('#replyingName'), replyingText: $('#replyingText'), cancelReplyButton: $('#cancelReplyButton'),
+    channelReadonlyNotice: $('#channelReadonlyNotice'),
   };
 
   let messagesController = PaviloMessages.createMessages({
@@ -487,7 +491,8 @@
   });
   const mentionController = PaviloMentions.createMentions({ elements: controllerElements,
     getUsers: () => store.getState().users, getSelf: () => store.getState().self,
-    isReady: () => connection.isReady() && !store.getState().channel.switching,
+    isReady: () => connection.isReady() && !store.getState().channel.switching
+      && !Boolean(roomChannels.find((channel) => channel.id === store.getState().channelId)?.readOnly),
     avatarMarkup,
     onOpen: () => { closeComposerPopover(); messagesController.closeReactionPopover(); },
     onLimit: () => notificationsController.toast('剩余字数不足，无法插入完整的成员名字。', 'error'),
