@@ -8,24 +8,6 @@ function createRoomStore(config, { randomId, now }) {
       config: channel, epoch: randomId(`room-${channel.id}`), startedAt: now(),
       messages: [], messageSequence: 0, roomBytes: 0
     };
-    // 如果配置了欢迎语，插入系统消息
-    if (channel.welcome && typeof channel.welcome === 'string') {
-      const welcomeMessage = {
-        id: randomId('m0'),
-        seq: ++room.messageSequence,
-        clientMessageId: null,
-        kind: 'text',
-        author: { id: 'system', username: '系统', avatarSeed: 0 },
-        createdAt: now(),
-        text: channel.welcome,
-        replyTo: null,
-        reactions: {},
-        reactionUsers: new Map()
-      };
-      welcomeMessage.byteSize = Buffer.byteLength(JSON.stringify(publicMessage(welcomeMessage)));
-      room.messages.push(welcomeMessage);
-      room.roomBytes += welcomeMessage.byteSize;
-    }
     return [channel.id, room];
   }));
   const defaultChannel = channels.get(config.defaultChannelId);
