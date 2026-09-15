@@ -3,7 +3,7 @@
 const PROTOCOL_VERSION = 4;
 const REACTION_EMOJIS = new Set(['👍', '❤️', '😂', '🎉', '👀', '🔥']);
 function publicChannel(channel) {
-  return { id: channel.id, name: channel.name, description: channel.description, enabled: channel.enabled, maxUsers: channel.maxUsers };
+  return { id: channel.id, name: channel.name, description: channel.description, enabled: channel.enabled, readOnly: channel.readOnly, maxUsers: channel.maxUsers, welcome: channel.welcome };
 }
 function publicLimits(config) {
   return { maxTextLength: config.maxTextLength, maxImageBytes: config.maxImageBytes, maxImageDimension: config.maxImageDimension, maxImagePixels: config.maxImagePixels, maxMessages: config.maxMessages };
