@@ -153,18 +153,18 @@
       messageNodes.clear();
       pendingNodes.clear();
       messageList.replaceChildren();
+      const channel = state.channels?.find((ch) => ch.id === state.channelId);
+      const welcomeCard = createWelcomeCard(channel);
+      if (welcomeCard) messageList.append(welcomeCard);
       if (!messages.length) {
         const placeholder = document.createElement('div');
         placeholder.className = 'message-empty';
-        placeholder.hidden = document.documentElement.classList.contains('resuming');
+        placeholder.hidden = document.documentElement.classList.contains('resuming') || Boolean(channel?.welcome);
         placeholder.innerHTML = '<span class="message-empty-mark" aria-hidden="true">语</span><strong>频道刚刚打开</strong><p>先打个招呼吧。这里的每句话，都只活在这次服务运行期间。</p>';
         messageList.append(placeholder);
       } else {
         let lastDay = '';
         const fragment = document.createDocumentFragment();
-        const channel = state.channels?.find((ch) => ch.id === state.channelId);
-        const welcomeCard = createWelcomeCard(channel);
-        if (welcomeCard) fragment.append(welcomeCard);
         for (const message of messages) {
           const day = formatDay(message.createdAt);
           if (day !== lastDay) { fragment.append(createDayDivider(message.createdAt)); lastDay = day; }
