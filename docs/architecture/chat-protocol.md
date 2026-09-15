@@ -7,18 +7,29 @@
 - 浏览器以 WebSocket 连接同源 `/ws`，客户端命令和服务端事件均为 UTF-8 JSON 文本对象。
 - 当前服务端协议常量为 **v4**；`GET /room-info` 的 `protocolVersion` 也为 `4`。
 - 新连接必须先发送 `join`；在 `timeouts.joinMs` 内未加入会以 WebSocket `1008 / join timeout` 关闭。加入前的其他命令返回 `NOT_JOINED`。
-- 客户端声明的版本按数字读取；缺失或不能转成非零数字时按 v1 处理。当前实现没有单独的“版本不支持”错误，因此迁移不得擅自增加严格协商。
 
-### 版本兼容范围
+### 版本稳定性承诺
+
+> **⚠️ Protocol v1/v2/v3 已废弃**
+> 
+> - **v0.2-v0.8**：v1/v2/v3 仍然可用，但服务端返回 deprecation 警告
+> - **v0.9.0+**：删除 v1/v2/v3 支持，只接受 Protocol v4
+> - **v1.0.0+**：Protocol v4 is stable throughout the v1.x series
+>
+> 第三方客户端应基于 Protocol v4 开发。详见 [ADR-0001](../adr/0001-protocol-v4-only-for-v1.md)。
+
+### 版本兼容范围（Alpha 阶段历史记录）
+
+以下内容仅供历史参考，v0.9+ 只支持 v4：
 
 | 客户端版本 | 初始状态 | 消息 ID / ACK | 频道切换 |
 |---|---|---|---|
 | v1（缺省） | 单个 `state`；历史会从尾部截取到能放进一个 JSON payload | `message` 可省略 `clientMessageId`，服务端生成内部 ID；接受后仍可收到 ACK 和房间回显 | 不支持，`switchChannel` 返回 `UNKNOWN_COMMAND` |
 | v2 | `stateStart` → 一个或多个 `history` → `historyEnd` | 要求合法 `clientMessageId`，支持 ACK 和幂等 | 不支持 |
 | v3 | 与 v2 相同 | 与 v2 相同 | 支持 `switchChannel` |
-| v4（当前浏览器） | 与 v3 相同，`stateStart` 附带所有频道的占用摘要 | 与 v3 相同 | 支持 `switchChannel`；实时接收 `channelOccupancy` |
+| **v4（稳定）** | 与 v3 相同，`stateStart` 附带所有频道的占用摘要 | 与 v3 相同 | 支持 `switchChannel`；实时接收 `channelOccupancy` |
 
-v2/v3 的 `stateStart.protocolVersion` 是服务端当前版本 `4`；其 `capabilities` 当前为 `ack`、`historyChunks`、`roomEpoch`、`reconnect`、`reactions`、`typingLease`。v4 另外声明 `channelOccupancy`，并在 `stateStart` 附带占用摘要。这只是当前广告值，不应据此推断尚未实现的能力。
+v4 的 `stateStart.protocolVersion` 为 `4`；其 `capabilities` 为 `ack`、`historyChunks`、`roomEpoch`、`reconnect`、`reactions`、`typingLease`、`channelOccupancy`。
 
 v4 的 `channelOccupancy` 事件会向所有已加入的 v4 客户端广播完整摘要；摘要只包含频道 ID 与在线人数，不包含成员身份。
 

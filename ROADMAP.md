@@ -97,17 +97,23 @@ SQLite、Agent、账号系统不阻塞 v1.0。
 
 ## v0.2.0 — Contract & Quality
 
-目标：冻结正确的产品边界，消除“代码能跑但契约漂移”。
+目标：冻结正确的产品边界，消除”代码能跑但契约漂移”。
 
 ### 功能与文档
 
 - 完成静态 `readOnly` 频道的 UI、错误提示、测试和文档：
   - `enabled: false`：不可加入；
   - `readOnly: true`：可进入/阅读，但普通参与者不能发消息；
-  - 当前没有“管理员例外”，不要把它描述成角色权限。
+  - 当前没有”管理员例外”，不要把它描述成角色权限。
 - 修正 README 中默认频道为 `general + project`。
 - README、`pavilo.example.yaml`、配置测试、协议文档对齐。
-- 新增本文档 `docs/architecture/evolution.md`，明确后续 Storage / Extension 边界。
+- **应用 `docs/README_AND_CONFIG_UPDATE.md` 中的同步修改建议**。
+- 已新增：
+  - `docs/architecture/evolution.md` — 架构演进原则
+  - `docs/adr/` — 架构决策记录
+    - ADR-0001：Protocol v4 only for v1.0
+    - ADR-0002：SQLite pragmatic hybrid
+    - ADR-0003：Extension as trusted scripts
 
 ### 工程质量
 
@@ -120,13 +126,17 @@ SQLite、Agent、账号系统不阻塞 v1.0。
   - `npm run config:check`；
   - `node --check`；
   - 可选浏览器验收 job。
-- 增加“示例配置可被当前配置加载器接受”的自动测试。
+- 增加”示例配置可被当前配置加载器接受”的自动测试。
 - 建立协议与配置兼容矩阵测试。
 - 为 core / client contract 增加失败路径测试，而不仅是 happy path。
 - 增加 `CONTRIBUTING.md`、`SECURITY.md`、Issue / PR 模板。
-- 确定 Alpha 协议生命周期：
-  - v1.0 前可以清理无真实使用价值的旧协议兼容；
-  - v1.0 后再把公开支持范围视为稳定契约。
+
+### 协议废弃声明（ADR-0001）
+
+- 在 `docs/architecture/chat-protocol.md` 中明确标记 Protocol v1/v2/v3 为 deprecated
+- 在 `/room-info` 响应中增加 `deprecatedProtocols: [1, 2, 3]` 字段
+- 当 v1/v2/v3 客户端连接时，在 `stateStart` 返回 `deprecationWarning` 字段
+- 文档说明：v0.9.0 将删除 v1/v2/v3 支持，第三方客户端应迁移到 v4
 
 ### 非目标
 
@@ -141,7 +151,8 @@ SQLite、Agent、账号系统不阻塞 v1.0。
 
 - CI 主分支全绿；
 - README、示例配置与实现无已知漂移；
-- core/transport/client 边界不因新增小功能重新耦合。
+- core/transport/client 边界不因新增小功能重新耦合；
+- ADR 文档已审查并合并到主分支。
 
 ---
 
@@ -256,21 +267,42 @@ SQLite、Agent、账号系统不阻塞 v1.0。
 
 目标：冻结 v1.0 契约。
 
+### 协议清理（ADR-0001）
+
+**BREAKING CHANGE**：删除 Protocol v1/v2/v3 支持
+
+- 删除 `src/core/index.js` 中所有版本分支逻辑
+- 删除 `src/transport/websocket.js` 中协议降级处理
+- 客户端使用 `protocolVersion < 4` 时，返回错误并关闭连接：
+  ```json
+  {
+    "type": "error",
+    "code": "PROTOCOL_NOT_SUPPORTED",
+    "message": "Server requires protocol version 4 or higher"
+  }
+  ```
+- 更新客户端：检测到 `PROTOCOL_NOT_SUPPORTED` 时显示"服务器已升级，请刷新页面"
+- 更新所有测试，只覆盖 v4
+- 协议文档更新：v4 是 v1.x 系列的唯一稳定协议
+
 ### 冻结项
 
-- Config Schema v1；
-- v1.0 支持的 WebSocket Protocol 范围；
-- `/room-info` 与 `/healthz` 的公开字段；
-- CLI 启动和退出行为；
-- 默认配置；
-- core / transport 的责任边界。
+- **Config Schema v1**：YAML 结构与字段语义
+- **Protocol v4**：唯一支持的协议版本（ADR-0001）
+- **`/room-info` 公开字段**：`protocolVersion`, `roomEpoch`, `roomTitle`, `defaultChannelId`, `channels`, `limits`, `ephemeral`
+- **`/healthz` 契约**：HTTP 200 OK / 503 Service Unavailable
+- **CLI 启动与退出**：
+  - 启动日志格式（版本、配置源、监听地址）
+  - 停服 WebSocket close code: `1001 / server stopped`
+- **默认配置值**：默认频道（general + project）、人数上限、超时等
+- **core / transport 边界**：命令/事件接口，不允许 transport 直接操作房间状态
 
 ### 开源工程
 
 - `CHANGELOG.md`；
 - Release Checklist；
-- 贡献指南；
-- 安全报告流程；
+- 贡献指南（已有）；
+- 安全报告流程（已有）；
 - 中英文项目介绍（至少首页核心信息具备英文入口）；
 - 清晰截图 / GIF；
 - Docker 与源码两套 Quick Start；
@@ -279,6 +311,8 @@ SQLite、Agent、账号系统不阻塞 v1.0。
 ### RC 原则
 
 `v0.9.x` 只修 blocker，不再新增大功能。
+
+从 v0.9.0 开始，协议、配置、公开 API 进入稳定期，breaking change 只在确认不可避免时引入。
 
 ---
 
@@ -320,7 +354,7 @@ v1.0 的产品定义：
 
 ## v1.1.0 — Persistence Foundation
 
-目标：让“聊天记录可保存”成为**可选能力**，不改变默认体验。
+目标：让”聊天记录可保存”成为**可选能力**，不改变默认体验。
 
 ### Storage Port
 
@@ -349,6 +383,7 @@ storage:
   driver: sqlite
   sqlite:
     path: ./data/pavilo.db
+    engine: auto  # auto | node | better-sqlite3
     retentionDays: 30
 ```
 
@@ -356,8 +391,31 @@ storage:
 
 - 不使用 `database.enabled`；
 - Config Schema v1 继续接受，并自动归一化为 `storage.driver: memory`；
-- 开启 SQLite 不是“运行 v2”，只是当前 App 的 persistent mode；
-- `retentionDays` 缺省表示不按时间自动删除；不要让 `0` 同时承担“关闭”和“永久”两种含义。
+- 开启 SQLite 不是”运行 v2”，只是当前 App 的 persistent mode；
+- `retentionDays` 缺省表示不按时间自动删除；不要让 `0` 同时承担”关闭”和”永久”两种含义。
+
+### SQLite Driver 策略（ADR-0002）
+
+**实用主义混合方案**：默认 `node:sqlite`，性能后备 `better-sqlite3`
+
+- **`engine: auto`（默认）**：
+  - Node 22.5+ → 使用 `node:sqlite`（零编译依赖）
+  - Node < 22.5 → 尝试 `better-sqlite3`，未安装则提示升级 Node
+- **`engine: node`**：强制使用 `node:sqlite`
+- **`engine: better-sqlite3`**：强制使用高性能驱动
+
+package.json 策略：
+```json
+{
+  “optionalDependencies”: {
+    “better-sqlite3”: “^11.0.0”
+  }
+}
+```
+
+Dockerfile 策略：
+- 默认镜像：零编译，适合大多数场景
+- `performance.Dockerfile`：包含编译工具链，适合高负载
 
 ### SQLite MVP 持久化
 
@@ -396,29 +454,31 @@ SQLite mode：
 - ACK 只能在 SQLite transaction commit 后发送；
 - 数据库被重置/替换时生成新 epoch。
 
-### 技术选择
+### 技术决策
 
-优先评估 Node 原生 `node:sqlite`：
+根据 ADR-0002，确认以下技术选型：
 
-- 与当前 Node-only、少依赖理念一致；
-- `DatabaseSync` 与当前同步 core 很契合；
-- 通过 Store Adapter 隔离，未来仍可替换实现。
+- **同步接口**：保持 core 同步，不改成 async pipeline
+- **WAL mode**：开启（提升并发性能）
+- **`foreign_keys=ON`**：强制引用完整性
+- **`busy_timeout`**：5000ms（避免并发写入时立即失败）
+- **Transaction 边界**：每条消息 + 幂等记录在一个事务
+- **Crash consistency**：依赖 SQLite 的 WAL checkpoint
+- **单进程限制**：不支持多个 Pavilo 实例共享同一个 SQLite 文件
 
-在正式实现前写 ADR，确认：
-
-- 最低 Node 小版本；
-- WAL；
-- `busy_timeout`；
-- `foreign_keys=ON`；
-- transaction 边界；
-- crash consistency；
-- 单进程写入限制。
-
-不要为了“未来可能支持远程数据库”在 v1.1 把整个 core 改成 async。
+不要为了”未来可能支持远程数据库”在 v1.1 把整个 core 改成 async。
 
 ### 数据库迁移
 
 从第一版 SQLite 就必须存在 migration 机制；不能等到第二个数据库版本才补。
+
+```
+src/storage/migrations/
+  001-initial-schema.sql
+  002-add-index-on-seq.sql
+```
+
+启动时自动检查并执行未应用的 migration。
 
 ---
 
@@ -453,49 +513,136 @@ SQLite mode：
 
 目标：为 Bot、Webhook、Agent、Moderation 建立统一扩展边界，但不把具体 LLM 厂商塞进 core。
 
-新增两个方向：
+### 设计原则（ADR-0003）
 
-### 1. Policy Hooks（提交前）
+**Extension as Trusted Scripts，而非沙箱插件系统**
 
-用于：
+- 用户编写 JavaScript 文件，通过配置路径加载
+- 与 Pavilo 主进程同权限运行（类似 Vite plugin、Express middleware）
+- 没有沙箱、没有权限系统、没有插件市场
+- 文档明确："Extensions are trusted code. Only load scripts you trust."
 
-- 消息是否允许发送；
-- 上传是否允许；
-- 加入是否允许；
-- 后续 moderation/access policy。
+### 配置方式
+
+```yaml
+version: 2
+
+extensions:
+  # Policy Hooks（同步拦截）
+  policy: ./extensions/moderation.js
+  
+  # Event Handlers（异步监听）
+  events:
+    - ./extensions/discord-webhook.js
+    - ./extensions/analytics.js
+    - ./extensions/chatgpt-bot.js
+```
+
+### 1. Policy Hooks（同步，Pre-commit）
+
+在命令提交前拦截，返回 allow/deny。
+
+接口示例：
+```js
+// extensions/my-policy.js
+module.exports = {
+  async canSendMessage({ user, channel, message, core }) {
+    if (message.text?.includes('spam')) {
+      return { allowed: false, code: 'BLOCKED_WORD' };
+    }
+    return { allowed: true };
+  },
+  
+  async canJoinChannel({ user, channel, core }) { ... },
+  async canUploadImage({ user, channel, image, core }) { ... }
+};
+```
 
 规则：
 
-- 返回明确 allow / deny；
-- 有严格超时；
-- 默认失败策略必须显式定义；
-- 不允许插件绕过 core 直接写 Store。
+- 返回明确 `{ allowed: true/false, code?, message? }`
+- 严格超时：5 秒未响应视为失败
+- 失败策略可配置：fail-open（允许）/ fail-closed（拒绝）
+- 不允许扩展绕过 core 直接写 Store
 
-### 2. Domain Events（提交后）
+### 2. Domain Events（异步，Post-commit）
 
-示例：
+消息已提交后触发，失败不影响聊天。
 
+接口示例：
+```js
+// extensions/chatgpt-bot.js
+module.exports = {
+  async onMessageCreated({ message, channel, api }) {
+    if (message.text?.startsWith('@bot ')) {
+      const response = await callOpenAI(message.text);
+      await api.sendMessage({
+        channelId: channel.id,
+        text: response,
+        replyTo: message.id
+      });
+    }
+  },
+  
+  async onUserJoined({ user, channel, api }) { ... },
+  async onUserLeft({ user, channel, api }) { ... }
+};
+```
+
+事件类型：
 - `message.created`
 - `reaction.changed`
 - `member.joined`
 - `member.left`
 - `channel.switched`
 
-用于：
-
-- Webhook；
-- Bot；
-- Agent；
-- 审计；
-- 外部自动化。
-
 订阅者失败不能回滚已经成功提交的聊天消息。
 
-### Bot / Automation
+### Extension API
 
-Bot 也必须通过统一 Command API 进入 core，而不是直接操作 SQLite。
+扩展接收的 `api` 对象提供对 core 的受限访问：
 
-此版本 Extension API 标记为 experimental。
+```js
+class ExtensionAPI {
+  async sendMessage({ channelId, text, replyTo })
+  getChannel(channelId)
+  getOnlineUsers(channelId)
+  // 不允许：直接操作 SQLite、绕过 Policy、访问其他扩展状态
+}
+```
+
+### Bot / Agent 实现
+
+Bot 本质上是"监听 Domain Event + 调用 Command API"：
+
+- 不是独立服务，不需要 HTTP/gRPC 接口
+- 不需要沙箱，用户自己审查代码后加载
+- 用熟悉的 npm 包（OpenAI SDK、Discord.js 等）
+
+### 生态策略
+
+**不做插件市场，做示例 + 文档**
+
+```
+docs/extensions/
+  README.md              # 如何编写扩展 + 安全警告
+  api-reference.md       # Extension API 文档
+  examples/
+    word-filter.js       # 敏感词过滤
+    discord-webhook.js   # Discord 同步
+    openai-bot.js        # OpenAI 聊天机器人
+    claude-bot.js        # Claude 机器人
+    audit-log.js         # 审计日志
+```
+
+用户复制示例到自己的 `extensions/` 目录，修改配置后引用。
+
+### Extension API 稳定性
+
+此版本 Extension API 标记为 **experimental**。
+
+- v1.3-v1.5 可能调整接口
+- v1.6 稳定化后才承诺长期兼容
 
 ---
 
@@ -503,25 +650,56 @@ Bot 也必须通过统一 Command API 进入 core，而不是直接操作 SQLite
 
 ## v1.4.0 — Agent & Gateway
 
-目标：让 Pavilo 可以“长出智能能力”，但聊天核心仍然不依赖 AI。
+目标：让 Pavilo 可以”长出智能能力”，但聊天核心仍然不依赖 AI。
+
+**重要：根据 ADR-0003，Agent 只是特殊的 Extension Event Handler，不需要独立架构。**
 
 ### 功能
 
-- 可选 Agent/Bot Adapter；
-- OpenAI-compatible HTTP 作为第一种统一模型接口候选；
-- Bot 有明确 actor 类型和展示身份；
-- @Bot / 命令式触发；
-- 可配置 Agent 允许加入的频道；
-- streaming 输出通过标准消息路径呈现；
-- 模型错误、超时、限流与聊天服务隔离；
-- Agent 默认关闭。
+v1.3 的 Extension 机制已经足够实现 Bot/Agent，v1.4 主要是完善体验和提供官方示例：
 
-### 禁止
+- **Bot 身份标识**：
+  - 协议增加可选 `author.isBot: true` 字段
+  - 客户端 UI 显示 Bot 标识（徽章、颜色区分）
+  
+- **Agent 示例集**：
+  - `examples/agents/openai-bot.js` — OpenAI GPT 集成
+  - `examples/agents/claude-bot.js` — Anthropic Claude 集成
+  - `examples/agents/ollama-bot.js` — 本地 Ollama 集成
+  - `examples/agents/webhook-bot.js` — 通用 Webhook Bot 框架
 
-- `src/core` import OpenAI/Anthropic/其他厂商 SDK；
-- Agent 直接写数据库；
-- LLM 调用阻塞 WebSocket transport；
-- 因 Agent 不可用导致正常聊天不可用。
+- **Agent 配置增强**：
+  ```yaml
+  extensions:
+    events:
+      - path: ./extensions/chatgpt.js
+        botIdentity:
+          username: ChatGPT
+          avatarSeed: chatgpt
+          channels: [general, project]  # 限制 Bot 活跃频道
+  ```
+
+- **Streaming 输出**：
+  - Agent 可以通过 `api.streamMessage()` 分块发送长消息
+  - 客户端渐进式渲染（类似 ChatGPT 打字效果）
+
+- **错误隔离**：
+  - Agent 失败不影响正常聊天
+  - Extension 崩溃时自动禁用，打印错误，不让主进程挂掉
+
+### 架构约束（继续强制）
+
+- `src/core` 不 import OpenAI/Anthropic/其他厂商 SDK
+- Agent 不能直接操作 SQLite，必须通过 Command API
+- LLM 调用不能阻塞 WebSocket transport
+- Agent 默认关闭，显式启用
+
+### 非目标
+
+- ❌ 不做独立的”Agent Gateway”微服务
+- ❌ 不做”模型路由”、”负载均衡”等企业功能
+- ❌ 不做”Agent 市场”、”一键安装 Bot”
+- ❌ 不做沙箱（Bot 是用户信任的代码）
 
 ---
 
@@ -561,19 +739,58 @@ Bot 也必须通过统一 Command API 进入 core，而不是直接操作 SQLite
 
 目标：把已经验证过的扩展机制稳定下来。
 
-候选：
+### Extension API 稳定化
 
-- Stable Extension API；
-- 扩展 manifest；
-- scoped API token；
-- Management API；
-- Webhook 管理；
-- 独立扩展包目录规范；
-- Agent / moderation / gateway 示例扩展；
-- 兼容矩阵；
-- 第三方扩展安全声明。
+从 v1.6 开始，Extension API 遵循 SemVer：
+- Breaking changes 只在 major 版本（v2.0）
+- 新增可选字段/方法可以在 minor 版本
+- 文档维护 “Extension API Changelog”
 
-插件若以同进程 JavaScript 运行，必须明确它是“受信任代码”，不宣传为安全沙箱。
+### 交付物
+
+- **Stable Extension API**：
+  - Policy Hooks 接口冻结
+  - Domain Events 类型冻结
+  - Extension API 方法签名冻结
+  
+- **文档完善**：
+  - Extension 开发指南（从零开始）
+  - 最佳实践（错误处理、性能优化、测试）
+  - 安全检查清单（审查第三方扩展的要点）
+  - 故障排查指南
+  
+- **示例扩展库**（15-20 个）：
+  - Policy：敏感词过滤、上传限制、邀请制
+  - Webhook：Discord、Slack、Telegram、Mattermost
+  - Agent：OpenAI、Claude、Ollama、通用 HTTP Bot
+  - Moderation：审计日志、举报系统、自动封禁
+  - 工具：消息归档、统计分析、备份
+
+- **社区分享机制**：
+  - `docs/extensions/community/` 目录收录优秀社区扩展（经审查）
+  - GitHub Discussions 标签：`extension-showcase`
+  - 贡献指南：如何提交扩展示例
+
+### 明确不做（ADR-0003）
+
+- ❌ 插件市场 / npm 包发布机制
+- ❌ 扩展 manifest / 版本声明系统
+- ❌ scoped API token（扩展与主进程同权限）
+- ❌ 独立的扩展包目录规范
+- ❌ 沙箱运行时
+- ❌ 权限模型
+
+### 安全立场
+
+文档中继续明确强调：
+
+> **⚠️ Extensions are trusted code**
+> 
+> Pavilo extensions run in the same process with full system access. This is intentional — Pavilo is a self-hosted tool for technical users, not a SaaS platform.
+> 
+> Only load extensions you trust. Review the code before enabling.
+
+参考 Vite、Rollup、Express 的插件模式，而不是 Chrome Extension、VS Code Extension 的沙箱模式。
 
 ---
 
