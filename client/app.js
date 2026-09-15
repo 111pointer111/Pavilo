@@ -294,6 +294,12 @@
     return roomInfoPromise;
   }
 
+  function checkHealth() {
+    return fetch('/healthz', { cache: 'no-store', signal: AbortSignal.timeout(3000) })
+      .then((response) => response.ok)
+      .catch(() => false);
+  }
+
   function renderTyping(state = store.getState()) {
     const names = Object.entries(state.typing || {})
       .filter(([id]) => id !== state.self?.id)
@@ -675,11 +681,18 @@
     if (event.type === 'open') { store.dispatch({ type: 'connection/open' }); return; }
     if (event.type === 'payload') { handleServerMessage(event.payload); return; }
     if (event.type === 'error') { store.dispatch({ type: 'connection/error', error: event.error || event.event || null }); return; }
-    if (event.type === 'retryScheduled') { store.dispatch({ type: 'connection/retry', attempt: event.attempt }); return; }
+    if (event.type === 'retryScheduled') {
+      store.dispatch({ type: 'connection/retry', attempt: event.attempt, max: event.max });
+      // 如果尚未加入（登录阶段），在登录页显示重试进度
+      if (!store.getState().connection.joined) {
+        loginError.textContent = `无法连接到服务，正在重试 (${event.attempt}/${event.max})…`;
+      }
+      return;
+    }
     if (event.type === 'maxRetriesReached') {
       store.dispatch({ type: 'connection/failed' });
       if (!store.getState().connection.joined) {
-        showLogin('无法连接到服务，请检查服务是否正在运行。');
+        showLogin('服务不可用，请检查服务是否正在运行。');
         notificationsController.toast('连接失败，请稍后重试或联系管理员。', 'error');
       } else {
         notificationsController.toast('无法重新连接到服务，请刷新页面或稍后再试。', 'error');
@@ -742,31 +755,43 @@
     event.preventDefault();
     const username = usernameInput.value.trim();
     if (!username) { loginError.textContent = '请输入一个名字。'; return; }
-    if (!roomInfoReady) {
-      loginForm.querySelector('.enter-button').disabled = true;
-      loginError.textContent = '正在加载房间信息…';
-      loadRoomInfo().then((info) => {
-        if (info) {
-          loginError.textContent = '';
-          submitLogin({ preventDefault() {} });
-        } else {
-          loginForm.querySelector('.enter-button').disabled = false;
-          loginError.textContent = '无法加载房间信息，请检查服务是否正在运行。';
-        }
-      });
-      return;
-    }
-    const saved = connection.readSession();
-    if (saved && saved.username !== username) {
-      connection.clearSession();
-      connection.clearChannelId();
-      resumeToken = null;
-    }
-    identity = { username, channelId: selectedChannelId || roomInfo.defaultChannelId };
-    resumeToken = null;
-    loginError.textContent = '正在连接…';
+
+    // 先检查健康状态
     loginForm.querySelector('.enter-button').disabled = true;
-    connection.connect(identity);
+    loginError.textContent = '正在检查服务状态…';
+
+    checkHealth().then((healthy) => {
+      if (!healthy) {
+        loginError.textContent = '服务不可用，请检查服务是否正在运行。';
+        loginForm.querySelector('.enter-button').disabled = false;
+        return;
+      }
+
+      if (!roomInfoReady) {
+        loginError.textContent = '正在加载房间信息…';
+        loadRoomInfo().then((info) => {
+          if (info) {
+            loginError.textContent = '';
+            submitLogin({ preventDefault() {} });
+          } else {
+            loginForm.querySelector('.enter-button').disabled = false;
+            loginError.textContent = '无法加载房间信息，请检查服务是否正在运行。';
+          }
+        });
+        return;
+      }
+
+      const saved = connection.readSession();
+      if (saved && saved.username !== username) {
+        connection.clearSession();
+        connection.clearChannelId();
+        resumeToken = null;
+      }
+      identity = { username, channelId: selectedChannelId || roomInfo.defaultChannelId };
+      resumeToken = null;
+      loginError.textContent = '正在连接…';
+      connection.connect(identity);
+    });
   }
 
   function leaveRoom() {
