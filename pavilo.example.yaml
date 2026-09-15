@@ -89,20 +89,26 @@ channels:
     maxUsers: 64
 
   # 示例：项目讨论频道（人数上限更小）
-  - id: project
+  - id: projects
     name: 项目讨论
     description: 聚焦项目，高效协作。
     enabled: true
     maxUsers: 32
 
-  # 示例：停用的频道
-  # 注意：Pavilo 当前没有"只读频道"权限系统
-  #      enabled: false 表示完全不可加入，不是"只能看不能说"
+  # 示例：只读公告频道
+  # readOnly: true 表示所有人都不能发消息（没有例外，也没有管理员豁免），
+  # 但频道仍可进入、可浏览、可用表情回应。
+  # 内容通过 welcome 由部署者维护，改完需要重启进程。
   - id: announcements
     name: 公告
-    description: 已停用的频道示例。
-    enabled: false
+    description: 版本与维护通知。
+    enabled: true
+    readOnly: true
     maxUsers: 64
+    welcome: |
+      这里只发布版本与维护通知。
+      1. 讨论请去 #general
+      2. 通知由部署者在配置中维护，改完需要重启服务
 
 # ============================================================================
 # 容量与尺寸限制

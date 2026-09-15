@@ -77,6 +77,11 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
 
   function handleMessage(client, command) {
     const channel = rooms.get(client.session.channelId);
+    if (channel.config.readOnly) {
+      sendError(client, 'CHANNEL_READ_ONLY', '这个频道是只读频道，不能发送消息。',
+        typeof command.clientMessageId === 'string' ? command.clientMessageId : undefined);
+      return;
+    }
     const clientMessageId = command.clientMessageId;
     const legacyMessage = client.protocolVersion < 2 && typeof clientMessageId !== 'string';
     if (!legacyMessage && !validateClientId(clientMessageId)) {
@@ -220,6 +225,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       return;
     }
     if (command.type === 'typing') {
+      if (rooms.get(client.session.channelId).config.readOnly) return;
       if (!rateAllows(client, 'typing', config.typingRateLimit, config.rateLimitWindowMs)) return;
       if (command.active) activateTyping(client);
       else deactivateTyping(client);

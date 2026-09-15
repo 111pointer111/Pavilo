@@ -69,7 +69,7 @@ rateLimits:
   assert.equal(config.messageRateLimit, 4);
   assert.equal(config.maxImageBytes, DEFAULTS.maxImageBytes);
   assert.deepEqual(config.channels, DEFAULTS.channels.map((channel) => ({ ...channel, maxUsers: 10 })));
-  assert.deepEqual(config.channels.map((channel) => channel.id), ['general', 'awesome-ai']);
+  assert.deepEqual(config.channels.map((channel) => channel.id), ['general', 'project']);
 });
 
 test('explicit channels replace general and support a non-general default', () => {
@@ -137,7 +137,7 @@ channels:
   - id: general
     name: 闲聊
     enabled: false
-`), /至少要启用一个频道/);
+`), /至少要启用一个可发言的频道/);
   throwsMatch(() => parseConfig(`
 version: 1
 server:
@@ -292,9 +292,117 @@ test('the distributed example parses and explicitly documents every config secti
   assert.equal(config.exposeMemberIps, true);
   assert.equal(config.defaultChannelId, 'general');
   assert.deepEqual(config.channels.map((channel) => channel.id), ['general', 'projects', 'announcements']);
-  assert.equal(config.channels.at(-1).enabled, false);
+  assert.equal(config.channels.at(-1).enabled, true);
+  assert.equal(config.channels.at(-1).readOnly, true);
   for (const section of ['server:', 'room:', 'channels:', 'limits:', 'timeouts:', 'rateLimits:']) {
     assert.match(source, new RegExp(`^${section}`, 'm'));
   }
   assert.doesNotMatch(source, /resumeLeaseMs/);
+});
+
+test('readOnly and welcome fields have correct defaults and round-trip multi-line text', () => {
+  const config = parseConfig(`
+version: 1
+channels:
+  - id: general
+    name: 闲聊
+  - id: announcements
+    name: 公告
+    readOnly: true
+    welcome: |
+      这里只发布版本与维护通知。
+      1. 讨论请去 #general
+      2. 通知由部署者在配置中维护
+`);
+  assert.equal(config.channels[0].readOnly, false);
+  assert.equal(config.channels[0].welcome, '');
+  assert.equal(config.channels[1].readOnly, true);
+  assert.equal(config.channels[1].welcome, '这里只发布版本与维护通知。\n1. 讨论请去 #general\n2. 通知由部署者在配置中维护');
+});
+
+test('welcome normalizes CRLF and strips control characters before trimming', () => {
+  const config = parseConfig(`
+version: 1
+channels:
+  - id: general
+    name: 闲聊
+    welcome: "一\\r\\n二\\u0007三\\t四"
+`);
+  assert.equal(config.channels[0].welcome, '一\n二三\t四');
+});
+
+test('readOnly and welcome enforce type and length constraints', () => {
+  throwsMatch(() => parseConfig(`
+version: 1
+channels:
+  - id: general
+    name: 闲聊
+    welcome: 123
+`), /channels\[0\]\.welcome.*必须是字符串/);
+
+  throwsMatch(() => parseConfig(`
+version: 1
+channels:
+  - id: general
+    name: 闲聊
+    readOnly: "true"
+`), /channels\[0\]\.readOnly.*true 或 false/);
+
+  throwsMatch(() => parseConfig(`
+version: 1
+channels:
+  - id: general
+    name: 闲聊
+    welcome: "${'x'.repeat(2001)}"
+`), /channels\[0\]\.welcome.*长度必须是 0–2000/);
+});
+
+test('at least one enabled non-read-only channel must exist', () => {
+  throwsMatch(() => parseConfig(`
+version: 1
+channels:
+  - id: general
+    name: 闲聊
+    readOnly: true
+`), /至少要启用一个可发言的频道/);
+
+  throwsMatch(() => parseConfig(`
+version: 1
+channels:
+  - id: general
+    name: 闲聊
+    readOnly: true
+  - id: other
+    name: 其他
+    enabled: false
+`), /至少要启用一个可发言的频道/);
+});
+
+test('default channel cannot be read-only', () => {
+  throwsMatch(() => parseConfig(`
+version: 1
+room:
+  defaultChannel: announcements
+channels:
+  - id: announcements
+    name: 公告
+    readOnly: true
+  - id: general
+    name: 闲聊
+`), /room\.defaultChannel.*只读频道/);
+});
+
+test('aggregate welcome bytes are bounded across all channels', () => {
+  const largeWelcome = '字'.repeat(1900);
+  const manyChannels = Array.from({ length: 40 }, (_, i) =>
+    `  - id: c${i}\n    name: C${i}\n    welcome: "${largeWelcome}"`
+  ).join('\n');
+
+  throwsMatch(() => parseConfig(`
+version: 1
+room:
+  defaultChannel: c0
+channels:
+${manyChannels}
+`), /welcome.*合计不能超过.*65536/);
 });

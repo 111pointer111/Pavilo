@@ -11,6 +11,10 @@ const DECIMAL_PORT_RE = /^(?:[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|65
 const MAX_CONFIG_BYTES = 256 * 1024;
 const MAX_USERS = 1000;
 const MAX_CHANNELS = 100;
+const MAX_WELCOME_LENGTH = 2000;
+// /room-info carries every channel's welcome text and is refetched on each page
+// load, so the per-channel cap alone is not enough to keep that payload small.
+const MAX_TOTAL_WELCOME_BYTES = 64 * 1024;
 const MAX_MESSAGE_OVERHEAD_BYTES = 16 * 1024;
 const MAX_ROSTER_USER_BYTES = 512;
 // Files Pavilo serves from its own root. Anything else there (including the YAML
@@ -55,20 +59,24 @@ const DEFAULTS = deepFreeze({
     name: '闲聊',
     description: '轻松聊聊，只留当下。',
     enabled: true,
-    maxUsers: 64
+    readOnly: false,
+    maxUsers: 64,
+    welcome: ''
   },{
     id: 'project',
     name: '项目讨论',
     description: '聚焦项目，高效协作。',
     enabled: true,
-    maxUsers: 32
+    readOnly: false,
+    maxUsers: 32,
+    welcome: ''
   }]
 });
 
 const ROOT_KEYS = new Set(['version', 'server', 'room', 'channels', 'limits', 'timeouts', 'rateLimits']);
 const SERVER_KEYS = new Set(['host', 'port', 'maxUsers', 'maxConnections', 'maxConnectionsPerIp', 'allowNoOrigin', 'allowedOrigins']);
 const ROOM_KEYS = new Set(['title', 'defaultChannel', 'exposeMemberIps', 'exposeLanUrls']);
-const CHANNEL_KEYS = new Set(['id', 'name', 'description', 'enabled', 'maxUsers']);
+const CHANNEL_KEYS = new Set(['id', 'name', 'description', 'enabled', 'readOnly', 'maxUsers', 'welcome']);
 const LIMIT_KEYS = new Set(['maxMessagesPerChannel', 'maxTextLength', 'maxImageBytes', 'maxImageDimension', 'maxImagePixels', 'maxJsonBytes', 'maxWebSocketFrameBytes', 'maxChannelBytes', 'maxWritableBytes', 'maxDedupeEntries']);
 const TIMEOUT_KEYS = new Set(['joinMs', 'heartbeatIntervalMs', 'heartbeatTimeoutMs', 'typingTtlMs', 'sessionLeaseMs', 'dedupeTtlMs']);
 const RATE_KEYS = new Set(['windowMs', 'messages', 'reactions', 'typing']);
@@ -119,6 +127,16 @@ function text(value, field, minimum, maximum) {
   return result;
 }
 
+// Multi-line counterpart of text(). Line endings collapse to \n before the other
+// control characters are dropped, so a bare \r never fuses two lines into one.
+// Only the outer edges are trimmed: blank lines the deployer wrote on purpose stay.
+function paragraph(value, field, minimum, maximum) {
+  if (typeof value !== 'string') fail(field, '必须是字符串');
+  const result = value.replace(/\r\n?/g, '\n').replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '').trim();
+  if (result.length < minimum || result.length > maximum) fail(field, `长度必须是 ${minimum}–${maximum} 个字符`);
+  return result;
+}
+
 function optionalInteger(target, key, source, sourceKey, field, minimum, maximum) {
   if (source[sourceKey] !== undefined) target[key] = integer(source[sourceKey], field, minimum, maximum);
 }
@@ -154,10 +172,12 @@ function normalizeChannels(value, maxUsers) {
       name: text(channel.name, `${field}.name`, 1, 40),
       description: channel.description === undefined ? '' : text(channel.description, `${field}.description`, 0, 160),
       enabled: channel.enabled === undefined ? true : boolean(channel.enabled, `${field}.enabled`),
-      maxUsers: channel.maxUsers === undefined ? maxUsers : integer(channel.maxUsers, `${field}.maxUsers`, 1, maxUsers)
+      readOnly: channel.readOnly === undefined ? false : boolean(channel.readOnly, `${field}.readOnly`),
+      maxUsers: channel.maxUsers === undefined ? maxUsers : integer(channel.maxUsers, `${field}.maxUsers`, 1, maxUsers),
+      welcome: channel.welcome === undefined ? '' : paragraph(channel.welcome, `${field}.welcome`, 0, MAX_WELCOME_LENGTH)
     };
   });
-  if (!channels.some((channel) => channel.enabled)) fail('channels', '至少要启用一个频道');
+  if (!channels.some((channel) => channel.enabled && !channel.readOnly)) fail('channels', '至少要启用一个可发言的频道');
   return channels;
 }
 
@@ -168,6 +188,7 @@ function validateCrossConstraints(config) {
   // both its own largest body and another maximum-length text value.
   const largestMessageBytes = Math.max(maxTextBytes, encodedImageBytes) + maxTextBytes + MAX_MESSAGE_OVERHEAD_BYTES;
   const rosterBytes = config.maxUsers * MAX_ROSTER_USER_BYTES + MAX_MESSAGE_OVERHEAD_BYTES;
+  const welcomeBytes = config.channels.reduce((total, channel) => total + Buffer.byteLength(channel.welcome, 'utf8'), 0);
   if (config.maxClients < config.maxUsers) fail('server.maxConnections', '不能小于 server.maxUsers');
   if (config.maxClientsPerIp > config.maxClients) fail('server.maxConnectionsPerIp', '不能大于 server.maxConnections');
   if (config.maxJsonBytes < largestMessageBytes) fail('limits.maxJsonBytes', '装不下最大图片的 base64 或最长文字消息及其 JSON 开销');
@@ -176,6 +197,7 @@ function validateCrossConstraints(config) {
   if (config.maxWritableBytes < config.maxJsonBytes + 14) fail('limits.maxWritableBytes', '必须能容纳一个最大 JSON WebSocket 帧及帧头');
   if (config.maxRoomBytes < largestMessageBytes) fail('limits.maxChannelBytes', '装不下一条最大图片或文字消息');
   if (config.heartbeatTimeoutMs <= config.heartbeatIntervalMs) fail('timeouts.heartbeatTimeoutMs', '必须大于 timeouts.heartbeatIntervalMs');
+  if (welcomeBytes > MAX_TOTAL_WELCOME_BYTES) fail('channels', `所有频道 welcome 合计不能超过 ${MAX_TOTAL_WELCOME_BYTES} 字节`);
 }
 
 function normalizeConfig(document = {}, { requireVersion = false } = {}) {
@@ -243,6 +265,7 @@ function normalizeConfig(document = {}, { requireVersion = false } = {}) {
   const defaultChannel = config.channels.find((channel) => channel.id === config.defaultChannelId);
   if (!defaultChannel) fail('room.defaultChannel', `找不到频道 “${config.defaultChannelId}”`);
   if (!defaultChannel.enabled) fail('room.defaultChannel', '默认频道必须启用');
+  if (defaultChannel.readOnly) fail('room.defaultChannel', '默认频道不能是只读频道');
   validateCrossConstraints(config);
   return config;
 }
