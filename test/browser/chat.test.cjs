@@ -260,7 +260,10 @@ rateLimits:
       // missing module. Keep every other asset/network failure observable.
       const cancelledDataset = new URL(request.url()).pathname === '/vendor/emoji-picker/data.json'
         && request.failure()?.errorText === 'net::ERR_ABORTED';
-      if (request.resourceType() !== 'websocket' && !cancelledDataset) {
+      // During the graceful stop test, /healthz may fail if the server is stopping
+      const healthCheckDuringStop = new URL(request.url()).pathname === '/healthz'
+        && request.failure()?.errorText === 'net::ERR_ABORTED';
+      if (request.resourceType() !== 'websocket' && !cancelledDataset && !healthCheckDuringStop) {
         failures.push(`Failed request: ${request.url()} (${request.failure()?.errorText})`);
       }
     });
