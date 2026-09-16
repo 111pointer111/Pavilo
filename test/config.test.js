@@ -291,7 +291,7 @@ test('the distributed example parses and explicitly documents every config secti
   assert.equal(config.port, 4173);
   assert.equal(config.exposeMemberIps, true);
   assert.equal(config.defaultChannelId, 'general');
-  assert.deepEqual(config.channels.map((channel) => channel.id), ['general', 'projects', 'announcements']);
+  assert.deepEqual(config.channels.map((channel) => channel.id), ['general', 'project', 'announcements']);
   assert.equal(config.channels.at(-1).enabled, true);
   assert.equal(config.channels.at(-1).readOnly, true);
   for (const section of ['server:', 'room:', 'channels:', 'limits:', 'timeouts:', 'rateLimits:']) {

@@ -128,7 +128,7 @@ PAVILO_CONFIG=/etc/pavilo/config.yaml npm start
 - 全局和频道人数都包含 `timeouts.sessionLeaseMs` 内暂时断线、仍可恢复身份的成员。连接总数由 `server.maxConnections` 单独限制。
 - 至少要启用一个可发言的频道（`enabled: true` 且 `readOnly` 不为 `true`）；只读频道可以浏览，但不计入”可发言”的最低要求。
 
-示例：把 `projects` 设为非 `general` 默认频道：
+示例：自定义频道并设为默认频道：
 
 ```yaml
 version: 1
@@ -140,6 +140,8 @@ channels:
     enabled: true
     maxUsers: 24
 ```
+
+_注：内置默认频道为 `general` 和 `project`（单数）。_
 
 ### 配置文件安全
 

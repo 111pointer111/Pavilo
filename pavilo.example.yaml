@@ -90,7 +90,7 @@ channels:
     maxUsers: 64
 
   # 示例：项目讨论频道（人数上限更小）
-  - id: projects
+  - id: project
     name: 项目讨论
     description: 聚焦项目，高效协作。
     enabled: true
