@@ -95,18 +95,18 @@ Pavilo 同时维护四类版本：
 
 SQLite、Agent、账号系统不阻塞 v1.0。
 
-## v0.2.0 — Contract & Quality（进行中）
+## v0.2.0 — Contract & Quality（已完成）
 
 目标：冻结正确的产品边界，消除”代码能跑但契约漂移”。
 
-### 功能与文档（部分已完成）
+### 功能与文档（✅ 已完成）
 
 - ✅ 完成静态 `readOnly` 频道的 UI、错误提示、测试和文档：
   - `enabled: false`：不可加入；
   - `readOnly: true`：可进入/阅读，但普通参与者不能发消息；
   - 当前没有”管理员例外”，不要把它描述成角色权限。
 - ✅ 修正 README 中默认频道为 `general + project`。
-- README、`pavilo.example.yaml`、配置测试、协议文档对齐。
+- ✅ README、`pavilo.example.yaml`、配置测试、协议文档对齐。
 - ✅ 现有架构决策记录（ADR）：
   - `docs/architecture/evolution.md` — 架构演进原则
   - `docs/adr/` — 架构决策记录
@@ -114,7 +114,7 @@ SQLite、Agent、账号系统不阻塞 v1.0。
     - ADR-0002：SQLite pragmatic hybrid
     - ADR-0003：Extension as trusted scripts
 
-### 工程质量（部分已完成）
+### 工程质量（✅ 已完成）
 
 - ✅ GitHub Actions：
   - Node 22、24、26 矩阵测试
@@ -127,12 +127,12 @@ SQLite、Agent、账号系统不阻塞 v1.0。
 - ✅ `CONTRIBUTING.md`、`SECURITY.md`、Issue / PR 模板
 - ✅ `TEST_STRATEGY.md` 测试策略文档
 
-### 协议废弃声明（ADR-0001）
+### 协议废弃声明（ADR-0001）（✅ 已完成）
 
-- 在 `docs/architecture/chat-protocol.md` 中明确标记 Protocol v1/v2/v3 为 deprecated
-- 在 `/room-info` 响应中增加 `deprecatedProtocols: [1, 2, 3]` 字段
-- 当 v1/v2/v3 客户端连接时，在 `stateStart` 返回 `deprecationWarning` 字段
-- 文档说明：v0.9.0 将删除 v1/v2/v3 支持，第三方客户端应迁移到 v4
+- ✅ 在 `docs/architecture/chat-protocol.md` 中明确标记 Protocol v1/v2/v3 为 deprecated
+- ✅ 在 `/room-info` 响应中增加 `deprecatedProtocols: [1, 2, 3]` 字段
+- ✅ 当 v1/v2/v3 客户端连接时，在 `stateStart` 返回 `deprecationWarning` 字段
+- ✅ 文档说明：v0.9.0 将删除 v1/v2/v3 支持，第三方客户端应迁移到 v4
 
 ### 非目标
 
@@ -143,12 +143,14 @@ SQLite、Agent、账号系统不阻塞 v1.0。
 - Agent；
 - 插件系统。
 
-### 发布门槛
+### 发布门槛（✅ 全部满足）
 
-- CI 主分支全绿；
-- README、示例配置与实现无已知漂移；
-- core/transport/client 边界不因新增小功能重新耦合；
-- ADR 文档已审查并合并到主分支。
+- ✅ CI 主分支全绿；
+- ✅ README、示例配置与实现无已知漂移；
+- ✅ core/transport/client 边界不因新增小功能重新耦合；
+- ✅ ADR 文档已审查并合并到主分支。
+
+**v0.2.0 已完成所有目标，可以发布。**
 
 ---
 
