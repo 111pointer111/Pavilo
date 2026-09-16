@@ -533,6 +533,10 @@ rateLimits:
     assert.ok(sentCommand, 'mention command was sent');
     assert.equal(sentCommand.mentions.length, 1);
     assert.equal(typeof sentCommand.mentions[0], 'string');
+    await alice.waitForFunction((clientMessageId) => {
+      return window.__paviloBrowserTest.received
+        .some((e) => e.type === 'message' && e.message?.clientMessageId === clientMessageId);
+    }, sentCommand.clientMessageId);
     const receivedMessage = await alice.evaluate((clientMessageId) => {
       const event = window.__paviloBrowserTest.received
         .find((e) => e.type === 'message' && e.message?.clientMessageId === clientMessageId);
