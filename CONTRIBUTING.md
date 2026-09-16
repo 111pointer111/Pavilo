@@ -43,7 +43,7 @@ Pavilo 致力于为所有贡献者提供友好、尊重的环境。请遵循基�
 
 ### 要求
 
-- **Node.js**: >= 22.0.0
+- **Node.js**: 22+
 - **操作系统**: macOS / Linux / Windows (WSL2)
 - **浏览器**: Chrome / Edge（用于浏览器测试）
 

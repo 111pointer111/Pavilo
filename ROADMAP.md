@@ -95,41 +95,37 @@ Pavilo 同时维护四类版本：
 
 SQLite、Agent、账号系统不阻塞 v1.0。
 
-## v0.2.0 — Contract & Quality
+## v0.2.0 — Contract & Quality（进行中）
 
 目标：冻结正确的产品边界，消除”代码能跑但契约漂移”。
 
-### 功能与文档
+### 功能与文档（部分已完成）
 
-- 完成静态 `readOnly` 频道的 UI、错误提示、测试和文档：
+- ✅ 完成静态 `readOnly` 频道的 UI、错误提示、测试和文档：
   - `enabled: false`：不可加入；
   - `readOnly: true`：可进入/阅读，但普通参与者不能发消息；
   - 当前没有”管理员例外”，不要把它描述成角色权限。
-- 修正 README 中默认频道为 `general + project`。
+- ✅ 修正 README 中默认频道为 `general + project`。
 - README、`pavilo.example.yaml`、配置测试、协议文档对齐。
-- **应用 `docs/README_AND_CONFIG_UPDATE.md` 中的同步修改建议**。
-- 已新增：
+- ✅ 现有架构决策记录（ADR）：
   - `docs/architecture/evolution.md` — 架构演进原则
   - `docs/adr/` — 架构决策记录
     - ADR-0001：Protocol v4 only for v1.0
     - ADR-0002：SQLite pragmatic hybrid
     - ADR-0003：Extension as trusted scripts
 
-### 工程质量
+### 工程质量（部分已完成）
 
-- GitHub Actions：
-  - Node 22；
-  - Node 24 LTS；
-  - Node 26 Current；
-  - `npm ci`；
-  - `npm test`；
-  - `npm run config:check`；
-  - `node --check`；
-  - 可选浏览器验收 job。
-- 增加”示例配置可被当前配置加载器接受”的自动测试。
-- 建立协议与配置兼容矩阵测试。
-- 为 core / client contract 增加失败路径测试，而不仅是 happy path。
-- 增加 `CONTRIBUTING.md`、`SECURITY.md`、Issue / PR 模板。
+- ✅ GitHub Actions：
+  - Node 22、24、26 矩阵测试
+  - `npm ci`、`npm test`、`npm run config:check`
+  - `node --check`
+  - 浏览器验收 job
+- ✅ “示例配置可被当前配置加载器接受”的自动测试（config-example.test.js）
+- ✅ 协议与配置兼容矩阵测试
+- ✅ Core / client contract 失败路径测试
+- ✅ `CONTRIBUTING.md`、`SECURITY.md`、Issue / PR 模板
+- ✅ `TEST_STRATEGY.md` 测试策略文档
 
 ### 协议废弃声明（ADR-0001）
 

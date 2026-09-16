@@ -12,7 +12,8 @@
 - **测试用例数**: ~217 个（不含浏览器测试的子断言）
 - **本地通过率**: 228/229 (99.6%)
 - **跳过测试**: 1 个（channels.test.js 同步时序问题）
-- **问题文件**: 1 个空文件（client-server-contract.test.js）
+
+_注：以上统计为时间点快照，运行 `npm test` 查看当前实际状态。_
 
 ### 测试分层
 
@@ -41,11 +42,7 @@
 
 ### 🔴 立即处理
 
-1. **client-server-contract.test.js 是空文件**
-   - 已有 4 个客户端协议版本兼容性测试分布在各处
-   - **决策**: 删除此空文件，契约测试已在 server.test.js 和 client-protocol.test.js 充分覆盖
-
-2. **channels.test.js 有 1 个跳过的测试**
+1. **channels.test.js 有 1 个跳过的测试**
    ```javascript
    test.skip('a client is told to wait', async (t) => {
      // TODO: 同步状态时序问题，Core 与 Transport 层状态不一致

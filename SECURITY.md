@@ -69,11 +69,11 @@ room:
 **请勿公开披露安全漏洞**。请通过以下方式私密报告：
 
 1. **GitHub Security Advisory**（推荐）
-   - 访问 https://github.com/你的用户名/Pavilo/security/advisories
+   - 访问 https://github.com/your-username/Pavilo/security/advisories
    - 点击 "New draft security advisory"
 
 2. **邮件报告**
-   - 发送邮件到：[你的安全联系邮箱]
+   - 发送邮件到：security@pavilo.example（请在实际部署时替换为真实联系方式）
    - 主题：`[Security] Pavilo vulnerability report`
 
 ### 报告应包含
@@ -224,7 +224,7 @@ room:
 
 ## 联系方式
 
-- **安全问题**：[安全邮箱]
+- **安全问题**：security@pavilo.example（请在实际部署时替换为真实联系方式）
 - **一般问题**：GitHub Issues
 - **架构讨论**：GitHub Discussions
 

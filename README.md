@@ -70,7 +70,7 @@ Pavilo（**Pavilion + Local**）是一个浏览器即用、默认临时、可以
 
 ## 快速开始
 
-需要 Node.js 22 或更高版本。克隆仓库后按锁文件安装依赖：
+需要 Node.js 22+。克隆仓库后按锁文件安装依赖：
 
 ```bash
 npm ci
@@ -198,7 +198,7 @@ PAVILO_PLAYWRIGHT_PATH=/tmp/pavilo-browser-verify/node_modules/playwright npm ru
 
 架构决策与演进策略见：
 - [架构原则](docs/architecture/principles.md) — 核心设计哲学与不变量
-- [架构演进](docs/architecture/evolution.md) — 未来扩展边界
+- [架构演进](docs/evolution.md) — 未来扩展边界
 - [架构决策记录](docs/adr/) — 重大技术决策的背景与权衡
 - [产品路线图](ROADMAP.md) — 版本规划与发布门槛
 
