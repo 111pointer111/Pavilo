@@ -280,25 +280,51 @@ SQLite、Agent、账号系统不阻塞 v1.0。
 
 ---
 
-## v0.6.0 — Quality Assurance
+## v0.6.0 — Quality Assurance（已完成）
 
 目标：建立完善的质量保证流程。
 
-### Bug 修复流程
+### Bug 修复流程（✅ 已完成）
 
-- 完善 Issue 模板（Bug 报告、功能请求、安全问题）
-- 建立 Bug 分类和优先级标准
-- 创建 Bug 修复 Checklist
+- ✅ Issue 模板系统
+  - ✅ Bug 报告模板（清晰的问题描述和复现步骤）
+  - ✅ 功能请求模板（使用场景和优先级评估）
+  - ✅ 安全问题报告模板（私密报告引导）
+  - ✅ Issue 模板配置文件（禁用空白 Issue，引导到 Discussions）
+- ✅ Bug 分类和优先级标准文档（docs/bug-classification.md）
+  - ✅ 按严重程度分类（Critical/High/Medium/Low）
+  - ✅ 按影响范围分类（Widespread/Common/Edge Case）
+  - ✅ 优先级矩阵（P0-P3）
+  - ✅ Bug 生命周期定义
+  - ✅ 快速分类指南和示例
+- ✅ Bug 修复 Checklist（docs/bug-fix-checklist.md）
+  - ✅ 修复前准备（理解问题、复现、根因分析）
+  - ✅ 修复中流程（分支管理、测试、验证）
+  - ✅ 修复后质量保证（代码审查、文档更新）
+  - ✅ 提交和发布流程
+  - ✅ 特殊情况处理指南
 
-### 工程规范
+### 工程规范（✅ 已完成）
 
-- 版本号管理流程文档（如何更新 package.json 和 Git tag）
+- ✅ 版本号管理流程文档（docs/version-management.md）
+  - ✅ 语义化版本规则（MAJOR/MINOR/PATCH）
+  - ✅ 四类版本管理（App/Config/Protocol/Database）
+  - ✅ 完整发布流程（准备、提交、打标签、验证）
+  - ✅ Git 提交规范（Conventional Commits）
+  - ✅ 版本分支策略
+  - ✅ 热修复流程
+  - ✅ 版本废弃策略和迁移指南
 
-### 发布门槛
+### 发布门槛（✅ 全部满足）
 
-- Issue 模板完善
-- Bug 修复流程文档化
-- 版本号管理流程明确
+- ✅ Issue 模板完善（4 个文件）
+- ✅ Bug 修复流程文档化（2 个文档）
+- ✅ 版本号管理流程明确（1 个文档）
+- ✅ 所有测试通过（254/254，1 跳过）
+- ✅ CHANGELOG.md 已更新
+- ✅ package.json 版本号已更新
+
+**v0.6.0 已完成所有目标，可以发布。**
 
 ---
 

@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2024-12-19
+
+### Added
+- Issue 模板系统
+  - Bug 报告模板（.github/ISSUE_TEMPLATE/bug_report.md）
+  - 功能请求模板（.github/ISSUE_TEMPLATE/feature_request.md）
+  - 安全问题报告模板（.github/ISSUE_TEMPLATE/security_report.md）
+  - Issue 模板配置文件（.github/ISSUE_TEMPLATE/config.yml）
+- Bug 管理文档
+  - Bug 分类和优先级标准（docs/bug-classification.md）
+  - Bug 修复 Checklist（docs/bug-fix-checklist.md）
+- 版本号管理流程文档（docs/version-management.md）
+  - 语义化版本规则
+  - 发布流程完整指南
+  - Git 提交规范
+  - 版本废弃策略
+  - 热修复流程
+
+### Improved
+- 质量保证流程标准化
+- Issue 管理更规范
+- 版本发布流程更清晰
+
+### Technical
+- 测试保持稳定：254 个（253 通过，1 跳过）
+- 新增 4 个 GitHub 模板文件
+- 新增 3 个流程文档
+
 ## [0.5.0] - 2024-12-19
 
 ### Added
