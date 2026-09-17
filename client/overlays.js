@@ -43,16 +43,34 @@
       return (state.users || []).find((user) => user.id === id);
     }
 
+    let lastPeople = null;
+    let lastPeopleSelfId = '';
+    let lastPeopleSelectedId = '';
+
     function renderPeople(state = getState()) {
       const users = state.users || [];
-      const markup = users.length ? users.map((user) => `<div class="person${user.id === selectedUserId ? ' selected' : ''}" data-person-id="${escapeHtml(user.id)}" tabindex="0" role="button" aria-label="查看 ${escapeHtml(user.username)} 的个人信息">
+      const selfId = state.self?.id || '';
+      const selectedId = selectedUserId || '';
+      // 每个成员都带一个内联 SVG 头像，整表重写在大 roster 下代价明显。
+      // key 必须覆盖渲染用到的全部字段：id、用户名和头像种子。
+      const rebuild = PaviloPerformance.shouldRebuildList(lastPeople, users,
+        (user) => `${user.id}:${user.username}:${user.avatarSeed ?? ''}`)
+        || lastPeopleSelfId !== selfId || lastPeopleSelectedId !== selectedId;
+      if (rebuild) {
+        const markup = users.length ? users.map((user) => `<div class="person${user.id === selectedUserId ? ' selected' : ''}" data-person-id="${escapeHtml(user.id)}" tabindex="0" role="button" aria-label="查看 ${escapeHtml(user.username)} 的个人信息">
         ${avatarMarkup(user, '', false)}
         <div><span class="person-name">${escapeHtml(user.username)}${user.id === state.self?.id ? ' · 你' : ''}</span><span class="person-status">在线</span></div>
       </div>`).join('') : '<p class="people-empty">还没有人在线。</p>';
-      peopleList.innerHTML = markup;
-      mobilePeopleList.innerHTML = markup;
-      peopleCount.textContent = `${users.length} 在线`;
-      messageCount.textContent = `${(state.messages || []).length} 条消息`;
+        peopleList.innerHTML = markup;
+        mobilePeopleList.innerHTML = markup;
+        lastPeople = users;
+        lastPeopleSelfId = selfId;
+        lastPeopleSelectedId = selectedId;
+      }
+      const countLabel = `${users.length} 在线`;
+      if (peopleCount.textContent !== countLabel) peopleCount.textContent = countLabel;
+      const messageLabel = `${(state.messages || []).length} 条消息`;
+      if (messageCount.textContent !== messageLabel) messageCount.textContent = messageLabel;
       const selected = selectedUserId && userById(selectedUserId, state);
       if (selected) renderProfile(selected, state);
     }
@@ -275,7 +293,10 @@
         renderProfile(null, next);
       }
       if (peopleChanged || reset) renderPeople(next);
-      else if (next.messages !== previous.messages) messageCount.textContent = `${(next.messages || []).length} 条消息`;
+      else {
+        const messageLabel = `${(next.messages || []).length} 条消息`;
+        if (messageCount.textContent !== messageLabel) messageCount.textContent = messageLabel;
+      }
       if (profileTimer === null && next.connection?.joined) profileTimer = window.setInterval(updateProfileDuration, 1000);
       lastState = next;
     }

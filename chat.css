@@ -1329,3 +1329,83 @@ html.resuming .login-screen { visibility: hidden; }
     transform: scale(.95);
   }
 }
+
+/* 阻塞性错误覆盖层：网络彻底失败等无法继续操作的状态。
+   颜色全部走设计令牌，因此自动适配深色模式。 */
+.error-overlay {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--bg-deep) 88%, transparent);
+  backdrop-filter: blur(14px) saturate(120%);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+  animation: error-overlay-in var(--transition-base) var(--ease-smooth);
+}
+.error-overlay[hidden] { display: none; }
+.error-overlay-content {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  max-width: 380px;
+  padding: 30px 28px 26px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper);
+  box-shadow: var(--shadow-float);
+  text-align: center;
+}
+.error-overlay-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 2px;
+  border-radius: 50%;
+  background: var(--coral-pale);
+  color: var(--coral);
+}
+.error-overlay.warning .error-overlay-icon {
+  background: var(--yellow-pale);
+  color: #8a6530;
+}
+.error-overlay-icon .icon { width: 22px; height: 22px; }
+.error-overlay-title {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+.error-overlay-detail {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.65;
+}
+.error-overlay-action {
+  margin-top: 8px;
+  padding: 9px 20px;
+  border: 1px solid var(--teal);
+  border-radius: 8px;
+  background: var(--teal);
+  color: #fff;
+  font-family: var(--body);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-fast) var(--ease-smooth);
+}
+.error-overlay-action:hover { background: var(--teal-deep); border-color: var(--teal-deep); }
+
+@keyframes error-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .error-overlay { animation: none; }
+}

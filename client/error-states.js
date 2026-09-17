@@ -125,7 +125,7 @@
       let html = `
         <div class="error-overlay-content">
           <div class="error-overlay-icon">${iconMarkup(config.icon || 'circle-alert', 48)}</div>
-          <h2 class="error-overlay-title">${escapeHtml(message)}</h2>
+          <h2 class="error-overlay-title" id="errorOverlayTitle">${escapeHtml(message)}</h2>
           <p class="error-overlay-detail">${escapeHtml(detail)}</p>`;
 
       if (action && onAction) {
@@ -136,10 +136,16 @@
       errorOverlay.innerHTML = html;
 
       if (action && onAction) {
-        errorOverlay.querySelector('.error-overlay-action')?.addEventListener('click', () => {
+        const button = errorOverlay.querySelector('.error-overlay-action');
+        button?.addEventListener('click', () => {
           hideErrorOverlay();
           onAction();
         });
+        // 覆盖层是 aria-modal 的阻塞对话框，打开时把焦点移进唯一的操作按钮。
+        button?.focus();
+      } else {
+        errorOverlay.tabIndex = -1;
+        errorOverlay.focus();
       }
     }
 
@@ -218,9 +224,3 @@
 
   return { createErrorStates, ERROR_TYPES };
 });
-
-// CommonJS/ES Module interop for tests
-if (typeof module === 'object' && module && module.exports && typeof module.exports === 'object') {
-  module.exports.ERROR_TYPES = (typeof PaviloErrorStates !== 'undefined' ? PaviloErrorStates : module.exports).ERROR_TYPES;
-  module.exports.createErrorStates = (typeof PaviloErrorStates !== 'undefined' ? PaviloErrorStates : module.exports).createErrorStates;
-}

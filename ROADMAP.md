@@ -256,8 +256,18 @@ SQLite、Agent、账号系统不阻塞 v1.0。
 ### 测试（✅ 已完成）
 
 - ✅ 错误状态测试套件（7 个测试）
-- ✅ 性能工具测试套件（13 个测试）
-- ✅ 总测试数：254 个（253 通过，1 跳过）
+- ✅ 性能工具测试套件（12 个测试）
+- ✅ 总测试数：260 个（259 通过，1 跳过）
+
+### ⚠️ 事后修正（v0.7.0 补充）
+
+v0.5.0 发布时，`client/error-states.js` 与 `client/performance.js` **实际上是死代码**：
+既没有进 `src/transport/http.js` 的静态白名单，也没有被 `index.html` 或任何客户端代码引用。
+单元测试全绿掩盖了这一点。
+
+已在 **v0.7.0** 修正：两个模块已接入白名单与页面，错误反馈和 roster/占用更新已真正使用它们，
+并新增 `test/client-assets-wiring.test.js` 强制白名单与 `index.html` 保持一致。
+因此上面"体验"与"性能"两节的完成状态自 v0.7.0 起才真正成立。
 
 ### 非目标（明确范围）
 
@@ -328,25 +338,60 @@ SQLite、Agent、账号系统不阻塞 v1.0。
 
 ---
 
-## v0.7.0 — Documentation
+## v0.7.0 — Documentation（已完成）
 
 目标：完善所有面向用户和开发者的文档。
 
-### 用户文档
+### 用户文档（✅ 已完成）
 
-- 配置指南（docs/configuration.md）- 所有配置项详解
-- 故障排查指南（docs/troubleshooting.md）- 常见问题和解决方案
+- ✅ 配置指南（docs/configuration.md）- 所有配置项详解
+  - 配置文件位置与优先级
+  - 全部 30+ 配置项逐项说明（类型、默认值、取值范围、示例）
+  - 配置验证方法
+  - 多种场景的完整示例（最小、小型团队、公共聊天室、开发环境）
+  - 最佳实践与故障排查
+- ✅ 故障排查指南（docs/troubleshooting.md）- 常见问题和解决方案
+  - 快速诊断步骤
+  - 启动/连接/功能/性能/Docker 五类问题
+  - 日志分析方法
+  - 调试技巧与预防性维护
 
-### 开发者文档
+### 开发者文档（✅ 已完成）
 
-- 架构文档（docs/architecture/overview.md）- 系统架构和模块划分
-- 协议规范完善（docs/architecture/chat-protocol.md）- Protocol v4 完整规范
-- 贡献指南更新（CONTRIBUTING.md）- 开发流程和规范
-- API 文档（docs/api/）- HTTP 端点和 WebSocket 消息文档
+- ✅ 架构文档（docs/architecture/overview.md）- 系统架构和模块划分（已完善）
+- ✅ 协议规范（docs/architecture/chat-protocol.md）- Protocol v4 完整规范（已完善）
+- ✅ 贡献指南（CONTRIBUTING.md）- 开发流程和规范（已完善）
+- ✅ API 文档（docs/api/）
+  - HTTP API 文档（docs/api/http-api.md）- 端点、响应格式、安全头、反向代理配置
+  - WebSocket 协议文档（docs/api/websocket-protocol.md）- 命令、事件、心跳、错误码、示例
 
-### 多语言
+### 多语言（✅ 已完成）
 
-- 核心文档英文版（README, Quick Start, Architecture）
+- ✅ 核心文档英文版
+  - 英文版 README（README.en.md）- 完整核心信息
+  - 中英文互相跳转入口
+
+### 修正（✅ 已完成）
+
+- ✅ 全部新增文档按代码逐字段核实，消除"文档漂移"
+  - 配置字段名与严格 schema 对齐（错误字段名会导致启动失败）
+  - 默认端口、启动日志、`/healthz` 响应体、错误文案、错误码、关闭码均改为真实值
+- ✅ 修复既有文档的同类漂移
+  - `docs/architecture/chat-protocol.md`：补上 `readOnly`、`welcome`、`deprecatedProtocols`
+  - `docs/healthcheck.md`：删除不存在的 503 分支
+- ✅ 修复 v0.5.0 遗留的死代码（见 v0.5.0 的"事后修正"）
+
+### 发布门槛（✅ 全部满足）
+
+- ✅ 用户文档完成（2 个文档）
+- ✅ 开发者文档完成（2 个新增 + 3 个已存在）
+- ✅ 英文 README 完成
+- ✅ 文档中的配置示例通过 `npm run config:check` 实测
+- ✅ 所有测试通过（260/260，1 跳过）
+- ✅ CHANGELOG.md 已更新
+- ✅ package.json 版本号已更新
+
+**v0.7.0 已完成所有目标，可以发布。**
 
 ---
 

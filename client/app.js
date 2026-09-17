@@ -22,6 +22,7 @@
   let leaveTimer = null;
   let channelRenderKey = '';
   let composerPopoverOpen = false;
+  let errorController = null;
 
   const $ = (selector) => document.querySelector(selector);
   const loginScreen = $('#loginScreen');
@@ -140,9 +141,9 @@
     return roomChannels.find((channel) => channel.id === channelId) || null;
   }
 
-  function setConnection(online, label) {
-    connectionDot.classList.toggle('offline', !online);
-    connectionText.textContent = label;
+  // 连接状态指示器的唯一写入点。errorController 建立后由其统一维护状态色与文案。
+  function setConnection(online, label, variant = 'default') {
+    errorController.setConnectionStatus(online, label, variant);
   }
 
   function showChat() {
@@ -194,13 +195,18 @@
       const known = Number.isSafeInteger(online) && online >= 0;
       const count = known ? online : 0;
       const full = known && count >= channel.maxUsers;
-      meta.classList.toggle('occupied', known && count > 0 && !full);
-      meta.classList.toggle('full', full);
-      meta.setAttribute('aria-label', known
+      const ariaLabel = known
         ? `${count} 人在线，最多 ${channel.maxUsers} 人${full ? '，已满' : ''}`
-        : `在线人数同步中，最多 ${channel.maxUsers} 人`);
-      meta.title = known ? `${count} 人在线 / 最多 ${channel.maxUsers} 人${full ? ' · 已满' : ''}` : '在线人数同步中';
-      meta.innerHTML = `${iconMarkup('users-round', 12)}<span class="channel-meta-value"><strong>${known ? count : '–'}</strong><span aria-hidden="true">/</span><span>${channel.maxUsers}</span></span>`;
+        : `在线人数同步中，最多 ${channel.maxUsers} 人`;
+      const title = known ? `${count} 人在线 / 最多 ${channel.maxUsers} 人${full ? ' · 已满' : ''}` : '在线人数同步中';
+      const markup = `${iconMarkup('users-round', 12)}<span class="channel-meta-value"><strong>${known ? count : '–'}</strong><span aria-hidden="true">/</span><span>${channel.maxUsers}</span></span>`;
+      // 每次占用广播都会走到这里；人数没变时不要重写 innerHTML 与属性。
+      PaviloPerformance.smartUpdate(meta, {
+        className: `channel-meta${known && count > 0 && !full ? ' occupied' : ''}${full ? ' full' : ''}`,
+        title,
+        innerHTML: markup,
+      });
+      if (meta.getAttribute('aria-label') !== ariaLabel) meta.setAttribute('aria-label', ariaLabel);
     }
   }
 
@@ -468,6 +474,7 @@
     composer, composerText, sendButton: $('#sendButton'), emojiButton, attachmentButton: $('#attachmentButton'), imageInput: $('#imageInput'),
     replyingBar: $('#replyingBar'), replyingName: $('#replyingName'), replyingText: $('#replyingText'), cancelReplyButton: $('#cancelReplyButton'),
     channelReadonlyNotice: $('#channelReadonlyNotice'),
+    errorOverlay: $('#errorOverlay'),
   };
 
   let messagesController = PaviloMessages.createMessages({
@@ -487,6 +494,11 @@
     elements: controllerElements,
     getState: () => store.getState(),
     onAction: (action) => store.dispatch(action),
+    iconMarkup, escapeHtml,
+  });
+  errorController = PaviloErrorStates.createErrorStates({
+    elements: { connectionDot, connectionText, errorOverlay: controllerElements.errorOverlay },
+    toast: (...args) => notificationsController.toast(...args),
     iconMarkup, escapeHtml,
   });
   const mentionController = PaviloMentions.createMentions({ elements: controllerElements,
@@ -558,6 +570,8 @@
 
   function finishJoined(epoch, authoritativeMessages, reconnect) {
     connection.markJoined(true);
+    // 重连成功后收起任何阻塞性错误覆盖层。
+    errorController.clearError();
     pendingQueue.reconcile(authoritativeMessages, {
       roomEpoch: epoch,
       allowRetry: reconnect,
@@ -698,9 +712,16 @@
       store.dispatch({ type: 'connection/failed' });
       if (!store.getState().connection.joined) {
         showLogin('服务不可用，请检查服务是否正在运行。');
-        notificationsController.toast('连接失败，请稍后重试或联系管理员。', 'error');
+        errorController.handleError('CONNECTION_FAILED', { onAction: () => window.location.reload() });
       } else {
-        notificationsController.toast('无法重新连接到服务，请刷新页面或稍后再试。', 'error');
+        // 已在房间里、重连又彻底失败：这是阻塞状态，用覆盖层而不是一闪而过的 toast。
+        errorController.showErrorOverlay('CONNECTION_FAILED', {
+          message: '与房间的连接已中断',
+          detail: '多次重连都没有成功。你的草稿和未确认消息仍保留在本页，刷新后可以重新连接。',
+          action: '刷新页面',
+          onAction: () => window.location.reload(),
+        });
+        setConnection(false, '连接已断开', 'warning');
       }
       return;
     }
@@ -715,6 +736,7 @@
     }
     if (event.type === 'serviceStopped') {
       pendingQueue.clear();
+      errorController.clearError();
       if (store.getState().connection.status !== 'stopped') store.dispatch({ type: 'serviceStopped' });
       connection.clearSession();
       connection.clearChannelId();
@@ -845,8 +867,15 @@
     messagesController.closeReactionPopover();
     closeComposerPopover();
   }, { passive: true });
-  window.addEventListener('online', () => { if (connection.handleOnline()) setConnection(false, '重新连接中…'); });
-  window.addEventListener('offline', () => { connection.handleOffline(); setConnection(false, '网络已离线，等待恢复…'); });
+  window.addEventListener('online', () => {
+    errorController.clearError();
+    if (connection.handleOnline()) setConnection(false, '重新连接中…', 'connecting');
+  });
+  window.addEventListener('offline', () => {
+    connection.handleOffline();
+    // 离线是持续状态而非瞬时事件，只更新指示器，不弹 toast。
+    errorController.handleError('OFFLINE', { statusText: '网络已离线，等待恢复…', showToast: false });
+  });
   window.addEventListener('pagehide', () => composerController.stopTyping());
   leaveButton.addEventListener('click', () => {
     if (leaveButton.classList.contains('confirming')) {

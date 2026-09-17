@@ -1,0 +1,251 @@
+# Pavilo
+
+<p align="center">
+  <img src="docs/logo/pavilo-lockup.svg" width="520" alt="Pavilo">
+</p>
+
+> One command, one chat room for the people around you.
+
+**English** · [简体中文](README.md)
+
+Pavilo (**Pavilion + Local**) is a minimal, self-hosted group chat that runs in the browser and is ephemeral by default. Like a small pavilion you can put up anywhere: start a Node.js process, and anyone on the same local network can open a web page and talk. When the service stops, everything returns to blank.
+
+Current version: **v0.7.0** — multiple ephemeral channels, in-memory storage only. Built for trusted LANs, private networks, and VPNs.
+
+## Design principles
+
+- **Works out of the box** — one command after install; participants only need a browser.
+- **Stays lightweight** — the server uses Node.js built-in modules, with `yaml` as the only dependency; all front-end assets are self-hosted.
+- **Ephemeral first** — no database, no chat logs on disk. Stopping the service clears the room.
+- **Deployer-controlled** — runs on your own machine or server; no external accounts or cloud services.
+- **Grows on demand** — persistence, permissions, and moderation arrive as optional capabilities later, without making the default deployment heavier.
+
+## Features
+
+**Chat experience**
+
+- Enter a username to join the default channel; with multiple channels configured you can switch between them in the UI, and the channel list shows live occupancy per channel
+- Channels isolate messages, online members, typing state, and reactions; each channel has its own ephemeral history and member cap
+- Read-only channels (`readOnly: true`): joinable and readable, reactions allowed, but nobody can post — useful for announcements and rules maintained by the deployer
+- Channel welcome text (`welcome`): an intro card shown at the top of a channel
+- Reloading keeps you in the chat: your session identity lives only in the current tab's `sessionStorage` and is restored automatically. Only an explicit "Leave" (with confirmation) returns you to the login screen
+- Text, emoji, and images (PNG / JPEG / GIF / WebP, 300 KB per image by default); the emoji picker supports search, skin tones, and localized keywords
+- Message replies, with second-precision timestamps on every message
+- `@` mentions of channel members, highlighted when you are mentioned, clickable to view a member's profile
+- Randomly generated avatars; click one to see username, IP (shown by default, configurable), and online duration
+- Online member list, join/leave notices, and typing indicators
+- Images open in an in-page viewer: zoom, rotate, reset, download; arrow keys page through multiple images; drag to pan and scroll to zoom on desktop
+- Reactions are fixed to six emoji (👍 ❤️ 😂 🎉  🔥)
+- Responsive mobile layout, keyboard operation, and reduced-motion support
+
+**Interface and assets**
+
+- Full **dark mode** that follows the system theme
+- Modern **glassmorphism** design with translucent surfaces and blur
+- Smooth **micro-interactions**: springy button feedback, emoji bounces, pulse animations
+- A considered color and spacing system — see the [design language doc](docs/design-language.md) (Chinese)
+- Icons from self-hosted [Lucide](https://lucide.dev) (`vendor/lucide`, ISC)
+- Emoji picker from self-hosted `vendor/emoji-picker` (Apache-2.0)
+- The static allowlist serves only the chat page, stylesheet, explicitly listed `client/` modules, and required `vendor/` assets — never arbitrary repository files
+- Text assets negotiate gzip via `Accept-Encoding`, cache by ETag, and send `Vary: Accept-Encoding`; clients without gzip still receive raw bytes
+
+**Reliability**
+
+- Messages are acknowledged by the server (ACK); unacknowledged or failed content can be retried in the same page
+- Identical message IDs are deduplicated, and brief disconnects or reloads restore your ephemeral identity
+- Images are downsampled in the browser to a 1600 px long edge and encoded at a quality that converges between 0.5–0.82 to fit the size budget; GIFs keep their animation and are never downsampled, but share the same size cap
+- A graceful shutdown returns the page to the login state; an unexpected disconnect keeps reconnecting. A new process produces a new channel epoch, so stale unacknowledged content is never silently delivered into the new room
+- YAML configuration is validated for version, strict types, unknown keys, duplicate keys, aliases, and cross-field capacity relationships
+
+**Current read-only boundaries**
+
+- Messages cannot be edited or deleted after sending; reactions are the only way to respond
+- No history persistence, direct messages, search, accounts, or role permissions
+- Channels with `enabled: false` cannot be joined at all; `readOnly: true` channels can be joined, read, and reacted to, but nobody can post (no exceptions, no admin bypass)
+- `config.js`, `pavilo.yaml`, and `index.html` are never served by the app
+
+## Quick start
+
+### Run locally
+
+Requires Node.js 22+. Clone the repository and install from the lockfile:
+
+```bash
+npm ci
+npm start
+```
+
+It listens on `0.0.0.0:4173` by default and prints local and LAN addresses on startup:
+
+- Local: `http://localhost:4173`
+- LAN: `http://<host-LAN-IP>:4173`
+
+Share the LAN address with anyone on the same Wi-Fi or private network. To change the port temporarily:
+
+```bash
+PORT=8080 npm start
+```
+
+### Docker
+
+With Docker Compose (recommended):
+
+```bash
+git clone https://github.com/caigg188/Pavilo.git
+cd Pavilo
+docker compose up -d
+```
+
+Or build and run manually:
+
+```bash
+docker build -t pavilo .
+docker run -d -p 4173:4173 --name pavilo pavilo
+```
+
+See the [Docker deployment guide](docs/deployment/docker.md) (Chinese).
+
+### Production deployment
+
+- **Reverse proxy** — see the [Nginx/Caddy guide](docs/deployment/reverse-proxy.md) (Chinese)
+- **Health checks** — see the [health check contract](docs/healthcheck.md) (Chinese)
+
+Press `Ctrl-C` to stop the service.
+
+## Configuration
+
+Pavilo loads configuration in this order (later entries win):
+
+1. Built-in defaults;
+2. `./pavilo.yaml`, falling back silently to defaults when the file is absent;
+3. the YAML file pointed to by `PAVILO_CONFIG`;
+4. the `PORT` environment variable, which overrides only the final port.
+
+Once `PAVILO_CONFIG` is set explicitly, a missing, unreadable, oversized, non-regular, or invalid target fails startup instead of falling back. `PORT` accepts only a strict decimal string between `1` and `65535` — `4173.0`, `0x105d`, spaces, and signs are all invalid.
+
+```bash
+cp pavilo.example.yaml pavilo.yaml
+npm run config:check
+npm start
+```
+
+You can also keep the file outside the repository:
+
+```bash
+PAVILO_CONFIG=/etc/pavilo/config.yaml npm run config:check
+PAVILO_CONFIG=/etc/pavilo/config.yaml npm start
+```
+
+Configuration changes require a **process restart**; a running service never hot-reloads. `npm run config:check` validates and reports the actual configuration source without starting the service.
+
+Configuration must declare `version: 1`. YAML uses strict types: write booleans as `true` / `false` and numbers as integers; unknown keys, duplicate keys, unknown tags, anchors/aliases, and non-object roots are rejected. See [`pavilo.example.yaml`](./pavilo.example.yaml) for every field and recommended value, and [docs/configuration.md](docs/configuration.md) (Chinese) for a full reference.
+
+### Channel and capacity semantics
+
+- Without `channels`, the built-in `general` and `project` channels are kept, and each channel's `maxUsers` is tightened to `server.maxUsers` — so lowering the global cap is enough.
+- Once `channels` is provided, the list is a full replacement rather than a merge with `general`. A **non-`general` default channel** must appear in the list, be enabled, and be named by `room.defaultChannel`.
+- `server.maxUsers` is the global member cap; `channels[].maxUsers` is the per-channel cap and may not exceed the global one.
+- Both global and per-channel counts include members who are temporarily disconnected but can still resume within `timeouts.sessionLeaseMs`. Total connections are limited separately by `server.maxConnections`.
+- At least one writable channel must be enabled (`enabled: true` and `readOnly` not `true`); read-only channels are readable but do not satisfy that minimum.
+
+```yaml
+version: 1
+room:
+  defaultChannel: projects
+channels:
+  - id: projects
+    name: Projects
+    enabled: true
+    maxUsers: 24
+```
+
+_Note: the built-in default channels are `general` and `project` (singular)._
+
+### Configuration file safety
+
+Pavilo's HTTP server uses a static allowlist, so `pavilo.yaml` and `pavilo.example.yaml` are never served by the app; the config loader also refuses to use `index.html`, `chat.css`, or any file inside `vendor/` or `client/` (including symlinks pointing at them) as configuration. This is not an authentication mechanism: the chat page, room metadata, and front-end assets are open to anyone who can reach the listening port.
+
+- Never place real configuration in `vendor/`, `client/`, another web root, a public object-storage bucket, or a reverse proxy's static directory.
+- A reverse proxy must forward only Pavilo's application port; never expose the whole repository as a static site, which would bypass the app allowlist and leak raw YAML, source, or other files.
+- Raw YAML must **not** be downloadable. If it contains internal hostnames or network policy, keep it outside the repository with OS file permissions.
+- `allowedOrigins` validates only the WebSocket browser Origin — it is **not** user authentication or access control. `allowNoOrigin: true` additionally permits clients with no Origin at all.
+- Direct connections see real IPs; behind a reverse proxy this version does not trust `X-Forwarded-For`, so members may see the proxy IP and the per-IP connection limit aggregates by proxy IP. Do not "fix" the display by exposing the repository, and never put an unprotected port directly on the public internet.
+
+## Capacity and ephemeral data boundaries
+
+A message **ACK** means "this service process has accepted it" — not that every member received or read it. Default capacities include up to 300 messages of history per channel, roughly a 32 MB message budget, 300 KB per image, 64 members and 80 connections globally, 12 connections per IP, and a slow-connection write-buffer ceiling; when exceeded, the oldest messages are evicted first.
+
+The per-image cap directly determines how many images a channel can hold: at 300 KB, about 79 images; at the old 1.5 MB default, only 16 — a single original photo would consume roughly 5% of a channel's capacity, so raising `limits.maxImageBytes` should be considered together with `limits.maxChannelBytes`. The client downsamples to a 1600 px long edge before upload, so phone photos are usually far below this cap; GIFs are not downsampled and may therefore be rejected.
+
+Validation ensures the largest base64 image / longest text message, the roster JSON at the global member cap, WebSocket frames, and the write buffer can all contain one another. These are conservative lower bounds that prevent self-contradictory configuration, not a memory-usage promise; raising member, image, history, or buffer limits significantly increases memory needs.
+
+**Ephemeral data**: sessions, presence, messages, and reactions exist only in the server process or the current browser page's memory. The browser does not use `localStorage`, Cache Storage, or IndexedDB for chat content. The only exception is the emoji picker's cached emoji data and frequently-used counts, which contain no chat content.
+
+So that a reload stays in the chat, the current tab stores the room-issued random resume token and username in `sessionStorage` — never messages. It disappears when the tab closes, is cleared immediately by "Leave", and becomes invalid after a service restart.
+
+**Notification boundary**: system notifications require browser permission and a secure context; `http://<LAN-IP>` usually cannot provide them, in which case Pavilo falls back to in-page notifications. Permissions themselves are managed by the browser and may persist after the service stops.
+
+## Running on a server
+
+Pavilo runs on any server that can execute Node.js, but **v0.x targets trusted networks only** (intranets, VPNs, or other private networks with access control). There is no account authentication, TLS, end-to-end encryption, or complete public-internet abuse protection — do not expose the port directly to the public internet.
+
+Member profiles show the full connection IP to channel participants by default; set `room.exposeMemberIps: false` to hide it. Either way, the service still needs connection IPs to enforce per-IP limits. Use it only in trusted environments.
+
+`/room-info` lists all of the host's LAN addresses by default so you can share the entry point with your subnet; set `room.exposeLanUrls: false` to return an empty array instead. `/healthz` reports current member count, connection count, and in-memory message bytes for liveness checks and observability. None of these endpoints require authentication, and like the chat page they are open to anyone who can reach the listening port.
+
+## Development and testing
+
+```bash
+npm ci                  # install strictly from package-lock.json
+npm run config:check    # validate the configuration that would actually load
+npm test                # run test/*.test.js
+node --check config.js
+node --check server.js
+```
+
+Tests cover configuration, client protocol/state/pending/image rules, and the network-free chat core, plus HTTP/WebSocket history chunking, ACK, idempotent deduplication, identity resume, Origin checks, heartbeats, reactions, static assets, and lifecycle. Channel tests cover isolation, atomic switching, member leases, and capacity eviction.
+
+Browser acceptance uses an installed Google Chrome; Playwright is installed outside the repository and stays out of runtime dependencies:
+
+```bash
+npm install --prefix /tmp/pavilo-browser-verify --no-package-lock playwright
+PAVILO_PLAYWRIGHT_PATH=/tmp/pavilo-browser-verify/node_modules/playwright npm run test:browser
+```
+
+The script creates a temporary YAML outside the repository, allocates loopback ports, drives two pages, and only stops processes it started itself. It covers channel isolation and failed switches, reload/disconnect recovery, IME, the image viewer, reading position, the mobile drawer, and graceful shutdown.
+
+Module boundaries and maintenance conventions: [architecture overview](docs/architecture/overview.md), [protocol contract](docs/architecture/chat-protocol.md), [state contract](docs/architecture/state-model.md), [design language](docs/design-language.md) (all Chinese).
+
+Architecture decisions and evolution strategy:
+
+- [Architecture principles](docs/architecture/principles.md) — core philosophy and invariants
+- [Architecture evolution](docs/evolution.md) — future extension boundaries
+- [Architecture decision records](docs/adr/) — context and trade-offs behind major decisions
+- [Roadmap](ROADMAP.md) — version planning and release gates
+
+## Project structure
+
+```text
+.
+├── config.js           # YAML / environment configuration loading and validation
+├── pavilo.example.yaml # complete configuration example
+├── index.html          # page skeleton, asset references, and boot entry
+├── chat.css            # page styles (dark mode, glassmorphism, micro-interactions)
+├── client/             # protocol, connection, state, pending, and view modules
+├── server.js           # configuration, core/transport composition, compatible entry
+├── src/core/           # network-free rooms, sessions, commands, and domain events
+├── src/transport/      # HTTP static allowlist, WebSocket connections, frame protocol
+├── vendor/             # self-hosted third-party front-end assets
+├── scripts/            # Lucide asset build script
+├── test/               # Node unit/integration tests and standalone browser acceptance
+├── docs/
+│   ├── architecture/   # architecture, protocol, and state contracts
+│   └── design-language.md  # design language, color system, component conventions
+├── package.json        # metadata, dependencies, scripts
+├── ROADMAP.md          # implemented state and future plans
+└── LICENSE             # MIT license
+```
+
+## License
+
+Pavilo is open source under the [MIT License](./LICENSE).

@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2024-12-19
+
+### Added
+- **用户文档**
+  - 配置指南（docs/configuration.md）- 所有配置项详细说明
+  - 故障排查指南（docs/troubleshooting.md）- 常见问题和解决方案
+- **API 文档**
+  - HTTP API 文档（docs/api/http-api.md）
+  - WebSocket 协议文档（docs/api/websocket-protocol.md）
+- **多语言**
+  - 英文版 README（README.en.md）- 完整核心信息英文入口
+  - 中英文 README 互相跳转
+
+### Improved
+- 文档体系完善
+- 用户和开发者文档齐全
+- 故障排查流程清晰
+- README 版本号漂移修正（v0.1 Alpha → v0.7.0）
+
+### Fixed
+- **v0.5.0 遗留问题：`error-states.js` 与 `performance.js` 是死代码**（此前既未进静态白名单、也未被任何代码引用）
+  - 两个模块加入 `src/transport/http.js` 的 `CLIENT_FILES` 白名单（11 → 13 个文件）
+  - `index.html` 引入两个脚本，`performance.js` 排在 `overlays.js` 之前
+  - 错误反馈统一接入 `app.js`：连接状态指示器由 `errorController` 单一维护，
+    离线 / 重连彻底失败 / 恢复分别走 `handleError` / `showErrorOverlay` / `clearError`
+  - 新增阻塞性错误覆盖层（`#errorOverlay`）：重连彻底失败时用整屏提示 + "刷新页面"按钮，
+    取代原先一闪而过的 toast
+  - `overlays.js` 的成员列表用 `shouldRebuildList` 跳过无变化的整表重建
+  - `app.js` 的频道占用更新用 `smartUpdate`，人数未变时不重写 `innerHTML`
+  - 裁剪 `performance.js`：移除 6 个没有任何调用点的 helper，只保留真正被使用的两个
+  - 新增 `test/client-assets-wiring.test.js`：强制白名单与 `index.html` 保持一致
+- 文档全部按代码核实，消除"文档漂移"：
+  - 配置字段名与 `pavilo.example.yaml` / 配置加载器严格对齐（此前部分示例使用了 schema 之外的字段名，照抄会导致启动失败）
+  - 默认端口统一为 `4173`（此前部分示例误用 `3000`）
+  - 启动日志示例改为 `server.js` 的真实输出格式
+  - `/healthz` 响应体改为真实的 `{ ok, users, messages, roomBytes, clients, ephemeral }`；
+    并说明实现中**没有返回非 200 的分支**
+  - 错误信息改为配置加载器的真实文案（如 `room.defaultChannel: 默认频道不能是只读频道`）
+  - 文档中的完整配置示例已通过 `npm run config:check` 实测
+- 既有文档的同类漂移：
+  - `docs/architecture/chat-protocol.md`：频道公开字段补上遗漏的 `readOnly` 与 `welcome`，
+    并补上 `deprecatedProtocols`
+  - `docs/healthcheck.md`：删除不存在的 "503 Service Unavailable" 分支描述
+
+### Technical
+- 总测试数：260 个（259 通过，1 跳过）
+- 新增 6 个文档文件、1 个接线回归测试
+- 现有架构文档已完善（docs/architecture/）
+
 ## [0.6.0] - 2024-12-19
 
 ### Added

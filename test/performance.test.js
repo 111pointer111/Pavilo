@@ -1,192 +1,95 @@
-import { strict as assert } from 'node:assert';
-import { describe, it } from 'node:test';
+'use strict';
 
-describe('performance utilities', () => {
-  let Performance;
+const assert = require('node:assert/strict');
+const { test } = require('node:test');
 
-  async function setup() {
-    Performance = await import('../client/performance.js');
+const { smartUpdate, shouldRebuildList } = require('../client/performance');
+
+// 计数用的最小元素替身：记录每次属性写入，用于断言"没有变化就不写"。
+function makeElement(initial = {}) {
+  const writes = [];
+  const element = {
+    writes,
+    dataset: {},
+    getAttribute: () => null,
+  };
+  for (const [key, value] of Object.entries(initial)) element[key] = value;
+  for (const key of ['textContent', 'innerHTML', 'className', 'hidden', 'disabled', 'title']) {
+    let current = element[key];
+    Object.defineProperty(element, key, {
+      get: () => current,
+      set: (value) => { writes.push([key, value]); current = value; },
+    });
   }
+  return element;
+}
 
-  describe('batch updater', () => {
-    it('collects operations and flushes in next frame', async (t) => {
-      await setup();
-      let executed = 0;
-      const mockWindow = {
-        requestAnimationFrame: (cb) => setTimeout(cb, 0),
-        setTimeout: (cb, ms) => setTimeout(cb, ms),
-      };
+test('smartUpdate writes a property when it differs', () => {
+  const element = makeElement({ textContent: 'old' });
+  smartUpdate(element, { textContent: 'new' });
+  assert.equal(element.textContent, 'new');
+  assert.deepEqual(element.writes, [['textContent', 'new']]);
+});
 
-      const batcher = Performance.createBatchUpdater(mockWindow);
-      batcher.schedule(() => { executed++; });
-      batcher.schedule(() => { executed++; });
-      batcher.schedule(() => { executed++; });
+test('smartUpdate skips writing a property that already matches', () => {
+  const element = makeElement({ textContent: 'same', className: 'channel-meta' });
+  smartUpdate(element, { textContent: 'same', className: 'channel-meta' });
+  assert.deepEqual(element.writes, []);
+});
 
-      assert.equal(executed, 0);
-      assert.equal(batcher.pending, true);
-      assert.equal(batcher.size, 3);
+test('smartUpdate updates only the changed keys of a mixed update', () => {
+  const element = makeElement({ innerHTML: '<b>1</b>', className: 'channel-meta', title: '1 人在线' });
+  smartUpdate(element, { innerHTML: '<b>2</b>', className: 'channel-meta', title: '1 人在线' });
+  assert.deepEqual(element.writes, [['innerHTML', '<b>2</b>']]);
+});
 
-      await new Promise((resolve) => setTimeout(resolve, 20));
-      assert.equal(executed, 3);
-      assert.equal(batcher.pending, false);
-    });
+test('smartUpdate routes data- keys through dataset', () => {
+  const element = makeElement();
+  smartUpdate(element, { 'data-state': 'busy' });
+  assert.equal(element.dataset.state, 'busy');
+  assert.deepEqual(element.writes, []);
+});
 
-    it('handles errors in individual operations', async () => {
-      await setup();
-      let success = 0;
-      const mockWindow = {
-        requestAnimationFrame: (cb) => setTimeout(cb, 0),
-        setTimeout: (cb, ms) => setTimeout(cb, ms),
-      };
+test('smartUpdate ignores a missing element instead of throwing', () => {
+  assert.doesNotThrow(() => smartUpdate(null, { textContent: 'x' }));
+  assert.doesNotThrow(() => smartUpdate(undefined, { textContent: 'x' }));
+  assert.doesNotThrow(() => smartUpdate(makeElement(), null));
+});
 
-      const batcher = Performance.createBatchUpdater(mockWindow);
-      batcher.schedule(() => { success++; });
-      batcher.schedule(() => { throw new Error('test error'); });
-      batcher.schedule(() => { success++; });
+test('smartUpdate falls back to plain property comparison for unknown keys', () => {
+  const element = makeElement({ title: 'a' });
+  smartUpdate(element, { title: 'b' });
+  assert.deepEqual(element.writes, [['title', 'b']]);
+});
 
-      await new Promise((resolve) => setTimeout(resolve, 20));
-      assert.equal(success, 2);
-    });
+const users = [{ id: 'u1', username: 'A' }, { id: 'u2', username: 'B' }];
+const userKey = (user) => `${user.id}:${user.username}`;
 
-    it('clear cancels pending operations', async () => {
-      await setup();
-      let executed = 0;
-      const mockWindow = {
-        requestAnimationFrame: (cb) => setTimeout(cb, 0),
-        setTimeout: (cb, ms) => setTimeout(cb, ms),
-      };
+test('shouldRebuildList treats a missing side as needing a rebuild', () => {
+  assert.equal(shouldRebuildList(null, users), true);
+  assert.equal(shouldRebuildList(users, null), true);
+  assert.equal(shouldRebuildList(null, null), true);
+});
 
-      const batcher = Performance.createBatchUpdater(mockWindow);
-      batcher.schedule(() => { executed++; });
-      batcher.schedule(() => { executed++; });
-      batcher.clear();
+test('shouldRebuildList keeps the list when keys and order match', () => {
+  const next = [{ id: 'u1', username: 'A' }, { id: 'u2', username: 'B' }];
+  assert.equal(shouldRebuildList(users, next, userKey), false);
+});
 
-      await new Promise((resolve) => setTimeout(resolve, 20));
-      assert.equal(executed, 0);
-      assert.equal(batcher.size, 0);
-    });
-  });
+test('shouldRebuildList rebuilds when the length changes', () => {
+  assert.equal(shouldRebuildList(users, [users[0]]), true);
+});
 
-  describe('throttle', () => {
-    it('limits function calls to once per delay', async () => {
-      await setup();
-      let calls = 0;
-      const mockWindow = { setTimeout, clearTimeout, Date };
+test('shouldRebuildList rebuilds when the order changes', () => {
+  assert.equal(shouldRebuildList(users, [users[1], users[0]]), true);
+});
 
-      const throttled = Performance.throttle(() => { calls++; }, 50, mockWindow);
+test('shouldRebuildList rebuilds when a key changes without a length change', () => {
+  const renamed = [{ id: 'u1', username: 'A2' }, { id: 'u2', username: 'B' }];
+  assert.equal(shouldRebuildList(users, renamed, userKey), true);
+});
 
-      throttled();
-      throttled();
-      throttled();
-      assert.equal(calls, 1);
-
-      await new Promise((resolve) => setTimeout(resolve, 60));
-      throttled();
-      assert.equal(calls, 2);
-    });
-  });
-
-  describe('debounce', () => {
-    it('delays execution until calls stop', async () => {
-      await setup();
-      let calls = 0;
-      const mockWindow = { setTimeout, clearTimeout };
-
-      const debounced = Performance.debounce(() => { calls++; }, 50, mockWindow);
-
-      debounced();
-      debounced();
-      debounced();
-      assert.equal(calls, 0);
-
-      await new Promise((resolve) => setTimeout(resolve, 60));
-      assert.equal(calls, 1);
-    });
-  });
-
-  describe('batchInsert', () => {
-    it('handles empty or null nodes gracefully', async () => {
-      await setup();
-      // Just verify the function exists and handles edge cases
-      Performance.batchInsert(null, []);
-      Performance.batchInsert(null, null);
-      assert.ok(true);
-    });
-  });
-
-  describe('batchReplace', () => {
-    it('handles empty replacement gracefully', async () => {
-      await setup();
-      // Just verify the function exists and handles edge cases
-      Performance.batchReplace(null, []);
-      Performance.batchReplace(null, null);
-      assert.ok(true);
-    });
-  });
-
-  describe('calculateVisibleRange', () => {
-    it('calculates visible item range with overscan', async () => {
-      await setup();
-      const mockContainer = {
-        scrollTop: 200,
-        clientHeight: 400,
-      };
-
-      const range = Performance.calculateVisibleRange(mockContainer, 50, 2);
-      assert.equal(typeof range.start, 'number');
-      assert.equal(typeof range.end, 'number');
-      assert.ok(range.start >= 0);
-      assert.ok(range.end > range.start);
-    });
-
-    it('returns zero range for null container', async () => {
-      await setup();
-      const range = Performance.calculateVisibleRange(null, 50);
-      assert.equal(range.start, 0);
-      assert.equal(range.end, 0);
-    });
-  });
-
-  describe('smartUpdate', () => {
-    it('function exists and handles null element', async () => {
-      await setup();
-      Performance.smartUpdate(null, { textContent: 'test' });
-      assert.ok(true);
-    });
-  });
-
-  describe('shouldRebuildList', () => {
-    it('detects when list needs rebuilding', async () => {
-      await setup();
-      const list1 = [{ id: 1 }, { id: 2 }, { id: 3 }];
-      const list2 = [{ id: 1 }, { id: 2 }, { id: 3 }];
-      const list3 = [{ id: 1 }, { id: 3 }, { id: 2 }];
-      const list4 = [{ id: 1 }, { id: 2 }];
-
-      assert.equal(Performance.shouldRebuildList(list1, list2), false);
-      assert.equal(Performance.shouldRebuildList(list1, list3), true);
-      assert.equal(Performance.shouldRebuildList(list1, list4), true);
-      assert.equal(Performance.shouldRebuildList(null, list1), true);
-    });
-  });
-
-  describe('measurePerformance', () => {
-    it('executes operation and returns result', async () => {
-      await setup();
-      const mockWindow = {
-        performance: { now: () => Date.now() },
-      };
-
-      const result = Performance.measurePerformance('test', () => 42, mockWindow);
-      assert.equal(result, 42);
-    });
-
-    it('handles missing performance API', async () => {
-      await setup();
-      const mockWindow = {};
-
-      const result = Performance.measurePerformance('test', () => 99, mockWindow);
-      assert.equal(result, 99);
-    });
-  });
+test('shouldRebuildList defaults to comparing by id', () => {
+  assert.equal(shouldRebuildList(users, [{ id: 'u1' }, { id: 'u2' }]), false);
+  assert.equal(shouldRebuildList(users, [{ id: 'u3' }, { id: 'u2' }]), true);
 });

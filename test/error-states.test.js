@@ -1,16 +1,10 @@
-import { strict as assert } from 'node:assert';
-import { describe, it } from 'node:test';
+const assert = require('node:assert/strict');
+const { test } = require('node:test');
 
-describe('error-states', () => {
-  let ErrorStates;
+const ErrorStates = require('../client/error-states.js');
 
-  async function setup() {
-    const module = await import('../client/error-states.js');
-    ErrorStates = module;
-  }
-
-  it('exports ERROR_TYPES constant', async () => {
-    await setup();
+test('error-states', async (t) => {
+  await t.test('exports ERROR_TYPES constant', () => {
     assert.ok(ErrorStates.ERROR_TYPES);
     assert.equal(typeof ErrorStates.ERROR_TYPES, 'object');
     assert.ok(ErrorStates.ERROR_TYPES.OFFLINE);
@@ -18,8 +12,7 @@ describe('error-states', () => {
     assert.ok(ErrorStates.ERROR_TYPES.CHANNEL_FULL);
   });
 
-  it('ERROR_TYPES contains required fields', async () => {
-    await setup();
+  await t.test('ERROR_TYPES contains required fields', () => {
     const { OFFLINE, CONNECTION_FAILED, SERVICE_STOPPED } = ErrorStates.ERROR_TYPES;
 
     // OFFLINE
@@ -38,8 +31,7 @@ describe('error-states', () => {
     assert.equal(SERVICE_STOPPED.recoverable, false);
   });
 
-  it('createErrorStates returns API', async () => {
-    await setup();
+  await t.test('createErrorStates returns API', async () => {
     const controller = ErrorStates.createErrorStates({
       elements: { connectionDot: null, connectionText: null },
       toast: () => {},
@@ -54,8 +46,7 @@ describe('error-states', () => {
     assert.ok(controller.setConnectionStatus);
   });
 
-  it('tracks error state', async () => {
-    await setup();
+  await t.test('tracks error state', async () => {
     const controller = ErrorStates.createErrorStates({
       elements: { connectionDot: null, connectionText: null },
       toast: () => {},
@@ -75,8 +66,7 @@ describe('error-states', () => {
     assert.equal(controller.getCurrentError(), null);
   });
 
-  it('calls toast for non-blocking errors', async () => {
-    await setup();
+  await t.test('calls toast for non-blocking errors', async () => {
     let toastCalled = false;
     let toastMessage = '';
 
@@ -95,11 +85,7 @@ describe('error-states', () => {
     assert.ok(toastMessage.length > 0);
   });
 
-  it('updates connection status for network errors', async () => {
-    await setup();
-    let statusUpdated = false;
-    let statusLabel = '';
-
+  await t.test('updates connection status for network errors', async () => {
     const mockDot = { classList: { toggle: () => {} } };
     const mockText = { textContent: '' };
 
@@ -117,8 +103,7 @@ describe('error-states', () => {
     assert.ok(mockText.textContent.length > 0);
   });
 
-  it('clearError resets state', async () => {
-    await setup();
+  await t.test('clearError resets state', async () => {
     const controller = ErrorStates.createErrorStates({
       elements: { connectionDot: null, connectionText: null },
       toast: () => {},
