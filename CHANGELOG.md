@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2024-12-19
+
+### Added
+- 错误状态统一管理模块（client/error-states.js）
+- 性能优化工具模块（client/performance.js）
+- 浏览器兼容性验收清单（docs/v0.5.0-browser-compatibility.md）
+- 错误状态测试套件（7 个测试）
+- 性能工具测试套件（13 个测试）
+
+### Improved
+- 统一错误状态反馈系统（网络离线、连接失败、服务停止、频道不可用）
+- 只读频道 UI 已完善（🔒 图标、禁用输入、明确提示）
+- 图片懒加载已在 v0.3.0 实现（使用 loading="lazy" 属性）
+- DOM 批量更新工具，减少大量数据下的性能开销
+- 节流和防抖工具，优化频繁更新的性能
+
+### Changed
+- 错误提示文案更清晰、更易理解
+- 连接状态指示器支持更多状态变体（离线、连接中、警告）
+
+### Technical
+- 新增 20 个测试用例
+- 总测试数：254 个（253 通过，1 跳过）
+- 测试覆盖率保持稳定
+
 ## [0.4.0] - 2024-12-19
 
 ### Added
