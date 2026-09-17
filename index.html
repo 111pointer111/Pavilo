@@ -135,22 +135,24 @@
                 <button class="composer-attach-retry" id="composerAttachRetry" type="button" hidden>重试</button>
               </p>
             </div>
-            <div class="composer-tools">
-              <button class="composer-button" id="emojiButton" type="button" aria-label="打开表情" aria-expanded="false" aria-controls="emojiPopover">
-                <span class="icon" data-icon="smile" aria-hidden="true"></span>
-              </button>
-              <button class="composer-button" id="mentionButton" type="button" aria-label="提及成员" title="提及成员（@）" aria-controls="mentionList">
-                <span class="icon" data-icon="at-sign" aria-hidden="true"></span>
-              </button>
-              <button class="composer-button" id="attachmentButton" type="button" aria-label="附加图片">
-                <span class="icon" data-icon="image-plus" aria-hidden="true"></span>
+            <textarea class="composer-text" id="composerText" rows="1" maxlength="2000" enterkeyhint="send" placeholder="说点什么… 输入 @ 提及成员" aria-label="消息内容" aria-autocomplete="list" aria-controls="mentionList" aria-expanded="false" aria-describedby="composerHint"></textarea>
+            <div class="composer-actions">
+              <div class="composer-tools">
+                <button class="composer-button" id="emojiButton" type="button" aria-label="打开表情" aria-expanded="false" aria-controls="emojiPopover">
+                  <span class="icon" data-icon="smile" aria-hidden="true"></span>
+                </button>
+                <button class="composer-button" id="mentionButton" type="button" aria-label="提及成员" title="提及成员（@）" aria-controls="mentionList">
+                  <span class="icon" data-icon="at-sign" aria-hidden="true"></span>
+                </button>
+                <button class="composer-button" id="attachmentButton" type="button" aria-label="附加图片">
+                  <span class="icon" data-icon="image-plus" aria-hidden="true"></span>
+                </button>
+              </div>
+              <button class="send-button" id="sendButton" type="submit" disabled>
+                <span data-i18n="composer.send">发送</span>
+                <span class="icon" data-icon="send" data-icon-size="14" aria-hidden="true"></span>
               </button>
             </div>
-            <textarea class="composer-text" id="composerText" rows="1" maxlength="2000" enterkeyhint="send" placeholder="说点什么… 输入 @ 提及成员" aria-label="消息内容" aria-autocomplete="list" aria-controls="mentionList" aria-expanded="false" aria-describedby="composerHint"></textarea>
-            <button class="send-button" id="sendButton" type="submit" disabled>
-              <span data-i18n="composer.send">发送</span>
-              <span class="icon" data-icon="send" data-icon-size="14" aria-hidden="true"></span>
-            </button>
             <input id="imageInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
           </form>
           <p class="composer-hint" id="composerHint" data-i18n="composer.hint">Enter 发送 · Shift + Enter 换行 · 粘贴或拖入图片 · @ 提及成员</p>
