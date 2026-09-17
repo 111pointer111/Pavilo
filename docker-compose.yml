@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  pavilo:
+    build: .
+    container_name: pavilo
+    ports:
+      - "4173:4173"
+    environment:
+      # Optional: Override port
+      # PORT: 4173
+      # Optional: Specify config file path
+      # PAVILO_CONFIG: /config/pavilo.yaml
+    volumes:
+      # Mount custom configuration (optional)
+      # Uncomment to use custom config:
+      # - ./pavilo.yaml:/config/pavilo.yaml:ro
+    restart: unless-stopped
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    # Read-only root filesystem (app writes nothing to disk in ephemeral mode)
+    read_only: true
+    # Minimal capabilities
+    cap_drop:
+      - ALL
+    # Temporary directories
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4173/healthz', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3

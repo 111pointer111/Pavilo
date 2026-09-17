@@ -30,17 +30,49 @@ if (require.main === module) {
     return;
   }
   const app = createChatServer(loaded.config);
+  const pkg = require('./package.json');
   app.listen().then((address) => {
     const port = typeof address === 'object' && address ? address.port : DEFAULTS.port;
-    process.stdout.write(`Pavilo / 语亭 listening on http://localhost:${port}\n`);
+    const config = app.config;
+
+    // Banner with version
+    process.stdout.write(`\n╭─────────────────────────────────────╮\n`);
+    process.stdout.write(`│  Pavilo / 语亭                      │\n`);
+    process.stdout.write(`│  v${pkg.version.padEnd(30)} │\n`);
+    process.stdout.write(`╰─────────────────────────────────────╯\n\n`);
+
+    // Core info
+    process.stdout.write(`✓ Protocol version: ${PROTOCOL_VERSION}\n`);
+    process.stdout.write(`✓ Storage mode: ephemeral (in-memory only)\n`);
+    process.stdout.write(`✓ Config source: ${loaded.configPath || 'built-in defaults'}\n`);
+    process.stdout.write(`  → Restart required to apply config changes\n\n`);
+
+    // Network addresses
+    process.stdout.write(`🌐 Listening on:\n`);
+    process.stdout.write(`  → Local:  http://localhost:${port}\n`);
     const addresses = app.localAddresses();
-    if (addresses.length) {
-      for (const ip of addresses) process.stdout.write(`LAN access: http://${ip}:${port}\n`);
-    } else {
-      process.stdout.write('LAN access: use the host machine\'s local IP address.\n');
+    if (addresses.length && config.exposeLanUrls) {
+      for (const ip of addresses) {
+        process.stdout.write(`  → LAN:    http://${ip}:${port}\n`);
+      }
+    } else if (!config.exposeLanUrls) {
+      process.stdout.write(`  → LAN addresses hidden (exposeLanUrls: false)\n`);
     }
-    process.stdout.write(`Config: ${loaded.configPath || 'built-in defaults'} (restart to apply changes)\n`);
-    process.stdout.write('Ephemeral mode: messages and presence live in memory only.\n');
+
+    // Security boundaries
+    process.stdout.write(`\n🔒 Security boundaries:\n`);
+    process.stdout.write(`  → Origin check: ${config.allowNoOrigin ? 'disabled (allowNoOrigin: true)' : 'enabled'}\n`);
+    if (config.allowNoOrigin) {
+      process.stdout.write(`    ⚠️  Warning: Non-browser clients allowed. Use allowNoOrigin: false for stricter security.\n`);
+    }
+    if (config.allowedOrigins.length > 0) {
+      process.stdout.write(`  → Allowed origins: ${config.allowedOrigins.join(', ')}\n`);
+    }
+    process.stdout.write(`  → Member IPs: ${config.exposeMemberIps ? 'visible to all users' : 'hidden'}\n`);
+    process.stdout.write(`  → Max users: ${config.maxUsers}\n`);
+    process.stdout.write(`  → Max connections: ${config.maxClients}\n\n`);
+
+    process.stdout.write(`Ready to accept connections.\n\n`);
   }).catch((error) => {
     if (error.code === 'EADDRINUSE') {
       process.stderr.write(`无法启动：端口 ${loaded.config.port} 已被占用。可使用 PORT=4187 npm start 更换端口。\n`);

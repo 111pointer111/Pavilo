@@ -1,0 +1,32 @@
+# Git
+.git
+.gitignore
+.github
+
+# Node
+node_modules
+npm-debug.log*
+
+# Tests
+test
+
+# Documentation
+*.md
+docs
+LICENSE
+
+# Config files (should be mounted, not baked in)
+pavilo.yaml
+pavilo.example.yaml
+
+# Development
+.vscode
+.idea
+
+# CI/CD
+.github
+
+# Temporary files
+*.log
+*.tmp
+.DS_Store
