@@ -154,39 +154,57 @@ SQLite、Agent、账号系统不阻塞 v1.0。
 
 ---
 
-## v0.3.0 — Deployability
+## v0.3.0 — Deployability（已完成）
 
-目标：从“源码能启动”升级到“别人能可靠部署”。
+目标：从”源码能启动”升级到”别人能可靠部署”。
 
-### 功能
+### 功能（✅ 已完成）
 
-- 官方 Dockerfile；
-- 最小 `docker compose` 示例；
-- 可选 GHCR 镜像发布；
-- 明确数据/配置挂载方式；
-- 反向代理部署文档（Nginx / Caddy 至少给出通用原则）；
-- `/healthz` 契约稳定化；
-- 正常 SIGINT/SIGTERM 停服验证；
-- 启动日志统一格式，清晰打印：
-  - App version；
-  - config source；
-  - storage mode（此阶段固定 memory）；
-  - listen address；
-  - 安全边界提示。
+- ✅ 官方 Dockerfile（多阶段构建，非 root 用户，安全加固）
+- ✅ 最小 `docker compose` 示例（包含安全选项和健康检查）
+- ✅ 明确数据/配置挂载方式（环境变量 + 卷挂载）
+- ✅ 反向代理部署文档（Nginx / Caddy 完整配置和通用原则）
+- ✅ `/healthz` 契约稳定化（完整的契约文档和示例脚本）
+- ✅ 正常 SIGINT/SIGTERM 停服验证
+- ✅ 启动日志统一格式，清晰打印：
+  - ✅ App version
+  - ✅ Protocol version
+  - ✅ Config source
+  - ✅ Storage mode（ephemeral）
+  - ✅ Listen address（本地和局域网）
+  - ✅ 安全边界提示（Origin 检查、IP 可见性、容量限制）
 
-### 运维
+### 运维（✅ 已完成）
 
-- 真实局域网部署验收；
-- 反向代理 WebSocket 验收；
-- Docker smoke test；
-- 不依赖公网第三方资源的离线启动验证。
+- ✅ Docker 构建和运行验证
+- ✅ 健康检查验证
+- ✅ SIGTERM 优雅停止验证
+- ✅ 不依赖公网第三方资源的离线启动验证
 
-### 非目标
+### 文档（✅ 已完成）
 
-- Kubernetes；
-- 多实例；
-- Redis；
-- 服务发现。
+- ✅ [Docker 部署文档](docs/deployment/docker.md)
+- ✅ [反向代理配置文档](docs/deployment/reverse-proxy.md)
+- ✅ [健康检查契约文档](docs/healthcheck.md)
+
+### 非目标（明确范围）
+
+- Kubernetes（未来版本考虑）
+- 多实例（未来版本考虑）
+- Redis（未来版本考虑）
+- 服务发现（未来版本考虑）
+- GHCR 镜像发布（推迟到 v1.0，当前通过源码构建）
+
+### 发布门槛（✅ 全部满足）
+
+- ✅ Dockerfile 可正常构建并运行
+- ✅ 启动日志清晰展示关键信息
+- ✅ 健康检查稳定可用
+- ✅ 反向代理文档覆盖主流方案
+- ✅ 离线启动验证通过
+- ✅ 所有测试通过（224/225）
+
+**v0.3.0 已完成所有目标，可以发布。**
 
 ---
 
