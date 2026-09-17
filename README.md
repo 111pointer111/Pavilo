@@ -70,6 +70,8 @@ Pavilo（**Pavilion + Local**）是一个浏览器即用、默认临时、可以
 
 ## 快速开始
 
+### 本地运行
+
 需要 Node.js 22+。克隆仓库后按锁文件安装依赖：
 
 ```bash
@@ -87,6 +89,30 @@ npm start
 ```bash
 PORT=8080 npm start
 ```
+
+### Docker 部署
+
+使用 Docker Compose（推荐）：
+
+```bash
+git clone https://github.com/caigg188/Pavilo.git
+cd Pavilo
+docker compose up -d
+```
+
+或者手动构建和运行：
+
+```bash
+docker build -t pavilo .
+docker run -d -p 4173:4173 --name pavilo pavilo
+```
+
+详见 [Docker 部署文档](docs/deployment/docker.md)。
+
+### 生产部署
+
+- **反向代理**：参考 [Nginx/Caddy 配置指南](docs/deployment/reverse-proxy.md)
+- **健康检查**：参考 [健康检查契约文档](docs/healthcheck.md)
 
 停止服务请按 `Ctrl-C`。
 
