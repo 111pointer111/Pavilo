@@ -498,11 +498,18 @@
     const rect = anchor.getBoundingClientRect();
     const width = popover.offsetWidth || 344;
     const height = popover.offsetHeight || heightHint;
-    const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
-    let top = rect.bottom + 6;
-    if (top + height > window.innerHeight - 8) top = Math.max(8, rect.top - height - 6);
-    popover.style.left = `${left}px`;
-    popover.style.top = `${top}px`;
+    const gutter = 8;
+    const column = document.querySelector('.chat') || document.querySelector('.composer-wrap') || composer;
+    const columnRect = column?.getBoundingClientRect();
+    const maxRight = Math.min(window.innerWidth - gutter, columnRect ? columnRect.right : window.innerWidth - gutter);
+    const minLeft = Math.max(gutter, columnRect ? columnRect.left : gutter);
+    let left = maxRight - width;
+    if (left < minLeft) left = minLeft;
+    if (left + width > window.innerWidth - gutter) left = Math.max(gutter, window.innerWidth - width - gutter);
+    let top = rect.top - height - 6;
+    if (top < gutter) top = Math.min(rect.bottom + 6, window.innerHeight - height - gutter);
+    popover.style.left = `${Math.round(left)}px`;
+    popover.style.top = `${Math.round(Math.max(gutter, top))}px`;
   }
 
   function closeComposerPopover(restoreFocus = false) {
