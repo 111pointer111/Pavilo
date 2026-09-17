@@ -192,6 +192,6 @@ WebSocket 本身没有应用层重放保证。`message`、`reaction`、`prune`�
 
 ## 10. HTTP 公开投影
 
-`/room-info` 只公开：`protocolVersion`、`deprecatedProtocols`、默认频道兼容 `roomEpoch`、`localUrl`、可选 `lanUrls`、`roomTitle`、`defaultChannelId`、频道白名单字段、客户端所需 limits 和 `ephemeral: true`。频道公开字段固定为 `id/name/description/enabled/readOnly/maxUsers/welcome`；limits 固定为 `maxTextLength/maxImageBytes/maxImageDimension/maxImagePixels/maxMessages`。
+`/room-info` 只公开：`protocolVersion`、`deprecatedProtocols`、默认频道兼容 `roomEpoch`、`localUrl`、可选 `lanUrls`、`roomTitle`、`defaultChannelId`、`defaultLanguage`、`supportedLanguages`、频道白名单字段、客户端所需 limits 和 `ephemeral: true`。频道公开字段固定为 `id/name/description/enabled/readOnly/maxUsers/welcome`；limits 固定为 `maxTextLength/maxImageBytes/maxImageDimension/maxImagePixels/maxMessages`。`supportedLanguages` 固定为 `["zh-CN", "en"]`。
 
 `publicUser` 固定含 `id/username/avatarSeed/joinedAt`，仅在 `room.exposeMemberIps` 为 true 时含 `ip`。恢复 token、内部名称键、连接和 lease 信息不得公开。

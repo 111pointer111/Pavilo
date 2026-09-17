@@ -101,6 +101,8 @@ Referrer-Policy: strict-origin-when-cross-origin
   "roomEpoch": "room-general_4efe0d43ef23052f",
   "roomTitle": "语亭 · 临时频道",
   "defaultChannelId": "general",
+  "defaultLanguage": "zh-CN",
+  "supportedLanguages": ["zh-CN", "en"],
   "channels": [
     {
       "id": "general",
@@ -145,6 +147,8 @@ Referrer-Policy: strict-origin-when-cross-origin
 | `roomEpoch` | string | **默认频道**的 epoch（兼容字段，形如 `room-general_<16 位十六进制>`） |
 | `roomTitle` | string | 房间标题（`room.title`） |
 | `defaultChannelId` | string | 默认频道 ID（`room.defaultChannel`） |
+| `defaultLanguage` | string | 首次访问的默认界面语言（`room.defaultLanguage`），`zh-CN` 或 `en` |
+| `supportedLanguages` | array | 客户端支持的语言，固定为 `["zh-CN", "en"]` |
 | `channels` | array | 频道列表，见下表 |
 | `limits` | object | 客户端所需的尺寸限制，见下表 |
 | `ephemeral` | boolean | 固定为 `true`（纯内存存储） |

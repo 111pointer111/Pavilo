@@ -5,10 +5,10 @@
   'use strict';
 
   const TOAST_KINDS = {
-    info: { icon: 'bell', title: '通知' },
-    error: { icon: 'circle-alert', title: '出错了' },
-    success: { icon: 'circle-check', title: '已完成' },
-    presence: { icon: 'users-round', title: '有人进出' },
+    info: { icon: 'bell' },
+    error: { icon: 'circle-alert' },
+    success: { icon: 'circle-check' },
+    presence: { icon: 'users-round' },
   };
   const TOAST_MAX_STACK = 6;
   const TOAST_FULL_SLOTS = 3;
@@ -21,7 +21,7 @@
     return Math.max(2400, Math.min(6000, 1500 + message.length * 95));
   }
 
-  function createNotifications({ elements, getState, onAction, iconMarkup, escapeHtml }) {
+  function createNotifications({ elements, getState, onAction, iconMarkup, escapeHtml, t = (key) => key }) {
     const { toastRegion, messageScroll, newMessageJump, newMessageCount,
       notifyButton, appFavicon } = elements;
     const document = toastRegion.ownerDocument;
@@ -86,8 +86,8 @@
       node.style.setProperty('--toast-life', `${toastDuration(message)}ms`);
       node.innerHTML = `<div class="toast-head">
         ${iconMarkup(tone.icon)}
-        <span class="toast-title">${escapeHtml(title || tone.title)}</span>
-        <button class="toast-close" type="button" aria-label="${escapeHtml(closeLabel || '关闭通知')}"></button>
+        <span class="toast-title">${escapeHtml(title || t(`toast.${kind}`))}</span>
+        <button class="toast-close" type="button" aria-label="${escapeHtml(closeLabel || t('toast.close'))}"></button>
       </div><p class="toast-copy"></p><div class="toast-foot" hidden></div>`;
       node.querySelector('.toast-copy').textContent = message;
       node.querySelector('.toast-close').innerHTML = iconMarkup('x');
@@ -250,7 +250,7 @@
       const badge = count > 99 ? '99+' : String(count);
       newMessageJump.hidden = count === 0;
       newMessageCount.textContent = badge;
-      document.title = count ? `(${badge}) Pavilo / 语亭` : 'Pavilo / 语亭';
+      document.title = count ? t('brand.titleUnread', { badge }) : t('brand.title');
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="18" fill="#dceee9"/><g transform="scale(.25)"><path fill="#0f7772" d="M127 46C119 47 113 61 105 69C87 87 66 99 37 108C30 110 32 119 40 124L51 129V199C51 205 56 210 63 210H84L98 189C87 186 81 180 81 171V142C81 133 86 129 95 122C111 111 122 101 129 89C137 103 147 113 161 122C171 129 175 135 175 143V171C175 183 168 190 156 192H116C108 194 102 201 96 207C92 210 94 210 101 210H193C200 210 205 205 205 198V129L217 123C225 119 225 110 219 108C187 98 166 84 152 70L134 48C132 45 130 45 127 46Z"/>${count ? `<circle cx="200" cy="56" r="48" fill="#e86f57"/><text x="200" y="72" text-anchor="middle" font-size="40" font-family="sans-serif" font-weight="700" fill="white">${badge}</text>` : '<circle cx="196.7" cy="71.7" r="15.1" fill="#e86f57"/>'}</g></svg>`;
       appFavicon.href = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
     }
@@ -281,14 +281,14 @@
     function notifyNewMessage(message, state) {
       if (message.author?.id === state.self?.id || canMarkRead()) return;
       const mentioned = message.mentions?.some((mention) => mention.id === state.self?.id);
-      if (mentioned) createToast(`${message.author.username} 在频道中提到了你`, { title: '有人提到了你' });
+      if (mentioned) createToast(t('notify.mention', { name: message.author.username }), { title: t('notify.mentionTitle') });
       const Notification = window.Notification;
       if (typeof Notification !== 'function' || Notification.permission !== 'granted'
         || !document.hidden && document.hasFocus()) return;
       closeNative();
       try {
-        nativeNotification = new Notification(mentioned ? '有人提到了你' : '语亭有新消息', {
-          body: '回到房间查看', tag: 'pavilo-messages', renotify: false,
+        nativeNotification = new Notification(mentioned ? t('notify.mentionTitle') : t('notify.newMessage'), {
+          body: t('notify.body'), tag: 'pavilo-messages', renotify: false,
         });
         nativeNotification.onclick = () => {
           if (destroyed) return;
@@ -361,41 +361,59 @@
         maybeClearUnread();
       }
     });
+    function paintNotifyButton(mode) {
+      if (mode === 'on') {
+        notifyButton.classList.add('active');
+        notifyButton.title = t('notify.onTitle');
+        notifyButton.setAttribute('aria-label', t('notify.onTitle'));
+        notifyButton.querySelector('.top-action-label').textContent = t('notify.on');
+        return;
+      }
+      notifyButton.classList.remove('active');
+      if (mode === 'denied') {
+        notifyButton.title = t('notify.deniedTitle');
+        notifyButton.setAttribute('aria-label', t('notify.deniedTitle'));
+        notifyButton.querySelector('.top-action-label').textContent = t('notify.deniedLabel');
+        return;
+      }
+      if (mode === 'unavailable') {
+        notifyButton.title = t('notify.unavailableTitle');
+        notifyButton.setAttribute('aria-label', t('notify.unavailableAria'));
+        notifyButton.querySelector('.top-action-label').textContent = t('notify.pageOnly');
+        return;
+      }
+      notifyButton.title = t('top.notifyOnTitle');
+      notifyButton.setAttribute('aria-label', t('top.notifyOnTitle'));
+      notifyButton.querySelector('.top-action-label').textContent = t('top.notifyOn');
+    }
+
     listen(notifyButton, 'click', async () => {
       const Notification = window.Notification;
       if (!window.isSecureContext || !('Notification' in window)) {
-        toast('当前局域网地址不支持系统通知；页内、标题和图标提醒仍然有效。', true);
+        toast(t('notify.insecure'), true);
         return;
       }
       if (Notification.permission === 'denied') {
-        toast('系统通知已被浏览器拒绝，请在网站设置中修改。', true);
+        toast(t('notify.denied'), true);
         return;
       }
       const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
       if (destroyed) return;
       if (permission === 'granted') {
-        notifyButton.classList.add('active');
-        notifyButton.title = '系统提醒已开启';
-        notifyButton.setAttribute('aria-label', '系统提醒已开启');
-        notifyButton.querySelector('.top-action-label').textContent = '提醒已开';
-        toast('系统提醒已开启；只在页面不活跃时提醒。');
+        paintNotifyButton('on');
+        toast(t('notify.enabled'));
       } else {
-        toast('未开启系统通知；页内提醒仍然有效。', true);
+        toast(t('notify.skipped'), true);
       }
     });
 
     updateUnreadUI(lastState.unread);
     if (!window.isSecureContext || !('Notification' in window)) {
-      notifyButton.title = '系统提醒在当前地址不可用';
-      notifyButton.setAttribute('aria-label', '系统提醒不可用，页内提醒仍然有效');
-      notifyButton.querySelector('.top-action-label').textContent = '页内提醒';
+      paintNotifyButton('unavailable');
     } else if (window.Notification.permission === 'granted') {
-      notifyButton.classList.add('active');
-      notifyButton.title = '系统提醒已开启';
-      notifyButton.querySelector('.top-action-label').textContent = '提醒已开';
+      paintNotifyButton('on');
     } else if (window.Notification.permission === 'denied') {
-      notifyButton.title = '系统提醒已被浏览器拒绝';
-      notifyButton.querySelector('.top-action-label').textContent = '提醒已拒';
+      paintNotifyButton('denied');
     }
 
     function destroy() {
@@ -414,7 +432,8 @@
       closeNative();
     }
 
-    return { toast, createToast, clearUnread, onState, canMarkRead, maybeClearUnread, destroy };
+    return { toast, createToast, clearUnread, onState, canMarkRead, maybeClearUnread, paintNotifyButton,
+      refreshCopy() { updateUnreadUI(lastState.unread); }, destroy };
   }
 
   return { createNotifications };

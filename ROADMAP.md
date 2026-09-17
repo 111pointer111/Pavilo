@@ -40,7 +40,7 @@ Pavilo 的核心不是“功能越来越多的聊天系统”，而是一个**�
 - `server.js`：配置、core / transport 组合与 CLI 生命周期；
 - `src/core/`：房间、session、消息、命令、领域事件；
 - `src/transport/`：HTTP、WebSocket 生命周期与帧协议；
-- `client/`：protocol / connection / state / pending / images / messages / composer / overlays / notifications / app；
+- `client/`：protocol / connection / state / pending / images / messages / composer / overlays / notifications / i18n / app；
 - `test/`：Node 单元/集成测试和独立浏览器验收；
 - `docs/architecture/`：当前架构、协议和状态契约。
 
@@ -395,24 +395,29 @@ v0.5.0 发布时，`client/error-states.js` 与 `client/performance.js` **实际
 
 ---
 
-## v0.8.0 — Internationalization
+## v0.8.0 — Internationalization（已完成）
 
 目标：支持多语言 UI。
 
-### i18n 实现
+### i18n 实现（✅ 已完成）
 
-- 国际化架构（轻量级，纯 JS）
-- 简体中文 + 英语 UI
-- 语言切换功能
-- 配置支持（defaultLanguage, supportedLanguages）
-- 服务器升级提示消息（多语言支持，为 v0.9 协议清理做准备）
+- ✅ 国际化架构（轻量级，纯 JS，无构建步骤）
+- ✅ 简体中文 + 英语 UI
+- ✅ 语言切换功能（顶栏按钮，选择写入 `localStorage`）
+- ✅ 配置支持（`room.defaultLanguage`；`/room-info` 公开 `defaultLanguage` 与 `supportedLanguages`）
+- ✅ 服务器升级提示消息（`upgrade.*` / `PROTOCOL_NOT_SUPPORTED`，为 v0.9 协议清理做准备）
 
-### 发布门槛
+### 发布门槛（✅ 全部满足）
 
-- i18n 架构实现完成
-- 中英文翻译质量审查通过
-- 语言切换功能正常
-- 升级提示消息已准备
+- ✅ i18n 架构实现完成
+- ✅ 中英文翻译质量审查通过（catalog 键集合对等）
+- ✅ 语言切换功能正常
+- ✅ 升级提示消息已准备
+- ✅ 所有测试通过（267/267，1 跳过）
+- ✅ CHANGELOG.md 已更新
+- ✅ package.json 版本号已更新
+
+**v0.8.0 已完成所有目标，可以发布。**
 
 ---
 
@@ -447,7 +452,7 @@ v0.5.0 发布时，`client/error-states.js` 与 `client/performance.js` **实际
 
 - **Config Schema v1**：YAML 结构与字段语义
 - **Protocol v4**：唯一支持的协议版本（ADR-0001）
-- **`/room-info` 公开字段**：`protocolVersion`, `roomEpoch`, `roomTitle`, `defaultChannelId`, `channels`, `limits`, `ephemeral`
+- **`/room-info` 公开字段**：`protocolVersion`, `deprecatedProtocols`, `roomEpoch`, `roomTitle`, `defaultChannelId`, `defaultLanguage`, `supportedLanguages`, `channels`, `limits`, `ephemeral`
 - **`/healthz` 契约**：HTTP 200 OK / 503 Service Unavailable
 - **CLI 启动与退出**：
   - 启动日志格式（版本、配置源、监听地址）

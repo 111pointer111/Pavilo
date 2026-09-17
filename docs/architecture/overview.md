@@ -13,6 +13,9 @@
 | `state.js` | `createInitialState` / `reduce` / `createStore`；快照、频道、消息、typing、未读、pending 投影与连接状态 |
 | `pending.js` | ACK 超时、accepted、失败、同 ID 对账、同 epoch 重试及草稿匹配；定时器可注入 |
 | `images.js` | 可纯测的尺寸/质量/字节预算规则，以及可注入浏览器 API 的读取和 Canvas 处理 |
+| `performance.js` | DOM 更新最小工具：`smartUpdate` 与 `shouldRebuildList` |
+| `error-states.js` | 连接状态指示器、toast 与阻塞性错误覆盖层 |
+| `i18n.js` | 轻量字典 + `{var}` 插值；`zh-CN` / `en`；选择写入 `localStorage` |
 | `messages.js` | 权威与待确认消息显示、一次 payload 一次重建、DOM 修改前采样及阅读锚点恢复 |
 | `composer.js` | 输入、IME、回复、typing、图片发送意图 |
 | `overlays.js` | 成员资料、抽屉、popover、图片查看器和焦点管理 |

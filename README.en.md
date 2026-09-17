@@ -10,7 +10,7 @@
 
 Pavilo (**Pavilion + Local**) is a minimal, self-hosted group chat that runs in the browser and is ephemeral by default. Like a small pavilion you can put up anywhere: start a Node.js process, and anyone on the same local network can open a web page and talk. When the service stops, everything returns to blank.
 
-Current version: **v0.7.0** — multiple ephemeral channels, in-memory storage only. Built for trusted LANs, private networks, and VPNs.
+Current version: **v0.8.0** — multiple ephemeral channels, in-memory storage only, Simplified Chinese and English UI. Built for trusted LANs, private networks, and VPNs.
 
 ## Design principles
 
@@ -25,6 +25,7 @@ Current version: **v0.7.0** — multiple ephemeral channels, in-memory storage o
 **Chat experience**
 
 - Enter a username to join the default channel; with multiple channels configured you can switch between them in the UI, and the channel list shows live occupancy per channel
+- The UI language can be switched between Simplified Chinese and English; first visit uses `room.defaultLanguage` (default `zh-CN`), then the choice is remembered locally
 - Channels isolate messages, online members, typing state, and reactions; each channel has its own ephemeral history and member cap
 - Read-only channels (`readOnly: true`): joinable and readable, reactions allowed, but nobody can post — useful for announcements and rules maintained by the deployer
 - Channel welcome text (`welcome`): an intro card shown at the top of a channel

@@ -54,6 +54,7 @@ const DEFAULTS = deepFreeze({
   defaultChannelId: 'general',
   exposeMemberIps: true,
   exposeLanUrls: true,
+  defaultLanguage: 'zh-CN',
   channels: [{
     id: 'general',
     name: '闲聊',
@@ -75,7 +76,7 @@ const DEFAULTS = deepFreeze({
 
 const ROOT_KEYS = new Set(['version', 'server', 'room', 'channels', 'limits', 'timeouts', 'rateLimits']);
 const SERVER_KEYS = new Set(['host', 'port', 'maxUsers', 'maxConnections', 'maxConnectionsPerIp', 'allowNoOrigin', 'allowedOrigins']);
-const ROOM_KEYS = new Set(['title', 'defaultChannel', 'exposeMemberIps', 'exposeLanUrls']);
+const ROOM_KEYS = new Set(['title', 'defaultChannel', 'exposeMemberIps', 'exposeLanUrls', 'defaultLanguage']);
 const CHANNEL_KEYS = new Set(['id', 'name', 'description', 'enabled', 'readOnly', 'maxUsers', 'welcome']);
 const LIMIT_KEYS = new Set(['maxMessagesPerChannel', 'maxTextLength', 'maxImageBytes', 'maxImageDimension', 'maxImagePixels', 'maxJsonBytes', 'maxWebSocketFrameBytes', 'maxChannelBytes', 'maxWritableBytes', 'maxDedupeEntries']);
 const TIMEOUT_KEYS = new Set(['joinMs', 'heartbeatIntervalMs', 'heartbeatTimeoutMs', 'typingTtlMs', 'sessionLeaseMs', 'dedupeTtlMs']);
@@ -233,6 +234,11 @@ function normalizeConfig(document = {}, { requireVersion = false } = {}) {
   if (room.defaultChannel !== undefined) config.defaultChannelId = text(room.defaultChannel, 'room.defaultChannel', 1, 32);
   if (room.exposeMemberIps !== undefined) config.exposeMemberIps = boolean(room.exposeMemberIps, 'room.exposeMemberIps');
   if (room.exposeLanUrls !== undefined) config.exposeLanUrls = boolean(room.exposeLanUrls, 'room.exposeLanUrls');
+  if (room.defaultLanguage !== undefined) {
+    const language = text(room.defaultLanguage, 'room.defaultLanguage', 2, 16);
+    if (language !== 'zh-CN' && language !== 'en') fail('room.defaultLanguage', '只能是 zh-CN 或 en');
+    config.defaultLanguage = language;
+  }
 
   optionalInteger(config, 'maxMessages', limits, 'maxMessagesPerChannel', 'limits.maxMessagesPerChannel', 1, 10_000);
   optionalInteger(config, 'maxTextLength', limits, 'maxTextLength', 'limits.maxTextLength', 1, 100_000);

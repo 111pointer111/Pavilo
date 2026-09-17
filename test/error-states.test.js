@@ -1,121 +1,86 @@
+'use strict';
+
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 
 const ErrorStates = require('../client/error-states.js');
+const { createI18n } = require('../client/i18n');
 
-test('error-states', async (t) => {
-  await t.test('exports ERROR_TYPES constant', () => {
-    assert.ok(ErrorStates.ERROR_TYPES);
-    assert.equal(typeof ErrorStates.ERROR_TYPES, 'object');
-    assert.ok(ErrorStates.ERROR_TYPES.OFFLINE);
-    assert.ok(ErrorStates.ERROR_TYPES.SERVICE_STOPPED);
-    assert.ok(ErrorStates.ERROR_TYPES.CHANNEL_FULL);
+test('error-states exports the known type keys', () => {
+  assert.ok(ErrorStates.ERROR_TYPE_KEYS.includes('OFFLINE'));
+  assert.ok(ErrorStates.ERROR_TYPE_KEYS.includes('PROTOCOL_NOT_SUPPORTED'));
+});
+
+test('createErrorStates returns API', () => {
+  const controller = ErrorStates.createErrorStates({
+    elements: { connectionDot: null, connectionText: null },
+    toast: () => {},
+    iconMarkup: () => '<svg></svg>',
+    escapeHtml: (s) => s,
   });
+  assert.ok(controller.handleError);
+  assert.ok(controller.clearError);
+  assert.ok(controller.hasError);
+  assert.ok(controller.getCurrentError);
+  assert.ok(controller.setConnectionStatus);
+});
 
-  await t.test('ERROR_TYPES contains required fields', () => {
-    const { OFFLINE, CONNECTION_FAILED, SERVICE_STOPPED } = ErrorStates.ERROR_TYPES;
-
-    // OFFLINE
-    assert.equal(OFFLINE.level, 'warning');
-    assert.equal(OFFLINE.recoverable, true);
-    assert.ok(OFFLINE.message);
-    assert.ok(OFFLINE.icon);
-
-    // CONNECTION_FAILED
-    assert.equal(CONNECTION_FAILED.level, 'error');
-    assert.equal(CONNECTION_FAILED.recoverable, true);
-    assert.ok(CONNECTION_FAILED.action);
-
-    // SERVICE_STOPPED
-    assert.equal(SERVICE_STOPPED.level, 'error');
-    assert.equal(SERVICE_STOPPED.recoverable, false);
+test('tracks error state', () => {
+  const controller = ErrorStates.createErrorStates({
+    elements: { connectionDot: null, connectionText: null },
+    toast: () => {},
+    iconMarkup: () => '<svg></svg>',
+    escapeHtml: (s) => s,
   });
+  assert.equal(controller.hasError(), false);
+  controller.handleError('OFFLINE');
+  assert.equal(controller.hasError(), true);
+  assert.equal(controller.getCurrentError(), 'OFFLINE');
+  controller.clearError();
+  assert.equal(controller.hasError(), false);
+});
 
-  await t.test('createErrorStates returns API', async () => {
-    const controller = ErrorStates.createErrorStates({
-      elements: { connectionDot: null, connectionText: null },
-      toast: () => {},
-      iconMarkup: () => '<svg></svg>',
-      escapeHtml: (s) => s,
-    });
-
-    assert.ok(controller.handleError);
-    assert.ok(controller.clearError);
-    assert.ok(controller.hasError);
-    assert.ok(controller.getCurrentError);
-    assert.ok(controller.setConnectionStatus);
+test('uses i18n copy for toasts', () => {
+  const i18n = createI18n({ language: 'en', storage: null });
+  let toastMessage = '';
+  const controller = ErrorStates.createErrorStates({
+    elements: { connectionDot: null, connectionText: null },
+    toast: (msg) => { toastMessage = msg; },
+    iconMarkup: () => '<svg></svg>',
+    escapeHtml: (s) => s,
+    t: i18n.t,
   });
+  controller.handleError('CHANNEL_FULL');
+  assert.equal(toastMessage, i18n.t('error.channelFull.detail'));
+});
 
-  await t.test('tracks error state', async () => {
-    const controller = ErrorStates.createErrorStates({
-      elements: { connectionDot: null, connectionText: null },
-      toast: () => {},
-      iconMarkup: () => '<svg></svg>',
-      escapeHtml: (s) => s,
-    });
-
-    assert.equal(controller.hasError(), false);
-    assert.equal(controller.getCurrentError(), null);
-
-    controller.handleError('OFFLINE');
-    assert.equal(controller.hasError(), true);
-    assert.equal(controller.getCurrentError(), 'OFFLINE');
-
-    controller.clearError();
-    assert.equal(controller.hasError(), false);
-    assert.equal(controller.getCurrentError(), null);
+test('updates connection status for network errors', () => {
+  const i18n = createI18n({ language: 'zh-CN', storage: null });
+  const mockDot = { classList: { toggle: () => {} } };
+  const mockText = { textContent: '' };
+  const controller = ErrorStates.createErrorStates({
+    elements: { connectionDot: mockDot, connectionText: mockText },
+    toast: () => {},
+    iconMarkup: () => '<svg></svg>',
+    escapeHtml: (s) => s,
+    t: i18n.t,
   });
+  controller.handleError('OFFLINE', { statusText: i18n.t('status.offline'), showToast: false });
+  assert.equal(mockText.textContent, i18n.t('status.offline'));
+});
 
-  await t.test('calls toast for non-blocking errors', async () => {
-    let toastCalled = false;
-    let toastMessage = '';
-
-    const controller = ErrorStates.createErrorStates({
-      elements: { connectionDot: null, connectionText: null },
-      toast: (msg) => {
-        toastCalled = true;
-        toastMessage = msg;
-      },
-      iconMarkup: () => '<svg></svg>',
-      escapeHtml: (s) => s,
-    });
-
-    controller.handleError('CHANNEL_FULL');
-    assert.equal(toastCalled, true);
-    assert.ok(toastMessage.length > 0);
+test('PROTOCOL_NOT_SUPPORTED overlay uses upgrade copy', () => {
+  const i18n = createI18n({ language: 'zh-CN', storage: null });
+  const overlay = { hidden: true, className: '', innerHTML: '', querySelector() { return null; }, focus() {} };
+  const controller = ErrorStates.createErrorStates({
+    elements: { connectionDot: null, connectionText: null, errorOverlay: overlay },
+    toast: () => {},
+    iconMarkup: () => '<svg></svg>',
+    escapeHtml: (s) => s,
+    t: i18n.t,
   });
-
-  await t.test('updates connection status for network errors', async () => {
-    const mockDot = { classList: { toggle: () => {} } };
-    const mockText = { textContent: '' };
-
-    const controller = ErrorStates.createErrorStates({
-      elements: {
-        connectionDot: mockDot,
-        connectionText: mockText,
-      },
-      toast: () => {},
-      iconMarkup: () => '<svg></svg>',
-      escapeHtml: (s) => s,
-    });
-
-    controller.handleError('OFFLINE', { statusText: '网络已离线' });
-    assert.ok(mockText.textContent.length > 0);
-  });
-
-  await t.test('clearError resets state', async () => {
-    const controller = ErrorStates.createErrorStates({
-      elements: { connectionDot: null, connectionText: null },
-      toast: () => {},
-      iconMarkup: () => '<svg></svg>',
-      escapeHtml: (s) => s,
-    });
-
-    controller.handleError('CONNECTION_FAILED');
-    assert.equal(controller.getCurrentError(), 'CONNECTION_FAILED');
-
-    controller.clearError();
-    assert.equal(controller.hasError(), false);
-    assert.equal(controller.getCurrentError(), null);
-  });
+  controller.showErrorOverlay('PROTOCOL_NOT_SUPPORTED');
+  assert.equal(overlay.hidden, false);
+  assert.match(overlay.innerHTML, /服务器已升级/);
+  assert.match(overlay.innerHTML, /当前页面使用的协议已被服务器停用/);
 });

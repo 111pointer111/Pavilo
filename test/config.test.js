@@ -39,10 +39,16 @@ test('built-in defaults are immutable and missing default file falls back to a c
   assert.ok(Object.isFrozen(DEFAULTS.channels[0]));
 
   const loaded = loadConfig({ env: {} });
-  assert.equal(loaded.configPath, null);
-  assert.deepEqual(loaded.config, DEFAULTS);
-  assert.notEqual(loaded.config, DEFAULTS);
-  assert.notEqual(loaded.config.channels, DEFAULTS.channels);
+  const defaultPath = path.join(ROOT, 'pavilo.yaml');
+  if (fs.existsSync(defaultPath)) {
+    assert.equal(loaded.configPath, defaultPath);
+    assert.notEqual(loaded.config, DEFAULTS);
+  } else {
+    assert.equal(loaded.configPath, null);
+    assert.deepEqual(loaded.config, DEFAULTS);
+    assert.notEqual(loaded.config, DEFAULTS);
+    assert.notEqual(loaded.config.channels, DEFAULTS.channels);
+  }
 });
 
 test('partial config overrides values and tightens omitted default channel capacity', () => {
@@ -98,12 +104,19 @@ channels:
 
 test('normalization defaults programmatic input, while files require a version and reject unknown keys and strict types', () => {
   assert.deepEqual(normalizeConfig({}), DEFAULTS);
+  assert.equal(DEFAULTS.defaultLanguage, 'zh-CN');
   throwsMatch(() => parseConfig('{}\n'), /version.*必须声明/);
   throwsMatch(() => parseConfig('version: 2\n'), /当前只支持版本 1/);
   throwsMatch(() => parseConfig('version: 1\nserver:\n  maxUserz: 4\n'), /server\.maxUserz.*未知配置项/);
   throwsMatch(() => parseConfig('version: 1\nserver:\n  maxUsers: "4"\n'), /server\.maxUsers.*整数/);
   throwsMatch(() => parseConfig('version: 1\nroom:\n  exposeMemberIps: yes\n'), /room\.exposeMemberIps.*true 或 false/);
   throwsMatch(() => parseConfig('version: 1\nchannels:\n  - id: General\n    name: 闲聊\n'), /channels\[0\]\.id/);
+  throwsMatch(() => parseConfig('version: 1\nroom:\n  defaultLanguage: fr\n'), /room\.defaultLanguage.*只能是 zh-CN 或 en/);
+});
+
+test('room.defaultLanguage accepts zh-CN and en', () => {
+  assert.equal(parseConfig('version: 1\nroom:\n  defaultLanguage: en\n').defaultLanguage, 'en');
+  assert.equal(parseConfig('version: 1\nroom:\n  defaultLanguage: zh-CN\n').defaultLanguage, 'zh-CN');
 });
 
 test('YAML parser rejects invalid roots, duplicate keys, aliases, unknown tags, and multiple documents', () => {

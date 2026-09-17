@@ -12,7 +12,7 @@
 
   function createComposer({ elements, getState, dispatch, connection, pending, images,
     toast = () => {}, clearReply: onClearReply, getReplyTarget, setReplyTarget,
-    getLimits = () => ({}), mentions }) {
+    getLimits = () => ({}), mentions, t = (key) => key }) {
     const { composer, composerText, sendButton, emojiButton, attachmentButton, imageInput,
       replyingBar, replyingName, replyingText, cancelReplyButton } = elements;
     // Resolve browser scheduling through an explicit element, never a DOM lookup.
@@ -51,7 +51,7 @@
       if (replyingBar) replyingBar.hidden = !message;
       if (message) {
         if (replyingName) replyingName.textContent = message.author.username;
-        if (replyingText) replyingText.textContent = message.kind === 'image' ? '图片' : message.text;
+        if (replyingText) replyingText.textContent = message.kind === 'image' ? t('reply.image') : message.text;
         composer.classList.add('has-reply');
       } else composer.classList.remove('has-reply');
     }
@@ -145,19 +145,19 @@
       if (!text) return false;
       const state = getState();
       if (state.channel?.switching) {
-        toast('正在切换频道，草稿已保留。', true);
+        toast(t('toast.channelSwitchingDraft'), true);
         return false;
       }
       if (isReadOnly(state)) {
-        toast('这个频道是只读频道，无法发送消息。', true);
+        toast(t('toast.readOnlyText'), true);
         return false;
       }
       if (!isReady(state)) {
-        toast('连接尚未恢复，草稿已保留。', true);
+        toast(t('toast.notReadyDraft'), true);
         return false;
       }
       if (pending.size >= MAX_PENDING || [...pending.values()].some((item) => item.kind === 'text' && item.status === 'sending')) {
-        toast('上一条文字仍在等待确认。', true);
+        toast(t('toast.pendingText'), true);
         return false;
       }
       const selected = mentions?.getMentions() || [];
@@ -167,7 +167,7 @@
         pending.remove(item.id);
         projectPending('pending/remove', item);
         update();
-        toast('发送失败，草稿已保留。', true);
+        toast(t('toast.sendFailedDraft'), true);
         return false;
       }
       // The draft and reply remain until the app reconciles an ACK/canonical echo.
@@ -179,20 +179,20 @@
 
     async function sendImage(file) {
       if (!file || !IMAGE_TYPES.has(file.type)) {
-        if (file) toast('请选择 PNG、JPEG、GIF 或 WebP 图片。', true);
+        if (file) toast(t('toast.imageType'), true);
         return false;
       }
       const state = getState();
       if (state.channel?.switching || !isReady(state)) {
-        toast('连接或频道切换尚未完成，暂时不能发送图片。', true);
+        toast(t('toast.imageNotReady'), true);
         return false;
       }
       if (isReadOnly(state)) {
-        toast('这个频道是只读频道，无法发送图片。', true);
+        toast(t('toast.readOnlyImage'), true);
         return false;
       }
       if (pending.size >= MAX_PENDING) {
-        toast('待确认的图片较多，请稍后再试。', true);
+        toast(t('toast.imageQueue'), true);
         return false;
       }
       const sourceChannelId = state.channelId;
@@ -206,13 +206,13 @@
         // Spend the budget on the encoded image, not a multi-megabyte source photo.
         const pendingImageBytes = [...pending.values()].reduce((total, item) => total + (item.image?.bytes || 0), 0);
         if (pending.size >= MAX_PENDING || pendingImageBytes + image.bytes > MAX_PENDING_IMAGE_BYTES) {
-          toast('待确认的图片较多，请稍后再试。', true);
+          toast(t('toast.imageQueue'), true);
           return false;
         }
         const current = getState();
         if (current.channel?.switching || current.channelId !== sourceChannelId
           || current.room?.epoch !== sourceEpoch || !isReady(current)) {
-          toast('图片处理完成，但频道状态已变化，请重新选择后发送。', true);
+          toast(t('toast.imageStale'), true);
           return false;
         }
         const item = addPending({ kind: 'image', image, replyToId: readReply()?.id,
@@ -223,14 +223,14 @@
       } catch (error) {
         if (sourceGeneration === generation) {
           const message = error.code === 'SOURCE_TOO_LARGE'
-            ? '图片尺寸过高，请先裁剪后发送。'
+            ? t('toast.imageSourceLarge')
             : error.code === 'GIF_TOO_LARGE'
-              ? 'GIF 动图超过频道限制，请换一个更小的 GIF。'
+              ? t('toast.imageGifLarge')
               : error.code === 'ENCODE_TOO_LARGE'
-                ? '图片内容较复杂，自动压缩后仍超过频道限制，请裁剪后重试。'
+                ? t('toast.imageEncodeLarge')
                 : error.code === 'CANVAS_UNAVAILABLE'
-                  ? '当前浏览器无法处理图片，请刷新页面或换用最新版 Chrome。'
-                  : '图片无法读取，可能已损坏或格式不受支持。';
+                  ? t('toast.imageCanvas')
+                  : t('toast.imageUnreadable');
           toast(message, true);
         }
         return false;

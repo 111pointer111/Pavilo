@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-17
+
+### Added
+- **轻量 i18n**：无构建步骤的纯 JS 字典 + `{var}` 插值（`client/i18n.js`）
+- 简体中文与英语界面，顶栏语言切换；选择写入 `localStorage`（`pavilo.language`）
+- 配置项 `room.defaultLanguage`（仅 `zh-CN` / `en`），`/room-info` 公开 `defaultLanguage` 与 `supportedLanguages`
+- `PROTOCOL_NOT_SUPPORTED` 升级提示文案（中英），为 v0.9 协议清理做准备
+
+### Improved
+- 静态文案通过 `data-i18n` / `data-i18n-html` 更新；动态文案统一走 `t()`
+- 日期、时长、`html lang` 随当前语言切换
+
+### Technical
+- 客户端白名单 13 → 14 个文件（`i18n.js` 排在 `app.js` 之前）
+- 总测试数：267 个（266 通过，1 跳过）
+
 ## [0.7.0] - 2024-12-19
 
 ### Added

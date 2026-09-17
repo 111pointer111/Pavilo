@@ -28,7 +28,7 @@
   }
 
   function createMessages({ elements, getSelf, getState, onAction, iconMarkup,
-    avatarMarkup, escapeHtml, formatTime, formatDay, renderMentionText }) {
+    avatarMarkup, escapeHtml, formatTime, formatDay, renderMentionText, t = (key) => key }) {
     const { messageList, messageScroll, messageCount, reactionPopover, reactionChoices } = elements;
     const textMarkup = renderMentionText || ((text) => escapeHtml(text));
     const document = messageList.ownerDocument;
@@ -50,7 +50,7 @@
 
     function renderReply(message) {
       if (!message.replyTo) return '';
-      return `<div class="reply-quote"><strong>回复 ${escapeHtml(message.replyTo.username)}</strong><span>${escapeHtml(message.replyTo.text)}</span></div>`;
+      return `<div class="reply-quote"><strong>${escapeHtml(t('reply.quote', { name: message.replyTo.username }))}</strong><span>${escapeHtml(message.replyTo.text)}</span></div>`;
     }
 
     function imageMarkup(message, author) {
@@ -60,15 +60,16 @@
       const width = Math.max(1, Math.round(rawWidth * scale));
       const height = Math.max(1, Math.round(rawHeight * scale));
       const source = escapeHtml(message.image.src);
-      return `<button class="message-image-link" type="button" data-viewer-message-id="${escapeHtml(message.id)}" aria-label="查看 ${escapeHtml(author.username)} 分享的图片"><img class="message-image" src="${source}" alt="${escapeHtml(author.username)} 分享的图片" loading="lazy" decoding="async" width="${width}" height="${height}"></button>`;
+      return `<button class="message-image-link" type="button" data-viewer-message-id="${escapeHtml(message.id)}" aria-label="${escapeHtml(t('image.viewAria', { name: author.username }))}"><img class="message-image" src="${source}" alt="${escapeHtml(t('image.alt', { name: author.username }))}" loading="lazy" decoding="async" width="${width}" height="${height}"></button>`;
     }
 
     function reactionMarkup(message) {
       const entries = Object.entries(message.reactions || {}).filter(([, item]) => item && item.count > 0);
       if (!entries.length) return '';
-      return `<div class="reaction-list" aria-label="消息回应">${entries.map(([emoji, item]) => {
+      return `<div class="reaction-list" aria-label="${escapeHtml(t('reaction.group'))}">${entries.map(([emoji, item]) => {
         const active = item.userIds?.includes(getSelf()?.id);
-        return `<button class="reaction-button${active ? ' active' : ''}" type="button" data-reaction="${escapeHtml(emoji)}" data-message-id="${escapeHtml(message.id)}" aria-label="${escapeHtml(emoji)} ${active ? '取消回应' : '回应'}，${item.count || 0} 人" aria-pressed="${Boolean(active)}"><span>${escapeHtml(emoji)}</span><span class="reaction-count">${item.count || 0}</span></button>`;
+        const label = t(active ? 'reaction.toggleOff' : 'reaction.toggleOn', { emoji, count: item.count || 0 });
+        return `<button class="reaction-button${active ? ' active' : ''}" type="button" data-reaction="${escapeHtml(emoji)}" data-message-id="${escapeHtml(message.id)}" aria-label="${escapeHtml(label)}" aria-pressed="${Boolean(active)}"><span>${escapeHtml(emoji)}</span><span class="reaction-count">${item.count || 0}</span></button>`;
       }).join('')}</div>`;
     }
 
@@ -79,12 +80,12 @@
     }
 
     function actionMarkup(messageId) {
-      return `<div class="message-actions"><button class="message-action reaction-action" type="button" data-message-id="${escapeHtml(messageId)}" aria-label="表情回应"><span class="icon" data-icon="smile-plus" data-icon-size="16" aria-hidden="true"></span><span class="icon reaction-plus" data-icon="plus" data-icon-size="10" aria-hidden="true"></span></button><button class="message-action reply-action" type="button" data-message-id="${escapeHtml(messageId)}" aria-label="回复这条消息"><span class="icon" data-icon="reply" data-icon-size="12" aria-hidden="true"></span>回复</button></div>`;
+      return `<div class="message-actions"><button class="message-action reaction-action" type="button" data-message-id="${escapeHtml(messageId)}" aria-label="${escapeHtml(t('reaction.add'))}"><span class="icon" data-icon="smile-plus" data-icon-size="16" aria-hidden="true"></span><span class="icon reaction-plus" data-icon="plus" data-icon-size="10" aria-hidden="true"></span></button><button class="message-action reply-action" type="button" data-message-id="${escapeHtml(messageId)}" aria-label="${escapeHtml(t('reaction.replyAria'))}"><span class="icon" data-icon="reply" data-icon-size="12" aria-hidden="true"></span>${escapeHtml(t('reaction.reply'))}</button></div>`;
     }
 
     function createMessageNode(message) {
       const self = getSelf();
-      const author = message.author || self || { id: '', username: '未知成员', avatarSeed: 0 };
+      const author = message.author || self || { id: '', username: t('people.unknown'), avatarSeed: 0 };
       const article = document.createElement('article');
       article.className = `message${author.id === self?.id ? ' self' : ''}`;
       article.dataset.messageId = message.id;
@@ -106,7 +107,7 @@
       if (!channel?.welcome) return null;
       const card = document.createElement('div');
       card.className = 'welcome-card';
-      card.innerHTML = `<div class="welcome-icon" data-icon="megaphone" data-icon-size="20" aria-hidden="true"></div><div class="welcome-content"><div class="welcome-title">欢迎来到 ${escapeHtml(channel.name)}</div><div class="welcome-text">${escapeHtml(channel.welcome)}</div></div>`;
+      card.innerHTML = `<div class="welcome-icon" data-icon="megaphone" data-icon-size="20" aria-hidden="true"></div><div class="welcome-content"><div class="welcome-title">${escapeHtml(t('welcome.title', { name: channel.name }))}</div><div class="welcome-text">${escapeHtml(channel.welcome)}</div></div>`;
       hydrateIcons(card);
       return card;
     }
@@ -127,16 +128,18 @@
         node.className = 'message self pending-message';
         node.dataset.pendingId = item.id;
         const self = getSelf();
-        const body = item.kind === 'image' ? `<img class="pending-image" src="${escapeHtml(item.image.src)}" alt="待发送图片">` : `<div class="message-body">${textMarkup(item.text, item.mentions)}</div>`;
-        node.innerHTML = `<div class="message-avatar">${avatarMarkup(self || { username: '你', avatarSeed }, '', false)}</div><div class="message-main"><div class="message-meta"><span class="message-author">${escapeHtml(self?.username || '你')}</span><span class="message-time">现在</span></div>${body}<div class="pending-status" role="status" aria-live="polite"></div></div>`;
+        const body = item.kind === 'image' ? `<img class="pending-image" src="${escapeHtml(item.image.src)}" alt="${escapeHtml(t('pending.imageAlt'))}">` : `<div class="message-body">${textMarkup(item.text, item.mentions)}</div>`;
+        node.innerHTML = `<div class="message-avatar">${avatarMarkup(self || { username: t('people.self'), avatarSeed }, '', false)}</div><div class="message-main"><div class="message-meta"><span class="message-author">${escapeHtml(self?.username || t('people.self'))}</span><span class="message-time">${escapeHtml(t('pending.now'))}</span></div>${body}<div class="pending-status" role="status" aria-live="polite"></div></div>`;
         hydrateIcons(node);
         pendingNodes.set(item.id, node);
         messageList.append(node);
       }
       const status = node.querySelector('.pending-status');
-      const label = item.status === 'sending' ? '等待房间确认…' : item.status === 'accepted' ? '房间已接收' : item.status === 'error' ? '发送失败，可重试' : '暂未确认，可重试';
+      const label = item.status === 'sending' ? t('pending.sending')
+        : item.status === 'accepted' ? t('pending.accepted')
+          : item.status === 'error' ? t('pending.error') : t('pending.unconfirmed');
       status.classList.toggle('error', item.status === 'error' || item.status === 'unconfirmed');
-      status.innerHTML = `<span>${label}</span>${item.status === 'error' || item.status === 'unconfirmed' ? `<button type="button" class="pending-retry" data-pending-id="${escapeHtml(item.id)}">重试</button>` : ''}`;
+      status.innerHTML = `<span>${escapeHtml(label)}</span>${item.status === 'error' || item.status === 'unconfirmed' ? `<button type="button" class="pending-retry" data-pending-id="${escapeHtml(item.id)}">${escapeHtml(t('pending.retry'))}</button>` : ''}`;
       if (scroll && isNearBottom(messageScroll)) messageScroll.scrollTop = messageScroll.scrollHeight;
     }
 
@@ -160,7 +163,7 @@
         const placeholder = document.createElement('div');
         placeholder.className = 'message-empty';
         placeholder.hidden = document.documentElement.classList.contains('resuming') || Boolean(channel?.welcome);
-        placeholder.innerHTML = '<span class="message-empty-mark" aria-hidden="true">语</span><strong>频道刚刚打开</strong><p>先打个招呼吧。这里的每句话，都只活在这次服务运行期间。</p>';
+        placeholder.innerHTML = `<span class="message-empty-mark" aria-hidden="true">${escapeHtml(t('empty.mark'))}</span><strong>${escapeHtml(t('empty.title'))}</strong><p>${escapeHtml(t('empty.copy'))}</p>`;
         messageList.append(placeholder);
       } else {
         let lastDay = '';
@@ -172,7 +175,7 @@
         }
         messageList.append(fragment);
       }
-      messageCount.textContent = `${messages.length} 条消息`;
+      messageCount.textContent = t('chat.messagesCount', { count: messages.length });
       const pending = Object.values(state.pending || {});
       for (const item of pending) paintPending(item, false);
       if (!messages.length && !pending.length) return;
@@ -200,7 +203,7 @@
       const reactions = message?.reactions || {};
       reactionChoices.innerHTML = REACTION_EMOJIS.map((emoji) => {
         const active = Boolean(reactions[emoji]?.userIds?.includes(getSelf()?.id));
-        return `<button class="reaction-choice${active ? ' active' : ''}" type="button" data-emoji="${escapeHtml(emoji)}" aria-label="${escapeHtml(emoji)}${active ? '，取消回应' : ''}" aria-pressed="${active}">${escapeHtml(emoji)}</button>`;
+        return `<button class="reaction-choice${active ? ' active' : ''}" type="button" data-emoji="${escapeHtml(emoji)}" aria-label="${escapeHtml(active ? t('reaction.choiceOff', { emoji }) : emoji)}" aria-pressed="${active}">${escapeHtml(emoji)}</button>`;
       }).join('');
     }
 

@@ -40,13 +40,14 @@
     }
     return ranges;
   }
-  function renderMentionText(text, mentions, escape = escapeHtml, selfId) {
+  function renderMentionText(text, mentions, escape = escapeHtml, selfId, t) {
     const value = String(text ?? '');
     let cursor = 0;
     let output = '';
     for (const mention of mentionRanges(value, mentions)) {
       output += escape(value.slice(cursor, mention.start));
-      output += `<button class="message-mention${mention.id === selfId ? ' mention-self' : ''}" type="button" data-user-id="${escape(mention.id)}" aria-label="提及 ${escape(mention.username)}">${escape(value.slice(mention.start, mention.end))}</button>`;
+      const aria = t ? t('mention.aria', { name: mention.username }) : `提及 ${mention.username}`;
+      output += `<button class="message-mention${mention.id === selfId ? ' mention-self' : ''}" type="button" data-user-id="${escape(mention.id)}" aria-label="${escape(aria)}">${escape(value.slice(mention.start, mention.end))}</button>`;
       cursor = mention.end;
     }
     return output + escape(value.slice(cursor));
@@ -71,7 +72,8 @@
   }
 
   function createMentions({ elements, getUsers = () => [], getSelf = () => null,
-    isReady = () => true, avatarMarkup = () => '', onOpen = () => {}, onLimit = () => {}, onCandidates = () => {} }) {
+    isReady = () => true, avatarMarkup = () => '', onOpen = () => {}, onLimit = () => {},
+    onCandidates = () => {}, t = (key) => key }) {
     const { composerText, mentionPopover, mentionList, mentionButton, mentionStatus } = elements;
     const document = composerText.ownerDocument;
     const window = document.defaultView;
@@ -128,11 +130,11 @@
     }
     function render() {
       mentionList.replaceChildren();
-      mentionStatus.textContent = candidates.length ? `${candidates.length} 位频道成员` : '没有匹配的成员';
+      mentionStatus.textContent = candidates.length ? t('mention.count', { count: candidates.length }) : t('mention.none');
       if (!candidates.length) {
         const empty = document.createElement('div');
         empty.className = 'mention-empty';
-        empty.textContent = '换个名字试试，或按 Esc 继续输入';
+        empty.textContent = t('mention.empty');
         mentionList.append(empty);
       }
       candidates.forEach((user, index) => {
@@ -143,7 +145,7 @@
         option.className = 'mention-option';
         option.dataset.userId = user.id;
         option.setAttribute('role', 'option');
-        option.innerHTML = `${avatarMarkup(user, '', false)}<span class="mention-option-name">${escapeHtml(user.username)}</span><span class="mention-option-hint">${user.id === getSelf()?.id ? '你' : '↵'}</span>`;
+        option.innerHTML = `${avatarMarkup(user, '', false)}<span class="mention-option-name">${escapeHtml(user.username)}</span><span class="mention-option-hint">${user.id === getSelf()?.id ? t('mention.you') : '↵'}</span>`;
         mentionList.append(option);
       });
       position();

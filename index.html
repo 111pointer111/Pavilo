@@ -18,20 +18,20 @@
 <body>
   <div class="login-screen" id="loginScreen" aria-hidden="false">
     <section class="login-card" role="dialog" aria-modal="true" aria-labelledby="loginTitle" aria-describedby="loginCopy">
-      <div class="login-flag">LAN / ephemeral room</div>
-      <h1 id="loginTitle">进场，<br>只留当下。</h1>
-      <p class="login-copy" id="loginCopy">这是一个同一局域网里的临时房间。输入名字就能加入；服务停止后，消息、头像和在线状态一起消失。</p>
+      <div class="login-flag" data-i18n="login.flag">LAN / ephemeral room</div>
+      <h1 id="loginTitle" data-i18n-html="login.title">进场，<br>只留当下。</h1>
+      <p class="login-copy" id="loginCopy" data-i18n="login.copy">这是一个同一局域网里的临时房间。输入名字就能加入；服务停止后，消息、头像和在线状态一起消失。</p>
       <form class="login-form" id="loginForm">
-        <label class="login-label" for="usernameInput">你的名字</label>
+        <label class="login-label" for="usernameInput" data-i18n="login.label">你的名字</label>
         <div class="login-row">
           <input class="login-input" id="usernameInput" name="username" maxlength="24" autocomplete="nickname" placeholder="例如：北岸的猫" required>
-          <button class="enter-button" type="submit">进入频道</button>
+          <button class="enter-button" type="submit" data-i18n="login.submit">进入频道</button>
         </div>
         <p class="login-error" id="loginError" role="alert"></p>
       </form>
       <p class="login-foot">
         <span class="icon" data-icon="shield-check" data-icon-size="15" aria-hidden="true"></span>
-        不写入磁盘 · 不上传公网 · 仅在本次服务进程内存在
+        <span data-i18n="login.foot">不写入磁盘 · 不上传公网 · 仅在本次服务进程内存在</span>
       </p>
     </section>
   </div>
@@ -48,10 +48,14 @@
         <span class="brand-name">Pavilo</span>
       </a>
       <div class="room-center">
-        <p class="room-kicker" id="roomKicker">临时房间</p>
-        <p class="room-title" id="roomTitle">语亭 · 临时频道</p>
+        <p class="room-kicker" id="roomKicker" data-i18n="room.kicker">临时房间</p>
+        <p class="room-title" id="roomTitle" data-i18n="room.defaultTitle">语亭 · 临时频道</p>
       </div>
       <div class="top-actions">
+        <button class="top-action" id="languageButton" type="button" title="语言" aria-label="语言">
+          <span class="icon" data-icon="languages" data-icon-size="15" aria-hidden="true"></span>
+          <span class="top-action-label" id="languageButtonLabel">语言</span>
+        </button>
         <button class="top-action" id="copyLinkButton" type="button" title="分享或复制局域网地址">
           <span class="icon" data-icon="link-2" data-icon-size="15" aria-hidden="true"></span>
           <span class="top-action-label">分享地址</span>
@@ -75,41 +79,41 @@
       <aside class="rail">
         <div class="channel-block">
           <div class="channel-heading">
-            <p class="section-label">频道</p>
+            <p class="section-label" data-i18n="channels.heading">频道</p>
             <span class="channel-count" id="channelCount" hidden>01</span>
           </div>
           <nav class="channel-list" id="channelList" aria-label="频道列表"></nav>
         </div>
         <div class="ephemeral-note">
-          <strong>只在此刻</strong>
-          <p>消息保存在内存里。服务一停，房间回到空白。</p>
-          <code>NO DATABASE / NO TRACE</code>
+          <strong data-i18n="ephemeral.strong">只在此刻</strong>
+          <p data-i18n="ephemeral.copy">消息保存在内存里。服务一停，房间回到空白。</p>
+          <code data-i18n="ephemeral.code">NO DATABASE / NO TRACE</code>
         </div>
       </aside>
 
       <section class="chat" aria-labelledby="roomHeading">
         <header class="chat-header">
           <div class="chat-heading">
-            <p class="section-label">OPEN ROOM · 可信网络可见</p>
+            <p class="section-label" data-i18n="room.openLabel">OPEN ROOM · 可信网络可见</p>
             <h1 id="roomHeading">闲聊 · general</h1>
-            <p class="chat-subline"><span class="live-dot" id="connectionDot"></span><span id="connectionText" role="status" aria-live="polite" aria-atomic="true">连接中…</span><span aria-hidden="true">·</span><span id="messageCount">0 条消息</span></p>
+            <p class="chat-subline"><span class="live-dot" id="connectionDot"></span><span id="connectionText" role="status" aria-live="polite" aria-atomic="true" data-i18n="chat.connecting">连接中…</span><span aria-hidden="true">·</span><span id="messageCount" data-i18n="chat.messagesZero">0 条消息</span></p>
           </div>
           <select class="mobile-channel-picker" id="mobileChannelPicker" aria-label="切换频道" disabled></select>
-          <div class="room-privacy" id="channelDescription">同一 Wi‑Fi 的人可以看见这里<br>头像是随机的，不代表身份</div>
+          <div class="room-privacy" id="channelDescription" data-i18n-html="room.privacyNote">同一 Wi‑Fi 的人可以看见这里<br>头像是随机的，不代表身份</div>
         </header>
 
         <div class="message-scroll" id="messageScroll" tabindex="0" role="log" aria-live="polite" aria-relevant="additions" aria-label="消息列表">
-          <button class="new-message-jump" id="newMessageJump" type="button" hidden aria-label="回到底部查看新消息"><span id="newMessageCount">0</span> 条新消息 ↓</button>
+          <button class="new-message-jump" id="newMessageJump" type="button" hidden aria-label="回到底部查看新消息"><span id="newMessageCount">0</span><span data-i18n="chat.newSuffix"> 条新消息 ↓</span></button>
           <div class="message-list" id="messageList"></div>
         </div>
         <div class="typing-line" id="typingLine" aria-live="polite"></div>
         <div class="composer-wrap">
           <div class="channel-readonly-notice" id="channelReadonlyNotice" hidden>
             <span class="icon" data-icon="megaphone" aria-hidden="true"></span>
-            <span>这是一个只读频道，你可以查看和回应表情，但无法发送消息。</span>
+            <span data-i18n="readonly.notice">这是一个只读频道，你可以查看和回应表情，但无法发送消息。</span>
           </div>
           <div class="replying" id="replyingBar" hidden>
-            <span class="replying-copy">回复 <strong id="replyingName"></strong>：<span id="replyingText"></span></span>
+            <span class="replying-copy"><span data-i18n="reply.prefix">回复</span> <strong id="replyingName"></strong>：<span id="replyingText"></span></span>
             <button class="cancel-reply" id="cancelReplyButton" type="button" aria-label="取消回复">
               <span class="icon" data-icon="x" aria-hidden="true"></span>
             </button>
@@ -128,33 +132,33 @@
             </div>
             <textarea class="composer-text" id="composerText" rows="1" maxlength="2000" enterkeyhint="send" placeholder="说点什么… 输入 @ 提及成员" aria-label="消息内容" aria-autocomplete="list" aria-controls="mentionList" aria-expanded="false" aria-describedby="composerHint"></textarea>
             <button class="send-button" id="sendButton" type="submit" disabled>
-              发送
+              <span data-i18n="composer.send">发送</span>
               <span class="icon" data-icon="send" data-icon-size="14" aria-hidden="true"></span>
             </button>
             <input id="imageInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
           </form>
-          <p class="composer-hint" id="composerHint">Enter 发送 · Shift + Enter 换行 · @ 提及成员</p>
+          <p class="composer-hint" id="composerHint" data-i18n="composer.hint">Enter 发送 · Shift + Enter 换行 · @ 提及成员</p>
         </div>
       </section>
 
       <aside class="info-panel">
         <div class="people-heading">
-          <p class="section-label">在线成员</p>
+          <p class="section-label" data-i18n="people.heading">在线成员</p>
           <span class="people-count" id="peopleCount">0 在线</span>
         </div>
         <div class="people-list" id="peopleList"></div>
         <div class="info-card">
-          <p class="section-label">个人信息</p>
-          <p class="profile-empty" id="profileEmpty">点击头像，查看这个人的临时资料。</p>
+          <p class="section-label" data-i18n="profile.heading">个人信息</p>
+          <p class="profile-empty" id="profileEmpty" data-i18n="profile.empty">点击头像，查看这个人的临时资料。</p>
           <div class="profile" id="profile" hidden>
             <div class="profile-top">
               <div id="profileAvatar"></div>
               <div><h2 class="profile-name" id="profileName"></h2><p class="profile-you" id="profileYou"></p></div>
             </div>
             <dl class="profile-fields">
-              <div class="profile-field"><dt>IP</dt><dd id="profileIp"></dd></div>
-              <div class="profile-field"><dt>在线时长</dt><dd id="profileDuration"></dd></div>
-              <div class="profile-field"><dt>加入时间</dt><dd id="profileJoined"></dd></div>
+              <div class="profile-field"><dt data-i18n="profile.ip">IP</dt><dd id="profileIp"></dd></div>
+              <div class="profile-field"><dt data-i18n="profile.duration">在线时长</dt><dd id="profileDuration"></dd></div>
+              <div class="profile-field"><dt data-i18n="profile.joined">加入时间</dt><dd id="profileJoined"></dd></div>
             </dl>
           </div>
         </div>
@@ -165,7 +169,7 @@
   <button class="mobile-sheet-backdrop" id="mobileSheetBackdrop" type="button" aria-label="关闭成员面板" hidden aria-hidden="true"></button>
   <aside class="mobile-sheet" id="mobileSheet" aria-labelledby="mobileSheetTitle" aria-modal="true" role="dialog" hidden aria-hidden="true">
     <header class="mobile-sheet-header">
-      <div><p class="section-label">语亭频道</p><h2 class="mobile-sheet-title" id="mobileSheetTitle">在线成员</h2></div>
+      <div><p class="section-label" data-i18n="sheet.kicker">语亭频道</p><h2 class="mobile-sheet-title" id="mobileSheetTitle" data-i18n="sheet.title">在线成员</h2></div>
       <button class="mobile-sheet-close" id="mobileSheetClose" type="button" aria-label="关闭成员面板">
         <span class="icon" data-icon="x" aria-hidden="true"></span>
       </button>
@@ -178,9 +182,9 @@
     <div class="reaction-choice-grid" id="reactionChoices" role="group" aria-label="表情回应"></div>
   </div>
   <div class="mention-popover" id="mentionPopover" hidden>
-    <div class="mention-heading"><strong>提及成员</strong><span id="mentionStatus" role="status" aria-live="polite"></span></div>
+    <div class="mention-heading"><strong data-i18n="mention.heading">提及成员</strong><span id="mentionStatus" role="status" aria-live="polite"></span></div>
     <div class="mention-list" id="mentionList" role="listbox" aria-label="提及成员"></div>
-    <div class="mention-footer">↑ ↓ 选择 <span>Enter 确认 · Esc 取消</span></div>
+    <div class="mention-footer"><span data-i18n="mention.footer">↑ ↓ 选择</span> <span data-i18n="mention.keys">Enter 确认 · Esc 取消</span></div>
   </div>
   <div class="composer-popover" id="composerPopover" hidden>
     <emoji-picker id="composerPicker" locale="zh" data-source="/vendor/emoji-picker/data.json"></emoji-picker>
@@ -232,7 +236,7 @@
         <span id="viewerDimension"></span>
         <span id="viewerIndex"></span>
       </div>
-      <span class="viewer-note">只在此刻 · 刷新后不保留</span>
+      <span class="viewer-note" data-i18n="viewer.note">只在此刻 · 刷新后不保留</span>
     </footer>
   </div>
 
@@ -252,6 +256,7 @@
   <script src="/client/composer.js"></script>
   <script src="/client/notifications.js"></script>
   <script src="/client/error-states.js"></script>
+  <script src="/client/i18n.js"></script>
   <script src="/client/app.js"></script>
   <script type="module">
     import '/vendor/emoji-picker/index.js';

@@ -11,7 +11,7 @@
   };
 
   function createOverlays({ elements, getState, avatarMarkup, escapeHtml,
-    formatTime, formatDay, formatDuration }) {
+    formatTime, formatDay, formatDuration, t = (key) => key }) {
     const { peopleList, mobilePeopleList, peopleCount, messageCount,
       profile, profileEmpty, profileAvatar, profileName, profileYou, profileIp,
       profileDuration, profileJoined, mobileProfile, mobileSheet,
@@ -57,19 +57,19 @@
         (user) => `${user.id}:${user.username}:${user.avatarSeed ?? ''}`)
         || lastPeopleSelfId !== selfId || lastPeopleSelectedId !== selectedId;
       if (rebuild) {
-        const markup = users.length ? users.map((user) => `<div class="person${user.id === selectedUserId ? ' selected' : ''}" data-person-id="${escapeHtml(user.id)}" tabindex="0" role="button" aria-label="查看 ${escapeHtml(user.username)} 的个人信息">
+        const markup = users.length ? users.map((user) => `<div class="person${user.id === selectedUserId ? ' selected' : ''}" data-person-id="${escapeHtml(user.id)}" tabindex="0" role="button" aria-label="${escapeHtml(t('people.aria', { name: user.username }))}">
         ${avatarMarkup(user, '', false)}
-        <div><span class="person-name">${escapeHtml(user.username)}${user.id === state.self?.id ? ' · 你' : ''}</span><span class="person-status">在线</span></div>
-      </div>`).join('') : '<p class="people-empty">还没有人在线。</p>';
+        <div><span class="person-name">${escapeHtml(user.username)}${user.id === state.self?.id ? escapeHtml(t('people.you')) : ''}</span><span class="person-status">${escapeHtml(t('people.status'))}</span></div>
+      </div>`).join('') : `<p class="people-empty">${escapeHtml(t('people.empty'))}</p>`;
         peopleList.innerHTML = markup;
         mobilePeopleList.innerHTML = markup;
         lastPeople = users;
         lastPeopleSelfId = selfId;
         lastPeopleSelectedId = selectedId;
       }
-      const countLabel = `${users.length} 在线`;
+      const countLabel = t('people.count', { count: users.length });
       if (peopleCount.textContent !== countLabel) peopleCount.textContent = countLabel;
-      const messageLabel = `${(state.messages || []).length} 条消息`;
+      const messageLabel = t('chat.messagesCount', { count: (state.messages || []).length });
       if (messageCount.textContent !== messageLabel) messageCount.textContent = messageLabel;
       const selected = selectedUserId && userById(selectedUserId, state);
       if (selected) renderProfile(selected, state);
@@ -84,8 +84,8 @@
         return;
       }
       selectedUserId = user.id;
-      const you = user.id === state.self?.id ? '这是你 · 本机连接' : '在语亭频道里';
-      const ip = user.ip || '仅服务端可见';
+      const you = user.id === state.self?.id ? t('profile.you') : t('profile.other');
+      const ip = user.ip || t('profile.ipHidden');
       const duration = formatDuration(user.joinedAt);
       const joined = formatTime(user.joinedAt);
       profileEmpty.hidden = true;
@@ -98,11 +98,11 @@
       profileJoined.textContent = joined;
       mobileProfile.classList.add('open');
       mobileProfile.innerHTML = `<div class="profile">
-        <div class="profile-top">${avatarMarkup(user, '', false)}<div><h3 class="profile-name">${escapeHtml(user.username)}</h3><p class="profile-you">${you}</p></div></div>
+        <div class="profile-top">${avatarMarkup(user, '', false)}<div><h3 class="profile-name">${escapeHtml(user.username)}</h3><p class="profile-you">${escapeHtml(you)}</p></div></div>
         <dl class="profile-fields">
-          <div class="profile-field"><dt>IP</dt><dd>${escapeHtml(ip)}</dd></div>
-          <div class="profile-field"><dt>在线时长</dt><dd>${escapeHtml(duration)}</dd></div>
-          <div class="profile-field"><dt>加入时间</dt><dd>${escapeHtml(joined)}</dd></div>
+          <div class="profile-field"><dt>${escapeHtml(t('profile.ip'))}</dt><dd>${escapeHtml(ip)}</dd></div>
+          <div class="profile-field"><dt>${escapeHtml(t('profile.duration'))}</dt><dd>${escapeHtml(duration)}</dd></div>
+          <div class="profile-field"><dt>${escapeHtml(t('profile.joined'))}</dt><dd>${escapeHtml(joined)}</dd></div>
         </dl>
       </div>`;
       for (const list of [peopleList, mobilePeopleList]) {
@@ -191,7 +191,7 @@
     function viewerUpdateChrome() {
       const item = viewerItems[viewerIndexNow];
       if (!item) return;
-      viewerImage.alt = `${item.author.username} 分享的图片`;
+      viewerImage.alt = t('image.alt', { name: item.author.username });
       viewerAuthor.textContent = item.author.username;
       viewerAvatar.innerHTML = avatarMarkup(item.author, '', false);
       viewerWhen.textContent = `${formatDay(item.message.createdAt)} ${formatTime(item.message.createdAt)}`;
@@ -199,7 +199,7 @@
       const multiple = viewerItems.length > 1;
       viewerPrev.hidden = !multiple;
       viewerNext.hidden = !multiple;
-      viewerIndex.textContent = multiple ? `第 ${viewerIndexNow + 1} / ${viewerItems.length} 张` : '';
+      viewerIndex.textContent = multiple ? t('viewer.index', { current: viewerIndexNow + 1, total: viewerItems.length }) : '';
       viewerDownload.href = item.message.image.src;
       viewerDownload.download = `pavilo-${item.message.id}.png`;
     }
@@ -211,7 +211,7 @@
       viewerMeta = { width: Number(item.message.image.width) || 1, height: Number(item.message.image.height) || 1, scale: 1, rotation: 0 };
       viewerImage.dataset.loaded = 'false';
       viewerImage.removeAttribute('src');
-      viewerShowStatus('loader-circle', '正在载入图片…', true);
+      viewerShowStatus('loader-circle', t('viewer.loading'), true);
       viewerUpdateChrome();
       viewerSetScale(1);
       viewerImage.src = item.message.image.src;
@@ -225,7 +225,7 @@
       const state = getState();
       const items = (state.messages || [])
         .filter((message) => message.kind === 'image' && message.image?.src)
-        .map((message) => ({ message, author: message.author || state.self || { username: '未知成员', avatarSeed: 0 } }));
+        .map((message) => ({ message, author: message.author || state.self || { username: t('people.unknown'), avatarSeed: 0 } }));
       const index = items.findIndex((item) => item.message.id === messageId);
       if (index === -1) return;
       viewerItems = items;
@@ -294,7 +294,7 @@
       }
       if (peopleChanged || reset) renderPeople(next);
       else {
-        const messageLabel = `${(next.messages || []).length} 条消息`;
+        const messageLabel = t('chat.messagesCount', { count: (next.messages || []).length });
         if (messageCount.textContent !== messageLabel) messageCount.textContent = messageLabel;
       }
       if (profileTimer === null && next.connection?.joined) profileTimer = window.setInterval(updateProfileDuration, 1000);
@@ -328,7 +328,7 @@
     listen(viewerImage, 'error', () => {
       if (!viewerImage.getAttribute('src')) return;
       viewerShowStatus('circle-alert', '');
-      viewerStatus.innerHTML = `${statusIcon('circle-alert')}<p class="viewer-error">这张图片没能载入。它可能已经随着临时历史一起消失了。</p>`;
+      viewerStatus.innerHTML = `${statusIcon('circle-alert')}<p class="viewer-error">${escapeHtml(t('viewer.error'))}</p>`;
       viewerSetScale(viewerMeta?.scale ?? 1);
     });
     listen(viewerZoomIn, 'click', () => viewerSetScale((viewerMeta?.scale ?? 1) * 1.25));

@@ -87,6 +87,8 @@ test('serves the room, health, and room metadata over GET and HEAD', async (t) =
   assert.equal(metadata.roomEpoch, app.roomEpoch);
   assert.equal(metadata.localUrl, `http://localhost:${port}`);
   assert.equal(metadata.ephemeral, true);
+  assert.equal(metadata.defaultLanguage, 'zh-CN');
+  assert.deepEqual(metadata.supportedLanguages, ['zh-CN', 'en']);
   assert.ok(Array.isArray(metadata.lanUrls));
 
   const roomInfoHead = await fetch(`${baseUrl}/room-info`, { method: 'HEAD' });

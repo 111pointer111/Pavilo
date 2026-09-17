@@ -8,6 +8,7 @@ const composerApi = require('../client/composer');
 const { createComposer, MAX_PENDING, MAX_PENDING_IMAGE_BYTES, TYPING_INTERVAL, TYPING_EXPIRY } = composerApi;
 const { createInitialState, createStore } = require('../client/state');
 const { createPendingQueue } = require('../client/pending');
+const { createI18n } = require('../client/i18n');
 
 function deferred() {
   let resolve;
@@ -83,7 +84,8 @@ function harness(options = {}) {
     connection: { isReady: () => ready, send(command) { commands.push(command); return options.send ? options.send(command) : sendResult; } },
     pending, images: { prepareImage(file) { prepared.push(file); return options.prepare ? options.prepare(file) : Promise.resolve(image); } },
     toast: (...args) => toasts.push(args), clearReply: () => { clearCount += 1; },
-    getReplyTarget: () => replyTarget, setReplyTarget: (value) => { replyTarget = value; }, getLimits: () => limits });
+    getReplyTarget: () => replyTarget, setReplyTarget: (value) => { replyTarget = value; }, getLimits: () => limits,
+    t: createI18n({ language: 'zh-CN', storage: null }).t });
   return { composer, elements, store, actions, commands, toasts, pending, timers, prepared, image, listeners,
     get reply() { return replyTarget; }, get clearCount() { return clearCount; },
     setReady(value) { ready = value; }, setSendResult(value) { sendResult = value; }, setLimits(value) { limits = value; },

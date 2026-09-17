@@ -2,6 +2,8 @@
   'use strict';
 
   const { PROTOCOL_VERSION, parseServerEvent, DEFERRED_EVENTS } = PaviloProtocol;
+  const i18n = PaviloI18n.createI18n();
+  const t = (key, vars) => i18n.t(key, vars);
   const store = PaviloState.createStore();
   const pendingQueue = PaviloPending.createPendingQueue();
   const { draftMatches } = PaviloPending;
@@ -23,8 +25,11 @@
   let channelRenderKey = '';
   let composerPopoverOpen = false;
   let errorController = null;
+  let lastConnection = { online: false, key: 'chat.connecting', vars: null, variant: 'connecting' };
 
   const $ = (selector) => document.querySelector(selector);
+  const languageButton = $('#languageButton');
+  const languageButtonLabel = $('#languageButtonLabel');
   const loginScreen = $('#loginScreen');
   const appShell = $('#appShell');
   const loginForm = $('#loginForm');
@@ -91,7 +96,7 @@
     const initial = escapeHtml((user.username || '?').slice(0, 1).toUpperCase());
     const tag = interactive ? 'button' : 'span';
     const attributes = interactive
-      ? ` type="button" data-user-id="${escapeHtml(user.id || '')}" aria-label="查看 ${escapeHtml(user.username || '?')} 的个人信息"`
+      ? ` type="button" data-user-id="${escapeHtml(user.id || '')}" aria-label="${escapeHtml(t('people.aria', { name: user.username || '?' }))}"`
       : ' aria-hidden="true"';
     return `<${tag} class="avatar ${sizeClass}"${attributes} style="--avatar-bg:${colors[0]};--avatar-ink:${colors[1]};--avatar-accent:${colors[2]}">
       <svg viewBox="0 0 48 48" aria-hidden="true">
@@ -106,8 +111,12 @@
     </${tag}>`;
   }
 
+  function localeTag() {
+    return i18n.language === 'en' ? 'en' : 'zh-CN';
+  }
+
   function formatTime(timestamp) {
-    return new Intl.DateTimeFormat('zh-CN', {
+    return new Intl.DateTimeFormat(localeTag(), {
       hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
     }).format(new Date(timestamp));
   }
@@ -117,19 +126,19 @@
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(today.getDate() - 1);
-    const key = date.toLocaleDateString('zh-CN');
-    if (key === today.toLocaleDateString('zh-CN')) return '今天';
-    if (key === yesterday.toLocaleDateString('zh-CN')) return '昨天';
-    return `${date.getMonth() + 1} 月 ${date.getDate()} 日`;
+    const key = date.toLocaleDateString(localeTag());
+    if (key === today.toLocaleDateString(localeTag())) return t('day.today');
+    if (key === yesterday.toLocaleDateString(localeTag())) return t('day.yesterday');
+    return t('day.date', { month: date.getMonth() + 1, day: date.getDate() });
   }
 
   function formatDuration(joinedAt) {
     const seconds = Math.max(0, Math.floor((Date.now() - joinedAt) / 1_000));
-    if (seconds < 60) return `${seconds} 秒`;
+    if (seconds < 60) return t('time.seconds', { n: seconds });
     const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes} 分钟`;
+    if (minutes < 60) return t('time.minutes', { n: minutes });
     const hours = Math.floor(minutes / 60);
-    return `${hours} 小时 ${minutes % 60} 分钟`;
+    return t('time.hours', { h: hours, m: minutes % 60 });
   }
 
   function positiveLimit(value, fallback) {
@@ -141,9 +150,92 @@
     return roomChannels.find((channel) => channel.id === channelId) || null;
   }
 
+  function hasStoredLanguage() {
+    try { return Boolean(globalThis.localStorage?.getItem(PaviloI18n.STORAGE_KEY)); }
+    catch { return false; }
+  }
+
+  function notifyButtonMode() {
+    if (!window.isSecureContext || !('Notification' in window)) return 'unavailable';
+    if (window.Notification.permission === 'granted') return 'on';
+    if (window.Notification.permission === 'denied') return 'denied';
+    return 'off';
+  }
+
+  function applyStaticCopy() {
+    document.documentElement.lang = t('html.lang');
+    document.title = t('brand.title');
+    const picker = $('#composerPicker');
+    if (picker) picker.setAttribute('locale', i18n.language === 'en' ? 'en' : 'zh');
+    for (const node of document.querySelectorAll('[data-i18n]')) {
+      if (node.id === 'messageCount' || node.id === 'connectionText') continue;
+      node.textContent = t(node.dataset.i18n);
+    }
+    for (const node of document.querySelectorAll('[data-i18n-html]')) {
+      node.innerHTML = t(node.dataset.i18nHtml);
+    }
+    usernameInput.placeholder = t('login.placeholder');
+    composerText.placeholder = t('composer.placeholder');
+    composerText.setAttribute('aria-label', t('composer.aria'));
+    emojiButton.setAttribute('aria-label', t('composer.emoji'));
+    $('#mentionButton')?.setAttribute('aria-label', t('composer.mention'));
+    $('#mentionButton')?.setAttribute('title', t('composer.mentionTitle'));
+    $('#attachmentButton')?.setAttribute('aria-label', t('composer.attach'));
+    copyLinkButton.setAttribute('title', t('top.shareTitle'));
+    $('#membersButton')?.setAttribute('title', t('top.membersTitle'));
+    $('#membersButton')?.setAttribute('aria-label', t('top.membersTitle'));
+    leaveButton.setAttribute('title', t('top.leaveTitle'));
+    $('#cancelReplyButton')?.setAttribute('aria-label', t('reply.cancel'));
+    $('#channelList')?.setAttribute('aria-label', t('channels.nav'));
+    mobileChannelPicker.setAttribute('aria-label', t('channels.mobile'));
+    $('#mentionList')?.setAttribute('aria-label', t('mention.list'));
+    $('#reactionChoices')?.setAttribute('aria-label', t('reaction.group'));
+    $('#toastRegion')?.setAttribute('aria-label', t('toast.region'));
+    $('#newMessageJump')?.setAttribute('aria-label', t('chat.newJump'));
+    $('#messageScroll')?.setAttribute('aria-label', t('chat.log'));
+    $('#chat')?.setAttribute('aria-label', t('workspace.aria'));
+    $('.brand')?.setAttribute('aria-label', t('brand.aria'));
+    languageButton?.setAttribute('title', t('language.switch'));
+    languageButton?.setAttribute('aria-label', t('language.switch'));
+    if (languageButtonLabel) languageButtonLabel.textContent = i18n.language === 'en' ? t('language.zh') : t('language.en');
+    const leaveLabel = leaveButton.querySelector('.top-action-label');
+    if (leaveLabel && !leaveButton.classList.contains('confirming')) leaveLabel.textContent = t('top.leave');
+    const shareLabel = copyLinkButton.querySelector('.top-action-label');
+    if (shareLabel) shareLabel.textContent = t('top.share');
+    const membersLabel = $('#membersButton')?.querySelector('.top-action-label');
+    if (membersLabel) membersLabel.textContent = t('top.members');
+    notificationsController?.paintNotifyButton?.(notifyButtonMode());
+    if (errorController && lastConnection) {
+      errorController.setConnectionStatus(lastConnection.online, t(lastConnection.key, lastConnection.vars), lastConnection.variant);
+    }
+    $('#mobileSheetBackdrop')?.setAttribute('aria-label', t('sheet.close'));
+    $('#mobileSheetClose')?.setAttribute('aria-label', t('sheet.close'));
+    $('#viewerClose')?.setAttribute('aria-label', t('viewer.close'));
+    $('#viewerClose')?.setAttribute('title', t('viewer.closeTitle'));
+    $('#viewerPrev')?.setAttribute('aria-label', t('viewer.prev'));
+    $('#viewerPrev')?.setAttribute('title', t('viewer.prevTitle'));
+    $('#viewerNext')?.setAttribute('aria-label', t('viewer.next'));
+    $('#viewerNext')?.setAttribute('title', t('viewer.nextTitle'));
+    $('#viewerZoomIn')?.setAttribute('aria-label', t('viewer.zoomIn'));
+    $('#viewerZoomIn')?.setAttribute('title', t('viewer.zoomInTitle'));
+    $('#viewerZoomOut')?.setAttribute('aria-label', t('viewer.zoomOut'));
+    $('#viewerZoomOut')?.setAttribute('title', t('viewer.zoomOutTitle'));
+    $('#viewerRotate')?.setAttribute('aria-label', t('viewer.rotate'));
+    $('#viewerRotate')?.setAttribute('title', t('viewer.rotateTitle'));
+    $('#viewerReset')?.setAttribute('aria-label', t('viewer.reset'));
+    $('#viewerReset')?.setAttribute('title', t('viewer.resetTitle'));
+    $('#viewerDownload')?.setAttribute('aria-label', t('viewer.download'));
+    $('#viewerDownload')?.setAttribute('title', t('viewer.downloadTitle'));
+    overlaysController?.renderPeople(store.getState());
+    composerController?.update();
+    renderChannels();
+    renderTyping();
+  }
+
   // 连接状态指示器的唯一写入点。errorController 建立后由其统一维护状态色与文案。
-  function setConnection(online, label, variant = 'default') {
-    errorController.setConnectionStatus(online, label, variant);
+  function setConnection(online, key, variant = 'default', vars) {
+    lastConnection = { online, key, variant, vars };
+    errorController.setConnectionStatus(online, t(key, vars), variant);
   }
 
   function showChat() {
@@ -174,17 +266,17 @@
 
   function renderChannelChrome(state = store.getState()) {
     const channel = channelById(state.channelId || selectedChannelId);
-    $('#roomTitle').textContent = roomInfo?.roomTitle || '语亭 · 临时频道';
+    $('#roomTitle').textContent = roomInfo?.roomTitle || t('room.defaultTitle');
     if (!channel) return;
     $('#roomHeading').textContent = `${channel.name} · ${channel.id}`;
     const channelIndex = roomChannels.indexOf(channel);
     const totalChannels = roomChannels.length;
     if (totalChannels > 1) {
-      $('#roomKicker').textContent = `频道 ${channelIndex + 1} / ${totalChannels}`;
+      $('#roomKicker').textContent = t('room.kickerCount', { index: channelIndex + 1, total: totalChannels });
     } else {
-      $('#roomKicker').textContent = '临时房间';
+      $('#roomKicker').textContent = t('room.kicker');
     }
-    channelDescription.textContent = channel.description || '同一 Wi‑Fi 的人可以看见这里';
+    channelDescription.innerHTML = channel.description ? escapeHtml(channel.description) : t('room.privacyNote');
   }
 
   function updateChannelOccupancy(state = store.getState()) {
@@ -196,9 +288,11 @@
       const count = known ? online : 0;
       const full = known && count >= channel.maxUsers;
       const ariaLabel = known
-        ? `${count} 人在线，最多 ${channel.maxUsers} 人${full ? '，已满' : ''}`
-        : `在线人数同步中，最多 ${channel.maxUsers} 人`;
-      const title = known ? `${count} 人在线 / 最多 ${channel.maxUsers} 人${full ? ' · 已满' : ''}` : '在线人数同步中';
+        ? t('channels.occupancyKnown', { count, max: channel.maxUsers, full: full ? t('channels.fullMark') : '' })
+        : t('channels.occupancySyncing', { max: channel.maxUsers });
+      const title = known
+        ? t('channels.occupancyTitle', { count, max: channel.maxUsers, full: full ? t('channels.fullTitleMark') : '' })
+        : t('channels.occupancySyncingTitle');
       const markup = `${iconMarkup('users-round', 12)}<span class="channel-meta-value"><strong>${known ? count : '–'}</strong><span aria-hidden="true">/</span><span>${channel.maxUsers}</span></span>`;
       // 每次占用广播都会走到这里；人数没变时不要重写 innerHTML 与属性。
       PaviloPerformance.smartUpdate(meta, {
@@ -217,7 +311,7 @@
     const enabledCount = roomChannels.filter((channel) => channel.enabled).length;
     const channelCountEl = $('#channelCount');
     if (enabledCount > 1) {
-      channelCountEl.textContent = `${enabledCount} 个`;
+      channelCountEl.textContent = t('channels.count', { count: enabledCount });
       channelCountEl.hidden = false;
     } else {
       channelCountEl.hidden = true;
@@ -229,12 +323,16 @@
       button.dataset.channelId = channel.id;
       button.type = 'button';
       button.disabled = switching || !channel.enabled;
-      button.title = !channel.enabled ? `${channel.name}（已停用）` : channel.readOnly ? `${channel.name}（只读频道）` : channel.description || channel.name;
+      button.title = !channel.enabled
+        ? t('channels.disabledTitle', { name: channel.name })
+        : channel.readOnly
+          ? t('channels.readOnlyTitle', { name: channel.name })
+          : channel.description || channel.name;
       button.setAttribute('aria-current', active ? 'page' : 'false');
       const badge = channel.readOnly
         ? `<span class="channel-hash channel-hash-readonly">${iconMarkup('megaphone', 13)}</span>`
         : `<span class="channel-hash">#</span>`;
-      button.innerHTML = `${badge}<span class="channel-name">${escapeHtml(channel.name)} · ${escapeHtml(channel.id)}</span><span class="channel-meta${channel.enabled ? '' : ' unavailable'}">${channel.enabled ? '' : '停用'}</span>`;
+      button.innerHTML = `${badge}<span class="channel-name">${escapeHtml(channel.name)} · ${escapeHtml(channel.id)}</span><span class="channel-meta${channel.enabled ? '' : ' unavailable'}">${channel.enabled ? '' : t('channels.disabled')}</span>`;
       button.addEventListener('click', () => switchChannel(channel.id));
       return button;
     }));
@@ -242,7 +340,7 @@
       const option = document.createElement('option');
       option.value = channel.id;
       option.disabled = !channel.enabled;
-      option.textContent = `${channel.name} · ${channel.id}${channel.enabled ? '' : '（已停用）'}${channel.readOnly ? '（只读）' : ''}`;
+      option.textContent = `${channel.name} · ${channel.id}${channel.enabled ? '' : t('channels.disabledSuffix')}${channel.readOnly ? t('channels.readOnlySuffix') : ''}`;
       return option;
     }));
     if (channelId) mobileChannelPicker.value = channelId;
@@ -265,8 +363,11 @@
     const saved = channelById(connection.readChannelId());
     if (!selectedChannelId || !channelById(selectedChannelId)?.enabled) selectedChannelId = saved?.enabled ? saved.id : defaultChannel.id;
     roomInfoReady = true;
+    if (info.defaultLanguage && !hasStoredLanguage()) {
+      i18n.setLanguage(info.defaultLanguage);
+    }
     store.dispatch({ type: 'room/info', channels, limits: info.limits || {} });
-    renderChannels();
+    applyStaticCopy();
     composerController?.update();
   }
 
@@ -293,8 +394,8 @@
       })
       .catch(() => {
         roomInfoReady = false;
-        setConnection(false, '无法读取频道配置，准备重试…');
-        loginError.textContent = '暂时无法读取频道配置，请稍后重试。';
+        setConnection(false, 'login.configRetryStatus');
+        loginError.textContent = t('login.configRetry');
         loginForm.querySelector('.enter-button').disabled = false;
         scheduleRoomInfoRetry();
         return null;
@@ -315,8 +416,9 @@
       .map(([, item]) => item.username)
       .filter(Boolean);
     if (!names.length) typingLine.textContent = '';
-    else if (names.length === 1) typingLine.textContent = `${names[0]} 正在输入…`;
-    else typingLine.textContent = `${names.slice(0, 2).join('、')}${names.length > 2 ? '等' : ''}正在输入…`;
+    else if (names.length === 1) typingLine.textContent = t('typing.one', { name: names[0] });
+    else if (names.length === 2) typingLine.textContent = t('typing.two', { a: names[0], b: names[1] });
+    else typingLine.textContent = t('typing.many', { a: names[0], b: names[1] });
   }
 
   function pendingSnapshot(item) {
@@ -444,7 +546,7 @@
     if (action.type === 'retry') return retryPending(action.pendingId);
     if (action.type === 'image') return overlaysController?.openImageViewer(action.messageId, action.anchor);
     if (action.type === 'profile') {
-      if (!store.getState().users.some((user) => user.id === action.userId)) return notificationsController.toast('这位成员已离开当前频道。');
+      if (!store.getState().users.some((user) => user.id === action.userId)) return notificationsController.toast(t('toast.memberLeft'));
       return overlaysController?.openProfile(action.userId, action.anchor);
     }
     if (action.type === 'reply') {
@@ -482,32 +584,32 @@
     getSelf: () => store.getState().self,
     getState: () => store.getState(),
     onAction: handleModularAction,
-    iconMarkup, avatarMarkup, escapeHtml, formatTime, formatDay,
-    renderMentionText: (text, mentions) => PaviloMentions.renderMentionText(text, mentions, escapeHtml, store.getState().self?.id),
+    iconMarkup, avatarMarkup, escapeHtml, formatTime, formatDay, t,
+    renderMentionText: (text, mentions) => PaviloMentions.renderMentionText(text, mentions, escapeHtml, store.getState().self?.id, t),
   });
   let overlaysController = PaviloOverlays.createOverlays({
     elements: controllerElements,
     getState: () => store.getState(),
-    avatarMarkup, escapeHtml, formatTime, formatDay, formatDuration,
+    avatarMarkup, escapeHtml, formatTime, formatDay, formatDuration, t,
   });
   let notificationsController = PaviloNotifications.createNotifications({
     elements: controllerElements,
     getState: () => store.getState(),
     onAction: (action) => store.dispatch(action),
-    iconMarkup, escapeHtml,
+    iconMarkup, escapeHtml, t,
   });
   errorController = PaviloErrorStates.createErrorStates({
     elements: { connectionDot, connectionText, errorOverlay: controllerElements.errorOverlay },
     toast: (...args) => notificationsController.toast(...args),
-    iconMarkup, escapeHtml,
+    iconMarkup, escapeHtml, t,
   });
   const mentionController = PaviloMentions.createMentions({ elements: controllerElements,
     getUsers: () => store.getState().users, getSelf: () => store.getState().self,
     isReady: () => connection.isReady() && !store.getState().channel.switching
       && !Boolean(roomChannels.find((channel) => channel.id === store.getState().channelId)?.readOnly),
-    avatarMarkup,
+    avatarMarkup, t,
     onOpen: () => { closeComposerPopover(); messagesController.closeReactionPopover(); },
-    onLimit: () => notificationsController.toast('剩余字数不足，无法插入完整的成员名字。', 'error'),
+    onLimit: () => notificationsController.toast(t('toast.mentionLimit'), 'error'),
     onCandidates: (users) => { window.__paviloMentionCandidates = users; },
   });
   mentionController.bind();
@@ -524,6 +626,7 @@
     getReplyTarget: () => replyTarget,
     setReplyTarget: (value) => { replyTarget = value; },
     getLimits: () => ({ maxTextLength: roomInfo?.limits?.maxTextLength }),
+    t,
   });
   composerController.bind();
 
@@ -534,25 +637,25 @@
     else if (next.channelOccupancy !== previous?.channelOccupancy) updateChannelOccupancy(next);
     renderChannelChrome(next);
     switch (event.type) {
-      case 'connection/connect': setConnection(false, previous?.connection?.joined ? '重新连接中…' : '连接中…'); break;
-      case 'connection/open': setConnection(false, '正在进入…'); break;
-      case 'connection/retry': setConnection(false, '重新连接中…'); break;
-      case 'connection/error': setConnection(false, '连接异常'); break;
-      case 'connection/close': setConnection(false, event.wasJoined ? '连接已断开，准备重连…' : '无法连接服务'); break;
-      case 'stateStart': showChat(); setConnection(false, next.channel?.switching ? '正在切换频道…' : '正在同步…'); break;
+      case 'connection/connect': setConnection(false, previous?.connection?.joined ? 'status.reconnecting' : 'status.connecting', 'connecting'); break;
+      case 'connection/open': setConnection(false, 'status.entering', 'connecting'); break;
+      case 'connection/retry': setConnection(false, 'status.reconnecting', 'connecting'); break;
+      case 'connection/error': setConnection(false, 'status.connectError', 'warning'); break;
+      case 'connection/close': setConnection(false, event.wasJoined ? 'status.disconnected' : 'status.cannotConnect', 'warning'); break;
+      case 'stateStart': showChat(); setConnection(false, next.channel?.switching ? 'status.switching' : 'status.syncing', 'connecting'); break;
       case 'historyEnd':
       case 'state':
-        if (next.connection.joined) { showChat(); finishResume(); setConnection(true, '已连接'); }
+        if (next.connection.joined) { showChat(); finishResume(); setConnection(true, 'status.connected'); }
         break;
       case 'channel/request': {
         const target = channelById(next.channel?.requestedId);
-        setConnection(true, target ? `正在切换到 ${target.name}…` : '正在切换频道…');
+        setConnection(true, target ? 'status.switchingTo' : 'status.switching', 'default', target ? { name: target.name } : undefined);
         break;
       }
-      case 'error': if (next.connection.joined && !next.channel?.switching) setConnection(true, '已连接'); break;
+      case 'error': if (next.connection.joined && !next.channel?.switching) setConnection(true, 'status.connected'); break;
       case 'serviceStopped':
       case 'service/stopped':
-      case 'connection/leave': setConnection(false, event.type === 'connection/leave' ? '已离开' : '服务已停止'); break;
+      case 'connection/leave': setConnection(false, event.type === 'connection/leave' ? 'status.left' : 'status.stopped'); break;
     }
   }
 
@@ -609,6 +712,13 @@
   }
 
   function handleProtocolError(event, before) {
+    if (event.code === 'PROTOCOL_NOT_SUPPORTED') {
+      errorController.showErrorOverlay('PROTOCOL_NOT_SUPPORTED', {
+        onAction: () => window.location.reload(),
+      });
+      connection.close({ intentional: true });
+      return;
+    }
     if (event.clientMessageId) {
       pendingQueue.markError(event.clientMessageId, event.message);
       notificationsController.toast(event.message, 'error');
@@ -617,18 +727,20 @@
     if (before.channel?.switching && ['CHANNEL_FULL', 'CHANNEL_UNAVAILABLE', 'NAME_TAKEN', 'RATE_LIMITED', 'SYNC_IN_PROGRESS'].includes(event.code)) {
       const target = channelById(before.channel.requestedId);
       const fallback = event.code === 'CHANNEL_FULL'
-        ? '目标频道人数已满，当前频道保持不变。'
+        ? t('error.switchFull')
         : event.code === 'CHANNEL_UNAVAILABLE'
-          ? '目标频道已停用或不存在，当前频道保持不变。'
+          ? t('error.switchUnavailable')
           : event.code === 'NAME_TAKEN'
-            ? '目标频道已有同名成员，当前频道保持不变。'
-            : '暂时无法切换频道，当前频道保持不变。';
-      notificationsController.toast(event.message ? `${event.message} 当前频道保持不变。` : `${target?.name || '目标频道'}：${fallback}`, 'error');
+            ? t('error.switchNameTaken')
+            : t('error.switchGeneric');
+      notificationsController.toast(event.message
+        ? t('toast.switchKeep', { detail: event.message })
+        : t('toast.switchKeepNamed', { name: target?.name || t('channels.heading'), fallback }), 'error');
       return;
     }
     if (!before.connection.joined && ['CHANNEL_FULL', 'CHANNEL_UNAVAILABLE', 'SERVER_FULL'].includes(event.code)) {
       returnToLoginForError(event, event.message || (event.code === 'CHANNEL_FULL'
-        ? '这个频道人数已满，请稍后重试或选择其他频道。' : '这个频道当前不可用，请稍后重试。'));
+        ? t('error.channelFullJoin') : t('error.channelUnavailableJoin')));
       return;
     }
     if (['NAME_TAKEN', 'INVALID_NAME', 'SESSION_CONFLICT'].includes(event.code)) {
@@ -648,11 +760,11 @@
   function handlePresence(event, before) {
     if (before.sync?.active || event.action === 'reconnect' || appShell.hidden) return;
     if (event.userId === before.self?.id) {
-      if (event.action !== 'leave') notificationsController.toast(`你已回到频道${event.username ? `（${event.username}）` : ''}`, 'success');
+      if (event.action !== 'leave') notificationsController.toast(event.username ? t('toast.youBackNamed', { name: event.username }) : t('toast.youBack'), 'success');
       return;
     }
-    if (event.action === 'join' && event.user) notificationsController.toast(`${event.user.username} 进入了频道`, 'presence');
-    else if (event.action === 'leave') notificationsController.toast(`${event.username} 离开了频道`, 'presence');
+    if (event.action === 'join' && event.user) notificationsController.toast(t('toast.userJoined', { name: event.user.username }), 'presence');
+    else if (event.action === 'leave') notificationsController.toast(t('toast.userLeft', { name: event.username }), 'presence');
   }
 
   function handleServerMessage(payload) {
@@ -704,24 +816,23 @@
       store.dispatch({ type: 'connection/retry', attempt: event.attempt, max: event.max });
       // 如果尚未加入（登录阶段），在登录页显示重试进度
       if (!store.getState().connection.joined) {
-        loginError.textContent = `无法连接到服务，正在重试 (${event.attempt}/${event.max})…`;
+        loginError.textContent = t('login.retrying', { attempt: event.attempt, max: event.max });
       }
       return;
     }
     if (event.type === 'maxRetriesReached') {
       store.dispatch({ type: 'connection/failed' });
       if (!store.getState().connection.joined) {
-        showLogin('服务不可用，请检查服务是否正在运行。');
+        showLogin(t('login.serviceDown'));
         errorController.handleError('CONNECTION_FAILED', { onAction: () => window.location.reload() });
       } else {
-        // 已在房间里、重连又彻底失败：这是阻塞状态，用覆盖层而不是一闪而过的 toast。
         errorController.showErrorOverlay('CONNECTION_FAILED', {
-          message: '与房间的连接已中断',
-          detail: '多次重连都没有成功。你的草稿和未确认消息仍保留在本页，刷新后可以重新连接。',
-          action: '刷新页面',
+          message: t('error.overlayBrokenTitle'),
+          detail: t('error.overlayBrokenDetail'),
+          action: t('error.overlayRefresh'),
           onAction: () => window.location.reload(),
         });
-        setConnection(false, '连接已断开', 'warning');
+        setConnection(false, 'status.broken', 'warning');
       }
       return;
     }
@@ -730,7 +841,7 @@
       pendingQueue.disconnect();
       store.dispatch({ type: 'connection/close', code: event.code, reason: event.reason, intentional: event.intentional, wasJoined: event.wasJoined });
       if (event.wasJoined && !event.intentional && !(event.code === 1001 && event.reason === 'server stopped')) {
-        notificationsController.toast('与房间的连接断开了，草稿与未确认消息仍在本页。', 'error');
+        notificationsController.toast(t('toast.disconnectedKeep'), 'error');
       }
       return;
     }
@@ -744,7 +855,7 @@
       identity = null;
       composerController.clearReply();
       finishResume();
-      showLogin('服务已停止，本页临时聊天数据已清空。');
+      showLogin(t('login.serviceStopped'));
     }
   });
 
@@ -753,56 +864,57 @@
     const state = store.getState();
     if (!channel || channel.id === state.channelId) { renderChannels(state); return; }
     if (!channel.enabled) {
-      notificationsController.toast('这个频道已停用，当前频道保持不变。', 'error');
+      notificationsController.toast(t('toast.channelDisabled'), 'error');
       renderChannels(state);
       return;
     }
     if (state.channel?.switching) {
-      notificationsController.toast('正在切换频道，请稍候。');
+      notificationsController.toast(t('toast.channelBusy'));
       return;
     }
     if (pendingQueue.unsafeChannelWork(composerText.value, composerController.imageProcessingCount)) {
       const pendingWork = pendingQueue.pendingChannelWork();
-      const reason = composerController.imageProcessingCount ? '图片仍在处理中' : pendingWork ? '还有消息等待确认' : '输入框里还有草稿';
-      notificationsController.toast(`${reason}，请处理后再切换频道。`, 'error');
+      const reason = composerController.imageProcessingCount
+        ? t('toast.channelBlockedImage')
+        : pendingWork ? t('toast.channelBlockedPending') : t('toast.channelBlockedDraft');
+      notificationsController.toast(t('toast.channelBlocked', { reason }), 'error');
       return;
     }
     if (!connection.isReady()) {
-      notificationsController.toast('连接尚未恢复，暂时不能切换频道。', 'error');
+      notificationsController.toast(t('toast.switchNotReady'), 'error');
       return;
     }
     composerController.stopTyping();
     store.dispatch({ type: 'channel/request', channelId: channel.id });
     if (!connection.sendRaw({ type: 'switchChannel', channelId: channel.id })) {
-      store.dispatch({ type: 'error', code: 'CHANNEL_UNAVAILABLE', message: '切换请求未能发送。' });
+      store.dispatch({ type: 'error', code: 'CHANNEL_UNAVAILABLE', message: t('error.switchSendFailed') });
     }
   }
 
   function submitLogin(event) {
     event.preventDefault();
     const username = usernameInput.value.trim();
-    if (!username) { loginError.textContent = '请输入一个名字。'; return; }
+    if (!username) { loginError.textContent = t('login.emptyName'); return; }
 
-    // 先检查健康状态
     loginForm.querySelector('.enter-button').disabled = true;
-    loginError.textContent = '正在检查服务状态…';
+    loginError.textContent = t('login.checking');
 
     checkHealth().then((healthy) => {
       if (!healthy) {
-        loginError.textContent = '服务不可用，请检查服务是否正在运行。';
+        loginError.textContent = t('login.serviceDown');
         loginForm.querySelector('.enter-button').disabled = false;
         return;
       }
 
       if (!roomInfoReady) {
-        loginError.textContent = '正在加载房间信息…';
+        loginError.textContent = t('login.loadingRoom');
         loadRoomInfo().then((info) => {
           if (info) {
             loginError.textContent = '';
             submitLogin({ preventDefault() {} });
           } else {
             loginForm.querySelector('.enter-button').disabled = false;
-            loginError.textContent = '无法加载房间信息，请检查服务是否正在运行。';
+            loginError.textContent = t('login.roomFailed');
           }
         });
         return;
@@ -816,7 +928,7 @@
       }
       identity = { username, channelId: selectedChannelId || roomInfo.defaultChannelId };
       resumeToken = null;
-      loginError.textContent = '正在连接…';
+      loginError.textContent = t('login.connecting');
       connection.connect(identity);
     });
   }
@@ -869,27 +981,29 @@
   }, { passive: true });
   window.addEventListener('online', () => {
     errorController.clearError();
-    if (connection.handleOnline()) setConnection(false, '重新连接中…', 'connecting');
+    if (connection.handleOnline()) setConnection(false, 'status.reconnecting', 'connecting');
   });
   window.addEventListener('offline', () => {
     connection.handleOffline();
-    // 离线是持续状态而非瞬时事件，只更新指示器，不弹 toast。
-    errorController.handleError('OFFLINE', { statusText: '网络已离线，等待恢复…', showToast: false });
+    errorController.handleError('OFFLINE', { statusText: t('status.offline'), showToast: false });
   });
   window.addEventListener('pagehide', () => composerController.stopTyping());
+  languageButton?.addEventListener('click', () => {
+    i18n.setLanguage(i18n.language === 'en' ? 'zh-CN' : 'en');
+  });
   leaveButton.addEventListener('click', () => {
     if (leaveButton.classList.contains('confirming')) {
       leaveButton.classList.remove('confirming');
-      leaveButton.querySelector('.top-action-label').textContent = '离开';
+      leaveButton.querySelector('.top-action-label').textContent = t('top.leave');
       leaveRoom();
       return;
     }
     leaveButton.classList.add('confirming');
-    leaveButton.querySelector('.top-action-label').textContent = '确认离开';
+    leaveButton.querySelector('.top-action-label').textContent = t('top.leaveConfirm');
     leaveTimer = window.setTimeout(() => {
       leaveTimer = null;
       leaveButton.classList.remove('confirming');
-      leaveButton.querySelector('.top-action-label').textContent = '离开';
+      leaveButton.querySelector('.top-action-label').textContent = t('top.leave');
     }, 3_000);
   });
   copyLinkButton.addEventListener('click', async () => {
@@ -897,13 +1011,13 @@
     try {
       if (!roomInfo) roomInfo = await fetch('/room-info', { cache: 'no-store' }).then((response) => response.ok ? response.json() : null);
       if ((location.hostname === 'localhost' || location.hostname === '127.0.0.1') && roomInfo?.lanUrls?.length) url = roomInfo.lanUrls[0];
-      if (navigator.share) await navigator.share({ title: 'Pavilo / 语亭', text: '加入这个临时局域网聊天室', url });
+      if (navigator.share) await navigator.share({ title: t('toast.shareTitle'), text: t('toast.shareText'), url });
       else {
         await navigator.clipboard.writeText(url);
-        notificationsController.toast('局域网地址已复制。');
+        notificationsController.toast(t('toast.copied'));
       }
     } catch (error) {
-      if (error?.name !== 'AbortError') notificationsController.toast(`请手动复制这个地址：${url}`, 'error');
+      if (error?.name !== 'AbortError') notificationsController.toast(t('toast.copyManual', { url }), 'error');
     }
   });
 
@@ -914,12 +1028,17 @@
   for (const host of document.querySelectorAll('[data-icon]')) {
     host.innerHTML = iconMarkup(host.dataset.icon, Number(host.dataset.iconSize) || 0);
   }
-  renderChannels();
+  i18n.subscribe(() => {
+    applyStaticCopy();
+    messagesController.renderHistory?.(true);
+    notificationsController?.refreshCopy?.();
+  });
+  applyStaticCopy();
   const savedResume = connection.readSession();
   if (savedResume) {
     resumeWatchdog = window.setTimeout(() => {
       finishResume();
-      if (!store.getState().connection.joined) showLogin('暂时无法连接聊天室，正在重试。', false);
+      if (!store.getState().connection.joined) showLogin(t('login.resumeFailed'), false);
     }, 12_000);
     resumeToken = savedResume.token;
     identity = { username: savedResume.username, resumeToken, channelId: connection.readChannelId() || undefined };

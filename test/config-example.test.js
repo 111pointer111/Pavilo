@@ -31,7 +31,11 @@ test('default channels match README documentation', () => {
 test('example config declares readOnly field', () => {
   const examplePath = path.join(__dirname, '../pavilo.example.yaml');
   const yaml = fs.readFileSync(examplePath, 'utf-8');
-
-  // 示例配置应该展示 readOnly 字段
   assert.ok(yaml.includes('readOnly:'), 'Example config should demonstrate readOnly field');
+});
+
+test('example config declares defaultLanguage', () => {
+  const examplePath = path.join(__dirname, '../pavilo.example.yaml');
+  const yaml = fs.readFileSync(examplePath, 'utf-8');
+  assert.ok(yaml.includes('defaultLanguage: zh-CN'), 'Example config should declare defaultLanguage');
 });

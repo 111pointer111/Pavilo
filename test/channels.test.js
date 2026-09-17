@@ -128,7 +128,9 @@ test('v2 still receives chunked history, v1 gets legacy state, non-general defau
 test('public metadata is allowlisted and private files or vendor symlinks cannot be downloaded', async (t) => {
   const { url } = await setup(t, { allowedOrigins: ['https://private.example'], exposeMemberIps: false });
   const metadata = await (await fetch(`${url}/room-info`)).json();
-  assert.deepEqual(Object.keys(metadata).sort(), ['channels', 'defaultChannelId', 'deprecatedProtocols', 'ephemeral', 'lanUrls', 'limits', 'localUrl', 'protocolVersion', 'roomEpoch', 'roomTitle'].sort());
+  assert.deepEqual(Object.keys(metadata).sort(), ['channels', 'defaultChannelId', 'defaultLanguage', 'deprecatedProtocols', 'ephemeral', 'lanUrls', 'limits', 'localUrl', 'protocolVersion', 'roomEpoch', 'roomTitle', 'supportedLanguages'].sort());
+  assert.equal(metadata.defaultLanguage, 'zh-CN');
+  assert.deepEqual(metadata.supportedLanguages, ['zh-CN', 'en']);
   assert.ok(!JSON.stringify(metadata).includes('private.example'));
   for (const file of ['/pavilo.yaml', '/pavilo.example.yaml', '/config.js', '/server.js', '/.env', '/package.json', '/vendor/../config.js', '/vendor/%2e%2e/config.js', '/client/unknown.js', '/client/../config.js']) {
     for (const method of ['GET', 'HEAD']) assert.notEqual((await fetch(`${url}${file}`, { method })).status, 200, `${method} ${file}`);

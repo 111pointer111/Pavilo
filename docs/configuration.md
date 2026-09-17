@@ -53,6 +53,7 @@ room:
   defaultChannel: general
   exposeMemberIps: true
   exposeLanUrls: true
+  defaultLanguage: zh-CN
 
 channels:
   - id: general
@@ -251,6 +252,19 @@ room:
 - **说明**：是否在 `/room-info` 接口暴露局域网地址
   - `true` —— 列出主机所有局域网 IP，方便分享给同网段用户
   - `false` —— 返回空数组，不暴露主机网络位置
+
+#### `room.defaultLanguage`
+
+```yaml
+room:
+  defaultLanguage: zh-CN
+```
+
+- **默认值**：`zh-CN`
+- **类型**：字符串
+- **说明**：首次访问时的默认界面语言。用户可在页面内切换，选择会写入 `localStorage`（键名 `pavilo.language`），之后以本地选择为准
+- **取值**：只能是 `zh-CN` 或 `en`
+- **公开投影**：`/room-info` 同时返回 `defaultLanguage` 与固定的 `supportedLanguages: ["zh-CN", "en"]`
 
 ---
 

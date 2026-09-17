@@ -6,6 +6,7 @@ const vm = require('node:vm');
 const { test } = require('node:test');
 const messagesApi = require('../client/messages');
 const { createMessages, isNearBottom, captureReadingOffset, readingScrollTop } = messagesApi;
+const { createI18n } = require('../client/i18n');
 
 const self = { id: 'alice', username: 'Alice', avatarSeed: 1 };
 const bob = { id: 'bob', username: 'Bob', avatarSeed: 2 };
@@ -62,7 +63,7 @@ function harness(messages = []) {
     onAction: (action) => actions.push(action), iconMarkup: (name) => `<svg>${name}</svg>`,
     avatarMarkup: (user) => `<avatar>${user.username}</avatar>`,
     escapeHtml: (value) => String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]),
-    formatTime: () => '12:00', formatDay: () => '今天' });
+    formatTime: () => '12:00', formatDay: () => '今天', t: createI18n({ language: 'zh-CN', storage: null }).t });
   return { renderer, elements, handlers, actions, get rebuilds() { return rebuilds; },
     transition(next, event) { const previous = state; state = next; renderer.onState(next, event, previous); },
     getState: () => state };

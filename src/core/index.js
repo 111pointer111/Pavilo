@@ -173,7 +173,7 @@ function createChatCore(config, runtime = {}) {
     const channels = rooms.snapshot();
     return { clients: peers.size, sessions: sessionStore.size(), messages: channels.reduce((n, c) => n + c.messages, 0), roomBytes: channels.reduce((n, c) => n + c.roomBytes, 0), latestSeq: rooms.get(config.defaultChannelId).messageSequence };
   }
-  function roomInfo() { return { protocolVersion: events.PROTOCOL_VERSION, deprecatedProtocols: [1, 2, 3], roomEpoch: rooms.epoch, roomTitle: config.roomTitle, defaultChannelId: config.defaultChannelId, channels: config.channels.map(events.publicChannel), limits: events.publicLimits(config), ephemeral: true }; }
+  function roomInfo() { return { protocolVersion: events.PROTOCOL_VERSION, deprecatedProtocols: [1, 2, 3], roomEpoch: rooms.epoch, roomTitle: config.roomTitle, defaultChannelId: config.defaultChannelId, defaultLanguage: config.defaultLanguage || 'zh-CN', supportedLanguages: ['zh-CN', 'en'], channels: config.channels.map(events.publicChannel), limits: events.publicLimits(config), ephemeral: true }; }
   function health() { const value = state(); return { ok: true, users: value.sessions, messages: value.messages, roomBytes: value.roomBytes, clients: value.clients, ephemeral: true }; }
   return { connect, dispatch, disconnect, connectionStatus, completeSync, markClosing, shutdown, state, health, roomInfo, roomEpoch: rooms.epoch, pruneDedupe: messageStore.pruneDedupe, drainEffects: takeEffects };
 }

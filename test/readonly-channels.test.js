@@ -163,4 +163,6 @@ test('roomInfo exposes readOnly and welcome for every channel', () => {
   assert.ok(generalChannel);
   assert.equal(generalChannel.readOnly, false);
   assert.equal(generalChannel.welcome, '');
+  assert.equal(info.defaultLanguage, 'zh-CN');
+  assert.deepEqual(info.supportedLanguages, ['zh-CN', 'en']);
 });
