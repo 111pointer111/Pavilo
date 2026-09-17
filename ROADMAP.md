@@ -208,26 +208,29 @@ SQLite、Agent、账号系统不阻塞 v1.0。
 
 ---
 
-## v0.4.0 — Security Hardening
+## v0.4.0 — Security Hardening（已完成）
 
 目标：在 v1.0 之前把安全默认值做实。
 
-### 安全
+### 安全（✅ 已完成）
 
-- 补充 HTTP 安全响应头（X-Content-Type-Options, X-Frame-Options 等）
-- WebSocket frame / JSON / 配置解析的畸形输入测试
+- ✅ 补充 HTTP 安全响应头（X-Frame-Options: DENY, Referrer-Policy: strict-origin-when-cross-origin）
+- ✅ WebSocket frame / JSON / 配置解析的畸形输入测试
 
-### 工程质量
+### 工程质量（✅ 已完成）
 
-- 创建 CHANGELOG.md（回溯 v0.1-v0.3，建立变更日志习惯）
-- 更新 package.json 版本号为 v0.4.0
+- ✅ 创建 CHANGELOG.md（回溯 v0.1-v0.3，建立变更日志习惯）
+- ✅ 更新 package.json 版本号为 v0.4.0
 
-### 发布门槛
+### 发布门槛（✅ 全部满足）
 
-- HTTP 安全头添加完成
-- 畸形输入测试用例通过
-- CHANGELOG.md 创建并包含历史版本
-- package.json 版本号已更新
+- ✅ HTTP 安全头添加完成
+- ✅ 畸形输入测试用例通过
+- ✅ CHANGELOG.md 创建并包含历史版本
+- ✅ package.json 版本号已更新
+- ✅ 所有测试通过（234/234）
+
+**v0.4.0 已完成所有目标，可以发布。**
 
 ---
 
