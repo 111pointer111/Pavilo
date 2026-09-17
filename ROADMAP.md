@@ -208,74 +208,89 @@ SQLite、Agent、账号系统不阻塞 v1.0。
 
 ---
 
-## v0.4.0 — Security & Load Beta
+## v0.4.0 — Security Hardening
 
-目标：在 v1.0 之前把安全默认值和资源边界做实。
+目标：在 v1.0 之前把安全默认值做实。
 
 ### 安全
 
-- 重新评审 `allowNoOrigin` 默认值。Pavilo 的主要客户端是浏览器，建议在 v1.0 前把安全默认值收紧；非浏览器客户端需要时显式放开。
-- 建立 Threat Model 文档：
-  - 未认证访问；
-  - Origin 绕过；
-  - 慢连接；
-  - 超大 payload；
-  - 图片解码；
-  - IP 隐私；
-  - 反向代理；
-  - 配置泄露；
-  - 资源耗尽。
-- 不盲目信任 `X-Forwarded-For`。若未来支持可信代理，必须使用显式 trust proxy 配置，而不是“看到头就信”。
-- 补充 HTTP 安全响应头。
-- WebSocket frame / JSON / 配置解析的畸形输入测试。
-
-### 压力与性能
-
-建立可复现的 benchmark/stress 工具，至少覆盖：
-
-- 大成员列表；
-- 多频道同时活跃；
-- 大量文本；
-- 300 KB 图片；
-- 慢连接与 backpressure；
-- reconnect storm；
-- history chunk；
-- 频道 FIFO 淘汰。
-
-首次只建立基线，不急于设“漂亮数字”。
+- 补充 HTTP 安全响应头（X-Content-Type-Options, X-Frame-Options 等）
+- WebSocket frame / JSON / 配置解析的畸形输入测试
 
 ### 发布门槛
 
-- 不出现未受控的进程内存增长；
-- 慢客户端不会拖垮正常客户端；
-- 所有资源上限都能通过测试证明被执行。
+- HTTP 安全头添加完成
+- 畸形输入测试用例通过
 
 ---
 
 ## v0.5.0 — UX & Performance Polish
 
-目标：完成稳定版前的体验收口，不再扩产品面。
+目标：完成稳定版前的体验收口。
 
 ### 体验
 
-- 真机移动端验收；
-- IME/中文输入法专项回归；
-- 键盘导航、焦点、ARIA、减少动态效果继续完善；
-- `readOnly` 频道在 UI 上有清晰状态；
-- 断网、停服、重连、频道不可用等状态统一反馈。
+- `readOnly` 频道在 UI 上有清晰状态（🔒 图标、禁用输入框）
+- 断网、停服、重连、频道不可用等状态统一反馈
 
 ### 性能
 
-- 根据 v0.4 benchmark 决定是否做增量消息渲染；
-- 大 roster / 大 history 下避免无必要的 DOM 全量工作；
-- 不为了“看起来先进”提前引入前端框架。
+- 大 roster / 大 history 下避免无必要的 DOM 全量工作
+- 图片懒加载优化
 
 ### 非目标
 
-- 新娱乐功能；
-- 主题市场；
-- PWA 离线消息；
-- 历史持久化。
+- 新娱乐功能
+- 主题市场
+- PWA 离线消息
+- 历史持久化
+
+---
+
+## v0.6.0 — Quality Assurance
+
+目标：建立完善的质量保证流程。
+
+### Bug 修复流程
+
+- 完善 Issue 模板（Bug 报告、功能请求、安全问题）
+- 建立 Bug 分类和优先级标准
+- 创建 Bug 修复 Checklist
+
+---
+
+## v0.7.0 — Documentation
+
+目标：完善所有面向用户和开发者的文档。
+
+### 用户文档
+
+- 配置指南（docs/configuration.md）- 所有配置项详解
+- 故障排查指南（docs/troubleshooting.md）- 常见问题和解决方案
+
+### 开发者文档
+
+- 架构文档（docs/architecture/overview.md）- 系统架构和模块划分
+- 协议规范完善（docs/architecture/chat-protocol.md）- Protocol v4 完整规范
+- 贡献指南更新（CONTRIBUTING.md）- 开发流程和规范
+- API 文档（docs/api/）- HTTP 端点和 WebSocket 消息文档
+
+### 多语言
+
+- 核心文档英文版（README, Quick Start, Architecture）
+
+---
+
+## v0.8.0 — Internationalization
+
+目标：支持多语言 UI。
+
+### i18n 实现
+
+- 国际化架构（轻量级，纯 JS）
+- 简体中文 + 英语 UI
+- 语言切换功能
+- 配置支持（defaultLanguage, supportedLanguages）
 
 ---
 
@@ -292,12 +307,12 @@ SQLite、Agent、账号系统不阻塞 v1.0。
 - 客户端使用 `protocolVersion < 4` 时，返回错误并关闭连接：
   ```json
   {
-    "type": "error",
-    "code": "PROTOCOL_NOT_SUPPORTED",
-    "message": "Server requires protocol version 4 or higher"
+    “type”: “error”,
+    “code”: “PROTOCOL_NOT_SUPPORTED”,
+    “message”: “Server requires protocol version 4 or higher”
   }
   ```
-- 更新客户端：检测到 `PROTOCOL_NOT_SUPPORTED` 时显示"服务器已升级，请刷新页面"
+- 更新客户端：检测到 `PROTOCOL_NOT_SUPPORTED` 时显示”服务器已升级，请刷新页面”
 - 更新所有测试，只覆盖 v4
 - 协议文档更新：v4 是 v1.x 系列的唯一稳定协议
 
