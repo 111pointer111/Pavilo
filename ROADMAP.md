@@ -217,10 +217,18 @@ SQLite、Agent、账号系统不阻塞 v1.0。
 - 补充 HTTP 安全响应头（X-Content-Type-Options, X-Frame-Options 等）
 - WebSocket frame / JSON / 配置解析的畸形输入测试
 
+### 工程质量
+
+- 创建 CHANGELOG.md（回溯 v0.1-v0.3，建立变更日志习惯）
+- 简化版压测脚本（tools/stress-test.js，手动运行，记录基线）
+- 更新 package.json 版本号为 v0.4.0
+
 ### 发布门槛
 
 - HTTP 安全头添加完成
 - 畸形输入测试用例通过
+- CHANGELOG.md 创建并包含历史版本
+- 压测脚本可运行并记录基线数据
 
 ---
 
@@ -232,6 +240,8 @@ SQLite、Agent、账号系统不阻塞 v1.0。
 
 - `readOnly` 频道在 UI 上有清晰状态（🔒 图标、禁用输入框）
 - 断网、停服、重连、频道不可用等状态统一反馈
+- 浏览器兼容性手动验收（Chrome/Firefox/Safari/Edge，桌面+移动）
+- 错误边界测试（断网、超时、服务停止等场景）
 
 ### 性能
 
@@ -245,6 +255,13 @@ SQLite、Agent、账号系统不阻塞 v1.0。
 - PWA 离线消息
 - 历史持久化
 
+### 发布门槛
+
+- 只读频道 UI 清晰可识别
+- 错误状态统一且友好
+- 主流浏览器验收通过
+- 性能在大数据量下可接受
+
 ---
 
 ## v0.6.0 — Quality Assurance
@@ -256,6 +273,16 @@ SQLite、Agent、账号系统不阻塞 v1.0。
 - 完善 Issue 模板（Bug 报告、功能请求、安全问题）
 - 建立 Bug 分类和优先级标准
 - 创建 Bug 修复 Checklist
+
+### 工程规范
+
+- 版本号管理流程文档（如何更新 package.json 和 Git tag）
+
+### 发布门槛
+
+- Issue 模板完善
+- Bug 修复流程文档化
+- 版本号管理流程明确
 
 ---
 
@@ -291,6 +318,14 @@ SQLite、Agent、账号系统不阻塞 v1.0。
 - 简体中文 + 英语 UI
 - 语言切换功能
 - 配置支持（defaultLanguage, supportedLanguages）
+- 服务器升级提示消息（多语言支持，为 v0.9 协议清理做准备）
+
+### 发布门槛
+
+- i18n 架构实现完成
+- 中英文翻译质量审查通过
+- 语言切换功能正常
+- 升级提示消息已准备
 
 ---
 
@@ -312,9 +347,14 @@ SQLite、Agent、账号系统不阻塞 v1.0。
     “message”: “Server requires protocol version 4 or higher”
   }
   ```
-- 更新客户端：检测到 `PROTOCOL_NOT_SUPPORTED` 时显示”服务器已升级，请刷新页面”
+- 更新客户端：检测到 `PROTOCOL_NOT_SUPPORTED` 时显示”服务器已升级，请刷新页面”（使用 v0.8 的多语言消息）
 - 更新所有测试，只覆盖 v4
 - 协议文档更新：v4 是 v1.x 系列的唯一稳定协议
+
+### 配置与迁移
+
+- 配置版本检测机制（为 v1.1 的 `version: 2` 做准备）
+- 废弃警告系统（优雅处理旧配置）
 
 ### 冻结项
 
@@ -330,20 +370,39 @@ SQLite、Agent、账号系统不阻塞 v1.0。
 
 ### 开源工程
 
-- `CHANGELOG.md`；
-- Release Checklist；
-- 贡献指南（已有）；
-- 安全报告流程（已有）；
-- 中英文项目介绍（至少首页核心信息具备英文入口）；
-- 清晰截图 / GIF；
-- Docker 与源码两套 Quick Start；
-- GitHub Topics、Description、Release Notes 统一。
+- CHANGELOG.md 完整（所有 v0.x 版本）
+- Release Checklist
+- 贡献指南（已有）
+- 安全报告流程（已有）
+- 中英文项目介绍（至少首页核心信息具备英文入口）
+- 清晰截图 / GIF
+- Docker 与源码两套 Quick Start
+- GitHub Topics、Description、Release Notes 统一
+
+### 部署准备
+
+- GHCR 发布 workflow 准备（GitHub Actions）
+- Docker 镜像标签策略（latest, 1.0.0, 1.0, 1）
+
+### 安全与质量
+
+- 安全审计（npm audit + 代码自审 + OWASP Top 10 检查）
+- 生产环境 RC 部署验收（7 天稳定性测试）
 
 ### RC 原则
 
 `v0.9.x` 只修 blocker，不再新增大功能。
 
 从 v0.9.0 开始，协议、配置、公开 API 进入稳定期，breaking change 只在确认不可避免时引入。
+
+### 发布门槛
+
+- Protocol v1/v2/v3 已完全删除
+- 配置迁移机制就绪
+- CHANGELOG 完整
+- 安全审计通过（无高危漏洞）
+- 生产环境 RC 运行 7 天无阻塞性问题
+- GHCR workflow 已测试
 
 ---
 
@@ -355,29 +414,50 @@ v1.0 的产品定义：
 
 ### 必须保证
 
-- 一键启动；
-- 多频道；
-- 静态只读频道；
-- ACK / 幂等 / reconnect；
-- 资源上限和 backpressure；
-- 严格配置；
-- 桌面/移动端可用；
-- 源码与容器部署；
-- CI / 安全 / 文档 / 发布流程成熟；
-- memory mode 行为稳定。
+- 一键启动（npm start）
+- Docker 一键部署
+- 多频道
+- 静态只读频道
+- ACK / 幂等 / reconnect
+- 资源上限和 backpressure
+- 严格配置验证
+- 桌面/移动端可用（浏览器兼容性文档）
+- 源码与容器部署
+- CI / 安全 / 文档 / 发布流程成熟
+- memory mode 行为稳定
+
+### 发布执行
+
+- 更新 package.json 版本号为 v1.0.0
+- 更新 CHANGELOG.md
+- 创建 v1.0.0 Git 标签
+- 发布 GitHub Release（**stable**，非 pre-release）
+- 发布 GHCR 镜像（ghcr.io/caigg188/pavilo:latest, :1.0.0, :1.0, :1）
+- 更新 README 徽章和版本信息
+- 浏览器兼容性文档
 
 ### 明确不包含
 
-- SQLite；
-- 账号；
-- 角色权限；
-- 私聊；
-- 历史搜索；
-- Agent；
-- LLM 网关；
-- 插件市场。
+- SQLite（v1.1+）
+- 账号系统
+- 角色权限
+- 私聊
+- 历史搜索
+- Agent
+- LLM 网关
+- 插件市场
 
 这些缺失不是 v1.0 “没做完”，而是产品边界。
+
+### 发布门槛
+
+- v0.9.0 RC 已稳定运行 7 天
+- 所有 P0/P1 bug 已修复
+- 文档完整且审查通过
+- 测试覆盖充分（> 250 个测试）
+- 安全审计通过
+- GHCR 镜像成功发布
+- 浏览器兼容性文档完成
 
 ---
 
