@@ -113,7 +113,6 @@ body {
 body.chat-active { height: 100vh; height: 100dvh; overflow: hidden; }
 body.sheet-open { overflow: hidden; }
 body.viewer-open { overflow: hidden; }
-.composer-text:focus-visible { outline: 3px solid rgba(232, 111, 87, .42); outline-offset: 3px; border-radius: 4px; }
 
 button, input, textarea { font: inherit; }
 button { color: inherit; }
@@ -939,6 +938,20 @@ button, .channel, .person, .avatar, .top-action, .reaction-button, .composer-but
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   background: rgba(249, 251, 248, .86);
+  transition: border-color var(--transition-base) var(--ease-smooth), box-shadow var(--transition-base) var(--ease-smooth);
+}
+.composer:focus-within {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal) 22%, transparent);
+}
+.composer-text:focus,
+.composer-text:focus-visible { outline: none; }
+.composer-button:focus-visible,
+.send-button:focus-visible,
+.composer-attach-thumb:focus-visible,
+.composer-attach-remove:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--teal) 70%, transparent);
+  outline-offset: 1px;
 }
 .composer.has-reply { border-radius: 0 0 8px 8px; }
 .composer.has-attach {
