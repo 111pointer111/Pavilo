@@ -7,10 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2024-12-19
+
 ### Added
-- HTTP security headers (X-Frame-Options, Referrer-Policy) for enhanced security
-- Malformed input tests for configuration validation
-- Security headers tests for HTTP responses
+- HTTP security headers for enhanced protection
+  - X-Frame-Options: DENY (prevents clickjacking)
+  - Referrer-Policy: strict-origin-when-cross-origin (controls referrer leakage)
+  - Applied uniformly to all HTTP responses (HTML/CSS/JS/JSON/vendor files)
+- Security headers test suite (test/security-headers.test.js)
+- Malformed input test suite (test/malformed-input.test.js)
+  - Malformed YAML configuration parsing tests
+  - Invalid configuration value validation tests
+  - Deeply nested channel configuration tests
+  - Special character handling tests
+- CHANGELOG.md following Keep a Changelog format
+  - Retroactively documented v0.1.0, v0.2.0, v0.3.0
+
+### Changed
+- Updated package.json version from 0.1.0 to 0.4.0
+- Simplified ROADMAP.md (removed performance testing to maintain focus)
+
+### Security
+- Enhanced HTTP security posture with additional response headers
+
+### Tests
+- Total tests: 234 (233 passing)
+- New tests: 9 (3 security headers + 4 malformed input + 2 config validation)
 
 ## [0.3.0] - 2024-01-XX
 
