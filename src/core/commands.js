@@ -94,7 +94,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       sendError(client, 'INVALID_KIND', '不支持这种消息类型。', clientMessageId);
       return;
     }
-    const text = kind === 'text' ? cleanText(command.text, config.maxTextLength) : '';
+    const text = cleanText(command.text, config.maxTextLength);
     const image = kind === 'image' ? parseImage(command.image) : null;
     if (kind === 'text' && !text) {
       sendError(client, 'EMPTY_MESSAGE', '写点内容再发送。', clientMessageId);
@@ -104,6 +104,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       sendError(client, 'INVALID_IMAGE', '图片格式、尺寸或大小不符合要求。', clientMessageId);
       return;
     }
+    const caption = kind === 'image' ? text : '';
 
     const fingerprint = payloadFingerprint(command, kind, text, image);
     const dedupeKey = `${channel.config.id}:${client.session.token}:${effectiveClientMessageId}`;
@@ -118,7 +119,10 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       return;
     }
 
-    const mentions = kind === 'text' ? normalizeMentions(command.mentions, rosterUsers(client.session.channelId), text) : [];
+    const mentionSource = kind === 'text' ? text : caption;
+    const mentions = mentionSource
+      ? normalizeMentions(command.mentions, rosterUsers(client.session.channelId), mentionSource)
+      : [];
     const sequence = ++channel.messageSequence;
     const message = {
       id: randomId(`m${sequence}`),
@@ -132,7 +136,10 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       ...(mentions.length ? { mentions } : {})
     };
     if (kind === 'text') message.text = text;
-    else message.image = image;
+    else {
+      message.image = image;
+      if (caption) message.text = caption;
+    }
     message.reactionUsers = new Map();
     message.byteSize = messageByteSize(message);
     if (message.byteSize > config.maxRoomBytes) {

@@ -17,7 +17,7 @@
 | `error-states.js` | 连接状态指示器、toast 与阻塞性错误覆盖层 |
 | `i18n.js` | 轻量字典 + `{var}` 插值；`zh-CN` / `en`；选择写入 `localStorage` |
 | `messages.js` | 权威与待确认消息显示、一次 payload 一次重建、DOM 修改前采样及阅读锚点恢复 |
-| `composer.js` | 输入、IME、回复、typing、图片发送意图 |
+| `composer.js` | 输入、IME、回复、typing、图片暂存（粘贴/选文件/拖放）与发送 |
 | `overlays.js` | 成员资料、抽屉、popover、图片查看器和焦点管理 |
 | `notifications.js` | toast、标题、favicon、系统通知；不修改权威消息数组 |
 | `app.js` | 创建模块、绑定 DOM/用户意图与协议事件；跨模块副作用的组合点 |

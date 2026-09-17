@@ -73,10 +73,19 @@
       }).join('')}</div>`;
     }
 
+    function isEmojiOnly(text) {
+      return /^\s*(?:\p{Extended_Pictographic}|\p{Emoji_Presentation}|\s)+$/u.test(text || '');
+    }
+
+    function textBodyMarkup(text, mentions) {
+      if (!text) return '';
+      return `<div class="message-body${isEmojiOnly(text) ? ' emoji-only' : ''}">${textMarkup(text, mentions)}</div>`;
+    }
+
     function messageBodyMarkup(message, author) {
-      const body = message.kind === 'image' ? imageMarkup(message, author)
-        : `<div class="message-body${/^\s*(?:\p{Extended_Pictographic}|\p{Emoji_Presentation}|\s)+$/u.test(message.text || '') ? ' emoji-only' : ''}">${textMarkup(message.text || '', message.mentions)}</div>`;
-      return `${renderReply(message)}${body}${reactionMarkup(message)}`;
+      const image = message.kind === 'image' && message.image?.src ? imageMarkup(message, author) : '';
+      const text = message.kind === 'text' || message.text ? textBodyMarkup(message.text, message.mentions) : '';
+      return `${renderReply(message)}${image}${text}${reactionMarkup(message)}`;
     }
 
     function actionMarkup(messageId) {
@@ -128,7 +137,12 @@
         node.className = 'message self pending-message';
         node.dataset.pendingId = item.id;
         const self = getSelf();
-        const body = item.kind === 'image' ? `<img class="pending-image" src="${escapeHtml(item.image.src)}" alt="${escapeHtml(t('pending.imageAlt'))}">` : `<div class="message-body">${textMarkup(item.text, item.mentions)}</div>`;
+        const body = [
+          item.kind === 'image' && item.image?.src
+            ? `<img class="pending-image" src="${escapeHtml(item.image.src)}" alt="${escapeHtml(t('pending.imageAlt'))}">`
+            : '',
+          item.text ? `<div class="message-body">${textMarkup(item.text, item.mentions)}</div>` : '',
+        ].join('');
         node.innerHTML = `<div class="message-avatar">${avatarMarkup(self || { username: t('people.self'), avatarSeed }, '', false)}</div><div class="message-main"><div class="message-meta"><span class="message-author">${escapeHtml(self?.username || t('people.self'))}</span><span class="message-time">${escapeHtml(t('pending.now'))}</span></div>${body}<div class="pending-status" role="status" aria-live="polite"></div></div>`;
         hydrateIcons(node);
         pendingNodes.set(item.id, node);

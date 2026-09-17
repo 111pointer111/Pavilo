@@ -117,13 +117,16 @@ test('transmit handles unavailable and failed transports without leaving ACK tim
   assert.equal(item.status, 'unconfirmed');
 });
 
-test('image transmission carries image payload and omits empty reply target', () => {
+test('image transmission carries image payload, optional caption, and omits empty reply target', () => {
   const { queue } = harness();
   const image = { src: 'data:image/png;base64,x', bytes: 1 };
   const item = queue.add({ id: 'image-1', kind: 'image', image, epoch: 'epoch-1' });
   let command;
   queue.transmit(item.id, { send(value) { command = value; return true; } });
   assert.deepEqual(command, { type: 'message', kind: 'image', clientMessageId: 'image-1', replyTo: undefined, image });
+  const captioned = queue.add({ id: 'image-2', kind: 'image', image, text: '看这个', mentions: [{ id: 'u_1' }] });
+  queue.transmit(captioned.id, { send(value) { command = value; return true; } });
+  assert.deepEqual(command, { type: 'message', kind: 'image', clientMessageId: 'image-2', replyTo: undefined, image, text: '看这个', mentions: ['u_1'] });
 });
 
 test('ACK cancels timeout, marks accepted, emits draft cleanup effect, and can remove canonical echo', () => {
@@ -252,6 +255,7 @@ test('draftMatches trims the live draft but otherwise preserves exact sent text 
   const item = text({ text: 'hello world' });
   assert.equal(draftMatches(item, '  hello world\n'), true);
   assert.equal(draftMatches(item, 'hello  world'), false);
-  assert.equal(draftMatches({ ...item, kind: 'image' }, 'hello world'), false);
+  assert.equal(draftMatches({ ...item, kind: 'image', text: undefined }, 'hello world'), false);
+  assert.equal(draftMatches({ kind: 'image', text: 'hello world' }, '  hello world\n'), true);
   assert.equal(draftMatches(null, 'hello world'), false);
 });

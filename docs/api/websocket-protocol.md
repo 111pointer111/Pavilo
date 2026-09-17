@@ -115,7 +115,7 @@ COMMANDS = { JOIN: 'join', MESSAGE: 'message', REACTION: 'reaction',
 | `replyTo` | string | ⬜ | 要回复的历史消息 ID（注意字段名不是 `replyToId`） |
 | `mentions` | array | ⬜ | 提及的**用户 ID 字符串数组**（不是对象数组） |
 
-`mentions` 只是候选人选：服务端会再次校验被提及者确实在当前频道 roster 中、且正文里出现了对应的 `@用户名`，否则该提及被丢弃。图片消息不允许带 `mentions`。
+`mentions` 只是候选人选：服务端会再次校验被提及者确实在当前频道 roster 中、且正文里出现了对应的 `@用户名`，否则该提及被丢弃。图片消息只有在带配文时才允许 `mentions`。
 
 #### 图片消息
 
@@ -128,7 +128,9 @@ COMMANDS = { JOIN: 'join', MESSAGE: 'message', REACTION: 'reaction',
     "src": "data:image/png;base64,iVBORw0KGgo...",
     "width": 800,
     "height": 600
-  }
+  },
+  "text": "看这个",
+  "mentions": ["u_1a2b3c4d5e6f7081"]
 }
 ```
 
@@ -137,8 +139,10 @@ COMMANDS = { JOIN: 'join', MESSAGE: 'message', REACTION: 'reaction',
 | `image.src` | string | ✅ | 严格的 base64 data URL，仅接受 `image/png`、`image/jpeg`、`image/gif`、`image/webp` |
 | `image.width` | number | ✅ | 声明宽度，必须与文件头中的真实尺寸一致 |
 | `image.height` | number | ✅ | 声明高度，必须与文件头中的真实尺寸一致 |
+| `text` | string | ⬜ | 可选配文，清洗规则与文字消息相同；空字符串视为无配文，权威回显不带 `text` |
+| `mentions` | array | ⬜ | 仅在配文非空时生效，校验规则与文字消息相同 |
 
-服务端会重新计算字节数，因此 `image.bytes` 属于可选/被忽略字段；校验失败返回 `INVALID_IMAGE`。权威回显中的 `image` 形如 `{ src, mime, width, height, bytes }`。
+服务端会重新计算字节数，因此 `image.bytes` 属于可选/被忽略字段；校验失败返回 `INVALID_IMAGE`。权威回显中的 `image` 形如 `{ src, mime, width, height, bytes }`。带配文时权威消息同时包含 `text` 与可选 `mentions`。
 
 消息相关错误码：`CHANNEL_READ_ONLY`、`INVALID_MESSAGE_ID`、`INVALID_KIND`、`EMPTY_MESSAGE`、`INVALID_IMAGE`、`MESSAGE_ID_CONFLICT`、`RATE_LIMITED`、`ROOM_BUDGET_EXCEEDED`、`MESSAGE_TOO_LARGE`、`SYNC_IN_PROGRESS`。
 
@@ -296,7 +300,7 @@ v1 连接（`protocolVersion < 2`）不会收到 `stateStart`，而是单个 `st
 | `createdAt` | number | 服务端接受时间戳 |
 | `replyTo` | object \| null | `{ id, username, kind, text }`；原消息不存在或已淘汰时为 `null` |
 | `reactions` | object | `{ "<emoji>": { count, userIds } }` |
-| `text` | string | 仅文本消息 |
+| `text` | string | 文本消息必有；图片消息仅在带配文时存在 |
 | `image` | object | 仅图片消息：`{ src, mime, width, height, bytes }` |
 | `mentions` | array | 仅当有有效提及时存在：`[{ id, username }]` |
 

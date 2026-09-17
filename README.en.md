@@ -30,7 +30,7 @@ Current version: **v0.8.0** — multiple ephemeral channels, in-memory storage o
 - Read-only channels (`readOnly: true`): joinable and readable, reactions allowed, but nobody can post — useful for announcements and rules maintained by the deployer
 - Channel welcome text (`welcome`): an intro card shown at the top of a channel
 - Reloading keeps you in the chat: your session identity lives only in the current tab's `sessionStorage` and is restored automatically. Only an explicit "Leave" (with confirmation) returns you to the login screen
-- Text, emoji, and images (PNG / JPEG / GIF / WebP, 300 KB per image by default); the emoji picker supports search, skin tones, and localized keywords
+- Text, emoji, and images (PNG / JPEG / GIF / WebP, 300 KB per image by default); paste, drop, or pick a file to stage a thumbnail, then send it with an optional caption in the same bubble; the emoji picker supports search, skin tones, and localized keywords
 - Message replies, with second-precision timestamps on every message
 - `@` mentions of channel members, highlighted when you are mentioned, clickable to view a member's profile
 - Randomly generated avatars; click one to see username, IP (shown by default, configurable), and online duration

@@ -49,10 +49,11 @@
       && (!isRecord(message.replyTo) || !isId(message.replyTo.id)
         || typeof message.replyTo.username !== 'string' || !['text', 'image'].includes(message.replyTo.kind)
         || typeof message.replyTo.text !== 'string')) return false;
-    if (message.kind === 'text') return typeof message.text === 'string';
-    return message.kind === 'image' && !message.mentions?.length && isRecord(message.image) && typeof message.image.src === 'string'
+    if (message.kind === 'text') return typeof message.text === 'string' && message.image == null;
+    return message.kind === 'image' && isRecord(message.image) && typeof message.image.src === 'string'
       && Number.isFinite(message.image.width) && message.image.width > 0
-      && Number.isFinite(message.image.height) && message.image.height > 0;
+      && Number.isFinite(message.image.height) && message.image.height > 0
+      && optional(message.text, (value) => typeof value === 'string');
   }
   function isUsers(value) { return Array.isArray(value) && value.every(isUser); }
   function isMessages(value) { return Array.isArray(value) && value.every(isMessage); }

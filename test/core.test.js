@@ -121,6 +121,46 @@ test('core accepts a real member ID and authoritative username in a mention', ()
   assert.deepEqual(sent.effects.find((effect) => effect.kind === 'broadcast').payload.message.mentions, [{ id: bobId, username: 'Bob' }]);
   assert.notEqual(alice.self.id, bobId);
 });
+
+test('core accepts an image caption on the same message and fingerprints it separately', () => {
+  const { core } = createHarness();
+  const alice = join(core, 'alice-peer', 'Alice', 'session-alice-0001');
+  const bob = join(core, 'bob-peer', 'Bob', 'session-bob-0001');
+  const png = Buffer.alloc(24);
+  Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(png);
+  png.writeUInt32BE(2, 16);
+  png.writeUInt32BE(3, 20);
+  const image = { src: `data:image/png;base64,${png.toString('base64')}`, width: 2, height: 3 };
+  const bobId = bob.users.find((user) => user.username === 'Bob').id;
+  const sent = core.dispatch('alice-peer', {
+    type: 'message', clientMessageId: 'image-caption-0001', kind: 'image', image, text: '看这个 @Bob', mentions: [bobId],
+  });
+  const message = sent.effects.find((effect) => effect.kind === 'broadcast').payload.message;
+  assert.equal(message.kind, 'image');
+  assert.equal(message.text, '看这个 @Bob');
+  assert.deepEqual(message.mentions, [{ id: bobId, username: 'Bob' }]);
+  assert.equal(message.image.width, 2);
+  const duplicate = core.dispatch('alice-peer', {
+    type: 'message', clientMessageId: 'image-caption-0001', kind: 'image', image, text: '看这个 @Bob', mentions: [bobId],
+  });
+  assert.deepEqual(duplicate.effects[0].payload, sent.effects[0].payload);
+  const conflict = core.dispatch('alice-peer', {
+    type: 'message', clientMessageId: 'image-caption-0001', kind: 'image', image, text: '另一句',
+  });
+  assert.equal(conflict.accepted, false);
+  assert.equal(conflict.error.code, 'MESSAGE_ID_CONFLICT');
+  const bare = core.dispatch('alice-peer', {
+    type: 'message', clientMessageId: 'image-caption-0002', kind: 'image', image, text: '   ',
+  });
+  const bareMessage = bare.effects.find((effect) => effect.kind === 'broadcast').payload.message;
+  assert.equal(Object.hasOwn(bareMessage, 'text'), false);
+  assert.equal(bareMessage.mentions, undefined);
+  const reply = core.dispatch('alice-peer', {
+    type: 'message', clientMessageId: 'image-caption-0003', kind: 'text', text: 'ok', replyTo: message.id,
+  });
+  assert.equal(reply.effects.find((effect) => effect.kind === 'broadcast').payload.message.replyTo.text, '看这个 @Bob');
+  assert.equal(alice.self.username, 'Alice');
+});
 test('core accepts commands and returns routed effects without a network transport', () => {
   const { core } = createHarness();
   const state = join(core, 'alice-peer', 'Alice', 'session-alice-0001');

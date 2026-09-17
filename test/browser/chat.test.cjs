@@ -453,6 +453,16 @@ rateLimits:
       return canvas.toDataURL('image/png').split(',')[1];
     });
     await alice.locator('#imageInput').setInputFiles({ name: 'canvas-contract.png', mimeType: 'image/png', buffer: Buffer.from(source, 'base64') });
+    await alice.waitForFunction(() => {
+      const bar = document.querySelector('#composerAttach');
+      return bar && !bar.hidden && !bar.classList.contains('is-preparing') && !document.querySelector('.pending-message');
+    });
+    assert.equal(await alice.locator('.message[data-message-id] .message-image-link').count(), 0);
+    await alice.locator('#composerAttachThumb').click();
+    await alice.waitForFunction(() => !document.querySelector('#imageViewer').hidden && document.querySelector('#viewerDownload').hidden);
+    await alice.keyboard.press('Escape');
+    await alice.waitForFunction(() => document.querySelector('#imageViewer').hidden);
+    await alice.locator('#sendButton').click();
     for (const page of pages) {
       await page.waitForFunction(() => document.querySelectorAll('.message[data-message-id] .message-image-link').length === 1 && !document.querySelector('.pending-message'));
     }
@@ -473,6 +483,34 @@ rateLimits:
     await alice.keyboard.press('Escape');
     await alice.waitForFunction(() => document.querySelector('#imageViewer').hidden);
     assert.equal(await opener.evaluate((node) => node === document.activeElement), true);
+  });
+
+  await contract('staged image plus caption become one canonical bubble', async () => {
+    const source = await alice.evaluate(() => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 32;
+      canvas.height = 24;
+      const context = canvas.getContext('2d');
+      context.fillStyle = '#e86f57';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/png').split(',')[1];
+    });
+    await alice.locator('#imageInput').setInputFiles({ name: 'caption.png', mimeType: 'image/png', buffer: Buffer.from(source, 'base64') });
+    await alice.waitForFunction(() => {
+      const bar = document.querySelector('#composerAttach');
+      return bar && !bar.hidden && !bar.classList.contains('is-preparing') && !document.querySelector('#sendButton').disabled;
+    });
+    await alice.locator('#composerText').fill('看这个');
+    await alice.locator('#sendButton').click();
+    for (const page of pages) {
+      await page.waitForFunction(() => [...document.querySelectorAll('.message[data-message-id]')].some((article) => (
+        article.querySelector('.message-image-link') && article.querySelector('.message-body')?.textContent.includes('看这个')
+      )) && !document.querySelector('.pending-message'));
+    }
+    const count = await alice.locator('#messageList .message[data-message-id]').count();
+    const last = alice.locator('#messageList .message[data-message-id]').nth(count - 1);
+    assert.equal(await last.locator('.message-image-link').count(), 1);
+    assert.equal(await last.locator('.message-body').textContent(), '看这个');
   });
 
   await contract('append and capacity eviction preserve a scrolled-up message anchor', async () => {

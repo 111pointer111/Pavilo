@@ -92,7 +92,7 @@ v2/v3/v4 的同步顺序：
 
 ## 5. 发送、ACK 与幂等
 
-v2/v3/v4 发送文本或图片：
+v2/v3/v4 发送文本或图片。图片消息可以带可选配文：
 
 ```json
 {
@@ -101,6 +101,18 @@ v2/v3/v4 发送文本或图片：
   "kind": "text",
   "text": "hello",
   "replyTo": "可选的当前历史消息 ID"
+}
+```
+
+图片带配文时 `kind` 仍为 `"image"`，额外带 `text`（及可选 `mentions`）：
+
+```json
+{
+  "type": "message",
+  "clientMessageId": "message-client-0002",
+  "kind": "image",
+  "image": { "src": "data:image/png;base64,…", "width": 800, "height": 600 },
+  "text": "可选配文"
 }
 ```
 
@@ -124,7 +136,7 @@ ACK 形状为：
 }
 ```
 
-- 同一去重键、同一内容（类型、正文/图片 data URL、`replyTo` 的指纹相同）重复提交，不创建第二条消息，只重发原 ACK。
+- 同一去重键、同一内容（类型、正文、图片 data URL、`replyTo`、提及集合的指纹相同）重复提交，不创建第二条消息，只重发原 ACK。
 - 同一键改用不同内容返回 `MESSAGE_ID_CONFLICT`。
 - 去重记录默认保留 10 分钟且最多 512 项；它不是永久存储。频道不同可复用同一 `clientMessageId`。
 - ACK 表示服务端已接受，不替代权威房间回显。当前浏览器以 `clientMessageId` 对账 pending；ACK 到达后标为 accepted，收到回显后移除。8 秒未 ACK 标为未确认；同 epoch 重连完成后最多自动补发一次，依靠服务端去重避免重复。
@@ -132,7 +144,7 @@ ACK 形状为：
 
 常见消息错误包括 `INVALID_MESSAGE_ID`、`INVALID_KIND`、`EMPTY_MESSAGE`、`INVALID_IMAGE`、`MESSAGE_ID_CONFLICT`、`RATE_LIMITED`、`ROOM_BUDGET_EXCEEDED`、`MESSAGE_TOO_LARGE` 和 `SYNC_IN_PROGRESS`。
 
-回复不是指向可变对象：发送时若 `replyTo` 仍在当前频道历史中，服务端复制原消息的 `id`、作者名、类型和文字/“图片”预览；原消息已淘汰或 ID 无效则权威消息中的 `replyTo` 为 `null`。
+回复不是指向可变对象：发送时若 `replyTo` 仍在当前频道历史中，服务端复制原消息的 `id`、作者名、类型和文字（图片无配文时为“图片”）；原消息已淘汰或 ID 无效则权威消息中的 `replyTo` 为 `null`。
 
 ## 6. 图片契约
 
@@ -151,6 +163,7 @@ ACK 形状为：
 - GIF 为保留动画不经过 Canvas，仅检查原字节、尺寸和像素限制；
 - 其他图片最长边降到 1600 以内；小且合规的 PNG 保留 PNG，否则编码 JPEG，并在质量 0.82 到 0.5 间尝试压到服务端预算；
 - 图片异步处理期间若频道改变或连接失效，不发送处理结果；pending 图片另有页面内 4 MB 总预算。
+- 输入框先暂存一张图片（粘贴、选文件或拖放），发送时若同时有文字，配文写在同一条 `kind: 'image'` 消息上。
 
 这些客户端预处理不能替代服务端校验，迁移两端时也不能悄悄改变格式、默认预算或 GIF 动画语义。
 

@@ -74,7 +74,7 @@ function createMessageStore(config, now) {
       id: original.id,
       username: original.author.username,
       kind: original.kind,
-      text: original.kind === 'text' ? original.text : '图片'
+      text: original.text || (original.kind === 'image' ? '图片' : '')
     };
   }
 
@@ -125,13 +125,15 @@ function createMessageStore(config, now) {
     const hash = crypto.createHash('sha256');
     hash.update(kind);
     hash.update('\0');
-    hash.update(text || image?.src || '');
+    hash.update(text || '');
+    hash.update('\0');
+    hash.update(image?.src || '');
     hash.update('\0');
     hash.update(typeof command.replyTo === 'string' ? command.replyTo : '');
     hash.update('\0');
     // Fingerprint the submitted identity set, not today's roster. An accepted
     // retry must get its original ACK even after the recipient leaves.
-    hash.update(JSON.stringify(kind === 'text' ? mentionIds(command.mentions) : []));
+    hash.update(JSON.stringify(text ? mentionIds(command.mentions) : []));
     return hash.digest('hex');
   }
 

@@ -127,6 +127,14 @@ test('image dimensions, image button accessibility and emoji-only class match th
   assert.equal(articles[1].className, 'message self');
 });
 
+test('image captions render below the thumbnail in the same bubble', () => {
+  const room = harness([message('photo', { kind: 'image', text: '<look>', image: { src: 'data:image/png;base64,aa"', width: 780, height: 600 } })]);
+  room.renderer.renderHistory();
+  const article = room.elements.messageList.children.find((child) => child.tag === 'article');
+  assert.match(article.innerHTML, /data-viewer-message-id="photo"/);
+  assert.match(article.innerHTML, /<div class="message-body">&lt;look&gt;<\/div>/);
+});
+
 test('prune and append paint once, sample the old DOM and keep reading anchored instantly', () => {
   const original = Array.from({ length: 6 }, (_, index) => message(String(index)));
   const room = harness(original);

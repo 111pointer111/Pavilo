@@ -7,7 +7,8 @@
   const EPOCH_ERROR = '房间已经重启，请确认后重试。';
 
   function draftMatches(item, draft) {
-    return Boolean(item && item.kind === 'text' && String(draft ?? '').trim() === item.text);
+    if (!item || !item.text) return false;
+    return String(draft ?? '').trim() === item.text;
   }
 
   function defaultId() {
@@ -108,7 +109,13 @@
       if (item.kind === 'text') {
         command.text = item.text;
         if (item.mentions?.length) command.mentions = item.mentions.map((mention) => mention.id || mention);
-      } else command.image = item.image;
+      } else {
+        command.image = item.image;
+        if (item.text) {
+          command.text = item.text;
+          if (item.mentions?.length) command.mentions = item.mentions.map((mention) => mention.id || mention);
+        }
+      }
       let sent = false;
       try { sent = Boolean(send && send(command)); } catch { /* Treat transport exceptions as failed sends. */ }
       // A synchronous adapter may already have delivered an ACK or canonical echo.

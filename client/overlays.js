@@ -33,6 +33,7 @@
     let lastState = null;
     let profileTimer = null;
     let destroyed = false;
+    let viewerMode = 'gallery';
 
     function listen(target, type, handler, options) {
       target.addEventListener(type, handler, options);
@@ -191,17 +192,19 @@
     function viewerUpdateChrome() {
       const item = viewerItems[viewerIndexNow];
       if (!item) return;
-      viewerImage.alt = t('image.alt', { name: item.author.username });
+      const local = viewerMode === 'local';
+      viewerImage.alt = local ? t('attach.preview') : t('image.alt', { name: item.author.username });
       viewerAuthor.textContent = item.author.username;
       viewerAvatar.innerHTML = avatarMarkup(item.author, '', false);
-      viewerWhen.textContent = `${formatDay(item.message.createdAt)} ${formatTime(item.message.createdAt)}`;
+      viewerWhen.textContent = local ? t('viewer.localWhen') : `${formatDay(item.message.createdAt)} ${formatTime(item.message.createdAt)}`;
       viewerDimension.textContent = `${item.message.image.width} × ${item.message.image.height}`;
-      const multiple = viewerItems.length > 1;
+      const multiple = !local && viewerItems.length > 1;
       viewerPrev.hidden = !multiple;
       viewerNext.hidden = !multiple;
       viewerIndex.textContent = multiple ? t('viewer.index', { current: viewerIndexNow + 1, total: viewerItems.length }) : '';
-      viewerDownload.href = item.message.image.src;
-      viewerDownload.download = `pavilo-${item.message.id}.png`;
+      viewerDownload.hidden = local;
+      viewerDownload.href = local ? '#' : item.message.image.src;
+      viewerDownload.download = local ? '' : `pavilo-${item.message.id}.png`;
     }
 
     function viewerLoad(index) {
@@ -221,13 +224,9 @@
       if (viewerItems.length > 1) viewerLoad(viewerIndexNow + delta);
     }
 
-    function openImageViewer(messageId, opener) {
-      const state = getState();
-      const items = (state.messages || [])
-        .filter((message) => message.kind === 'image' && message.image?.src)
-        .map((message) => ({ message, author: message.author || state.self || { username: t('people.unknown'), avatarSeed: 0 } }));
-      const index = items.findIndex((item) => item.message.id === messageId);
-      if (index === -1) return;
+    function openViewer(items, index, opener, mode) {
+      if (!items.length || index < 0) return;
+      viewerMode = mode;
       viewerItems = items;
       viewerOpener = opener || document.activeElement;
       imageViewer.hidden = false;
@@ -235,6 +234,28 @@
       document.body.classList.add('viewer-open');
       viewerLoad(index);
       viewerClose.focus({ preventScroll: true });
+    }
+
+    function openImageViewer(messageId, opener) {
+      const state = getState();
+      const items = (state.messages || [])
+        .filter((message) => message.kind === 'image' && message.image?.src)
+        .map((message) => ({ message, author: message.author || state.self || { username: t('people.unknown'), avatarSeed: 0 } }));
+      openViewer(items, items.findIndex((item) => item.message.id === messageId), opener, 'gallery');
+    }
+
+    function openLocalImage(image, opener) {
+      if (!image?.src) return;
+      const state = getState();
+      const author = state.self || { username: t('people.self'), avatarSeed: 0 };
+      openViewer([{
+        message: {
+          id: 'local-preview',
+          createdAt: Date.now(),
+          image: { src: image.src, width: Number(image.width) || 1, height: Number(image.height) || 1 },
+        },
+        author,
+      }], 0, opener, 'local');
     }
 
     function endViewerDrag() {
@@ -252,6 +273,8 @@
       viewerMeta = null;
       viewerItems = [];
       viewerIndexNow = -1;
+      viewerMode = 'gallery';
+      if (viewerDownload) viewerDownload.hidden = false;
       endViewerDrag();
       viewerShowStatus('', '');
       const target = viewerOpener?.isConnected ? viewerOpener : null;
@@ -383,7 +406,7 @@
     }
 
     return { onState, renderPeople, renderProfile, openProfile, setMobileSheet,
-      openImageViewer, closeImageViewer, resetChannel, destroy };
+      openImageViewer, openLocalImage, closeImageViewer, resetChannel, destroy };
   }
 
   return { createOverlays };

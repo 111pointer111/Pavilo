@@ -62,6 +62,8 @@ test('all current server frames parse from strings and objects without rewriting
   }
   const image = message({ kind: 'image', image: { src: 'data:image/png;base64,AA==', mime: 'image/png', width: 1, height: 1, bytes: 1 } });
   assert.equal(parseServerEvent({ type: 'message', message: image }).message, image);
+  const captioned = message({ kind: 'image', text: '看这个', mentions: [{ id: user.id, username: user.username }], image: image.image });
+  assert.equal(parseServerEvent({ type: 'message', message: captioned }).message, captioned);
 });
 
 test('malformed JSON, non-object frames, unsupported types and missing event fields return null', () => {

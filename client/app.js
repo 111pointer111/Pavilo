@@ -181,6 +181,10 @@
     $('#mentionButton')?.setAttribute('aria-label', t('composer.mention'));
     $('#mentionButton')?.setAttribute('title', t('composer.mentionTitle'));
     $('#attachmentButton')?.setAttribute('aria-label', t('composer.attach'));
+    $('#composerAttachThumb')?.setAttribute('aria-label', t('attach.preview'));
+    $('#composerAttachRemove')?.setAttribute('aria-label', t('attach.remove'));
+    const retry = $('#composerAttachRetry');
+    if (retry) retry.textContent = t('attach.retry');
     copyLinkButton.setAttribute('title', t('top.shareTitle'));
     $('#membersButton')?.setAttribute('title', t('top.membersTitle'));
     $('#membersButton')?.setAttribute('aria-label', t('top.membersTitle'));
@@ -428,7 +432,7 @@
   }
 
   function clearDraftFor(item) {
-    if (!item || item.kind !== 'text' || !draftMatches(item, composerText.value)) return;
+    if (!draftMatches(item, composerText.value)) return;
     composerText.value = '';
     mentionController.clear();
     if (replyTarget?.id === item.replyToId) composerController?.clearReply();
@@ -574,8 +578,13 @@
     viewerDownload: $('#viewerDownload'), viewerRotate: $('#viewerRotate'), viewerReset: $('#viewerReset'), viewerClose: $('#viewerClose'),
     toastRegion: $('#toastRegion'), newMessageJump, newMessageCount: $('#newMessageCount'), notifyButton: $('#notifyButton'), appFavicon: $('#appFavicon'),
     composer, composerText, sendButton: $('#sendButton'), emojiButton, attachmentButton: $('#attachmentButton'), imageInput: $('#imageInput'),
+    composerWrap: $('#composerWrap'), composerAttach: $('#composerAttach'), composerAttachThumb: $('#composerAttachThumb'),
+    composerAttachImage: $('#composerAttachImage'), composerAttachStatus: $('#composerAttachStatus'),
+    composerAttachLabel: $('#composerAttachLabel'), composerAttachHint: $('#composerAttachHint'),
+    composerAttachRetry: $('#composerAttachRetry'), composerAttachRemove: $('#composerAttachRemove'),
+    composerDrop: $('#composerDrop'),
     replyingBar: $('#replyingBar'), replyingName: $('#replyingName'), replyingText: $('#replyingText'), cancelReplyButton: $('#cancelReplyButton'),
-    channelReadonlyNotice: $('#channelReadonlyNotice'),
+    channelReadonlyNotice: $('#channelReadonlyNotice'), appShell,
     errorOverlay: $('#errorOverlay'),
   };
 
@@ -627,6 +636,9 @@
     setReplyTarget: (value) => { replyTarget = value; },
     getLimits: () => ({ maxTextLength: roomInfo?.limits?.maxTextLength }),
     t,
+    canCapturePaste: () => !appShell.hidden && !document.body.classList.contains('viewer-open') && $('#errorOverlay')?.hidden !== false,
+    openLocalPreview: (image, opener) => overlaysController?.openLocalImage(image, opener),
+    closeLocalPreview: () => overlaysController?.closeImageViewer(false),
   });
   composerController.bind();
 
@@ -854,6 +866,7 @@
       resumeToken = null;
       identity = null;
       composerController.clearReply();
+      composerController.clearAttachment();
       finishResume();
       showLogin(t('login.serviceStopped'));
     }
@@ -872,11 +885,14 @@
       notificationsController.toast(t('toast.channelBusy'));
       return;
     }
-    if (pendingQueue.unsafeChannelWork(composerText.value, composerController.imageProcessingCount)) {
+    if (pendingQueue.unsafeChannelWork(composerText.value, composerController.imageProcessingCount)
+      || composerController.hasAttachment) {
       const pendingWork = pendingQueue.pendingChannelWork();
       const reason = composerController.imageProcessingCount
         ? t('toast.channelBlockedImage')
-        : pendingWork ? t('toast.channelBlockedPending') : t('toast.channelBlockedDraft');
+        : pendingWork ? t('toast.channelBlockedPending')
+          : composerController.hasAttachment ? t('toast.channelBlockedAttach')
+            : t('toast.channelBlockedDraft');
       notificationsController.toast(t('toast.channelBlocked', { reason }), 'error');
       return;
     }
@@ -941,6 +957,7 @@
     connection.clearChannelId();
     pendingQueue.clear();
     composerController.clearReply();
+    composerController.clearAttachment();
     resumeToken = null;
     identity = null;
     selectedChannelId = roomInfo?.defaultChannelId || null;
