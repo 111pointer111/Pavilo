@@ -220,7 +220,6 @@ SQLite、Agent、账号系统不阻塞 v1.0。
 ### 工程质量
 
 - 创建 CHANGELOG.md（回溯 v0.1-v0.3，建立变更日志习惯）
-- 简化版压测脚本（tools/stress-test.js，手动运行，记录基线）
 - 更新 package.json 版本号为 v0.4.0
 
 ### 发布门槛
@@ -228,7 +227,7 @@ SQLite、Agent、账号系统不阻塞 v1.0。
 - HTTP 安全头添加完成
 - 畸形输入测试用例通过
 - CHANGELOG.md 创建并包含历史版本
-- 压测脚本可运行并记录基线数据
+- package.json 版本号已更新
 
 ---
 

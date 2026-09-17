@@ -106,7 +106,9 @@ function createHttpHandler(config, core, address, ROOT) {
         // asked for one.
         Vary: 'Accept-Encoding',
         'Cache-Control': 'public, max-age=300',
-        'X-Content-Type-Options': 'nosniff'
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'Referrer-Policy': 'strict-origin-when-cross-origin'
       };
       if (encoded.encoding) headers['Content-Encoding'] = encoded.encoding;
       response.writeHead(200, headers);
@@ -148,6 +150,8 @@ function createHttpHandler(config, core, address, ROOT) {
         ETag: etag,
         Vary: 'Accept-Encoding',
         'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'Referrer-Policy': 'strict-origin-when-cross-origin',
         'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:;"
       };
       if (encoded.encoding) headers['Content-Encoding'] = encoded.encoding;
@@ -162,7 +166,9 @@ function createHttpHandler(config, core, address, ROOT) {
       'Content-Type': 'application/json; charset=utf-8',
       'Content-Length': Buffer.byteLength(body),
       'Cache-Control': 'no-store',
-      'X-Content-Type-Options': 'nosniff'
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'Referrer-Policy': 'strict-origin-when-cross-origin'
     });
     response.end(headOnly ? undefined : body);
   }
