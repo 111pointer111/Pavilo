@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **图片先暂存再发送**：粘贴、选文件或拖入图片后，输入框上方出现缩略图，可预览、删除，再点发送
+- **图片先暂存再发送**：粘贴、选文件或拖入图片后，输入框内文字上方出现缩略图，可预览、删除，再点发送
 - 图片消息可带可选配文与 `@` 提及，图和字显示在同一条气泡里（上图下字）
 
 ### Fixed
@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - 附件按钮不再立刻发图；发送按钮在有待发图片或文字时可用
+- 待发图片缩略图改到输入框内部、只占图片本身的宽度；删除叉在桌面悬停显示、手机常显
 
 ### Tests
 - 总测试数：273 个（272 通过，1 跳过）；浏览器合同 17/17

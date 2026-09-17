@@ -794,35 +794,38 @@ button, .channel, .person, .avatar, .top-action, .reaction-button, .composer-but
 .cancel-reply:hover { background: rgba(255, 255, 255, .58); color: var(--coral); }
 
 .composer-attach {
+  grid-area: attach;
   display: flex;
   min-width: 0;
   align-items: center;
   gap: 10px;
-  min-height: 56px;
-  padding: 7px 10px;
-  border: 1px solid var(--line);
-  border-bottom: 0;
-  border-radius: 8px 8px 0 0;
-  background: var(--teal-pale);
+  padding: 0 4px 4px 0;
 }
-.replying:not([hidden]) + .composer-attach { border-radius: 0; }
+.composer-attach-chip {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  flex: 0 0 auto;
+}
 .composer-attach-thumb {
   position: relative;
-  display: grid;
-  width: 48px;
-  height: 48px;
-  flex: 0 0 auto;
+  display: block;
+  width: auto;
+  max-width: min(168px, 42vw);
+  height: 72px;
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--paper);
+  border-radius: 7px;
+  background: var(--paper-warm);
+  box-shadow: 0 1px 0 rgba(24, 45, 50, .04);
   cursor: zoom-in;
 }
 .composer-attach-thumb img {
   display: block;
-  width: 100%;
-  height: 100%;
+  width: auto;
+  max-width: 100%;
+  height: 72px;
   object-fit: cover;
 }
 .composer-attach-status {
@@ -839,13 +842,13 @@ button, .channel, .person, .avatar, .top-action, .reaction-button, .composer-but
 .composer-attach-meta {
   display: grid;
   min-width: 0;
-  flex: 1 1 auto;
-  gap: 2px;
+  align-content: center;
+  gap: 3px;
   color: var(--ink-soft);
   font-size: 11px;
   line-height: 1.4;
 }
-.composer-attach-meta strong { color: var(--teal-deep); font-size: 12px; }
+.composer-attach-meta strong { color: var(--coral); font-size: 12px; }
 .composer-attach-meta span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composer-attach-retry {
   justify-self: start;
@@ -860,22 +863,50 @@ button, .channel, .person, .avatar, .top-action, .reaction-button, .composer-but
 }
 .composer-attach-retry[hidden] { display: none; }
 .composer-attach-remove {
+  position: absolute;
+  z-index: 1;
+  top: -11px;
+  right: -11px;
   display: grid;
-  width: 44px;
-  height: 44px;
-  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
   place-items: center;
   padding: 0;
   border: 0;
-  border-radius: 5px;
   background: transparent;
   color: var(--ink-soft);
   cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-fast) var(--ease-smooth), color var(--transition-fast) var(--ease-smooth);
 }
-.composer-attach-remove:hover { background: rgba(255, 255, 255, .58); color: var(--coral); }
-.composer-attach.is-error { background: var(--coral-pale); }
+.composer-attach-remove::before {
+  content: "";
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  box-shadow: 0 4px 10px rgba(24, 45, 50, .12);
+  grid-area: 1 / 1;
+}
+.composer-attach-remove .icon { grid-area: 1 / 1; width: 12px; height: 12px; }
+.composer-attach-chip:hover .composer-attach-remove,
+.composer-attach-chip:focus-within .composer-attach-remove,
+.composer-attach-remove:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.composer-attach-remove:hover,
+.composer-attach-remove:focus-visible {
+  color: var(--coral);
+}
+.composer-attach-remove:hover::before,
+.composer-attach-remove:focus-visible::before {
+  border-color: var(--coral);
+  background: var(--coral-pale);
+}
 .composer-attach.is-error .composer-attach-thumb { outline: 2px solid var(--coral); outline-offset: 1px; }
-.composer-attach.is-error .composer-attach-meta strong { color: var(--coral); }
 
 .composer-drop {
   position: absolute;
@@ -908,8 +939,13 @@ button, .channel, .person, .avatar, .top-action, .reaction-button, .composer-but
   border-radius: 8px;
   background: rgba(249, 251, 248, .86);
 }
-.composer.has-reply,
-.composer.has-attach { border-radius: 0 0 8px 8px; }
+.composer.has-reply { border-radius: 0 0 8px 8px; }
+.composer.has-attach {
+  padding-top: 16px;
+  grid-template-areas:
+    "attach attach attach"
+    "tools text send";
+}
 .composer-tools { grid-area: tools; display: flex; align-items: center; gap: 6px; }
 .composer-button {
   display: inline-grid;
@@ -1326,6 +1362,15 @@ html.resuming .login-screen { visibility: hidden; }
   .typing-line { padding: 0 15px; }
   .composer-wrap { padding: 0 10px max(10px, env(safe-area-inset-bottom)); }
   .composer { gap: 8px; padding: 9px; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "text text" "tools send"; }
+  .composer.has-attach {
+    padding-top: 14px;
+    grid-template-areas:
+      "attach attach"
+      "text text"
+      "tools send";
+  }
+  .composer-attach-thumb,
+  .composer-attach-thumb img { height: 64px; }
   .composer-hint { display: none; }
   .mention-footer { display: none; }
   .composer-button { width: 44px; height: 44px; }
@@ -1391,6 +1436,13 @@ html.resuming .login-screen { visibility: hidden; }
       "text text"
       "tools send";
   }
+  .composer.has-attach {
+    padding-top: 14px;
+    grid-template-areas:
+      "attach attach"
+      "text text"
+      "tools send";
+  }
   .composer-tools { justify-self: start; }
   .send-button { min-width: 88px; }
   .message-body { font-size: 13px; }
@@ -1416,6 +1468,11 @@ html.resuming .login-screen { visibility: hidden; }
 
 /* 移动端触摸优化 */
 @media (hover: none) and (pointer: coarse) {
+  .composer-attach-remove {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
   button, .channel, .person, .top-action {
     -webkit-tap-highlight-color: rgba(15, 119, 114, .1);
   }

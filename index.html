@@ -118,21 +118,23 @@
               <span class="icon" data-icon="x" aria-hidden="true"></span>
             </button>
           </div>
-          <div class="composer-attach" id="composerAttach" hidden>
-            <button class="composer-attach-thumb" id="composerAttachThumb" type="button" aria-label="查看待发送图片">
-              <img id="composerAttachImage" alt="">
-              <span class="composer-attach-status" id="composerAttachStatus" hidden></span>
-            </button>
-            <p class="composer-attach-meta">
-              <strong id="composerAttachLabel"></strong>
-              <span id="composerAttachHint"></span>
-              <button class="composer-attach-retry" id="composerAttachRetry" type="button" hidden>重试</button>
-            </p>
-            <button class="composer-attach-remove" id="composerAttachRemove" type="button" aria-label="删除待发送图片">
-              <span class="icon" data-icon="x" aria-hidden="true"></span>
-            </button>
-          </div>
           <form class="composer" id="composer">
+            <div class="composer-attach" id="composerAttach" hidden>
+              <div class="composer-attach-chip">
+                <button class="composer-attach-thumb" id="composerAttachThumb" type="button" aria-label="查看待发送图片">
+                  <img id="composerAttachImage" alt="">
+                  <span class="composer-attach-status" id="composerAttachStatus" hidden></span>
+                </button>
+                <button class="composer-attach-remove" id="composerAttachRemove" type="button" aria-label="删除待发送图片">
+                  <span class="icon" data-icon="x" data-icon-size="12" aria-hidden="true"></span>
+                </button>
+              </div>
+              <p class="composer-attach-meta" id="composerAttachMeta" hidden>
+                <strong id="composerAttachLabel"></strong>
+                <span id="composerAttachHint"></span>
+                <button class="composer-attach-retry" id="composerAttachRetry" type="button" hidden>重试</button>
+              </p>
+            </div>
             <div class="composer-tools">
               <button class="composer-button" id="emojiButton" type="button" aria-label="打开表情" aria-expanded="false" aria-controls="emojiPopover">
                 <span class="icon" data-icon="smile" aria-hidden="true"></span>

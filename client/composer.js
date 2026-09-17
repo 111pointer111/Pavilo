@@ -131,25 +131,26 @@
       if (elements.composerAttachThumb) {
         elements.composerAttachThumb.setAttribute('aria-label', t('attach.preview'));
         elements.composerAttachThumb.disabled = !present;
+        elements.composerAttachThumb.setAttribute('aria-busy', attachment?.status === 'preparing' ? 'true' : 'false');
       }
       if (elements.composerAttachRemove) {
         elements.composerAttachRemove.setAttribute('aria-label', t('attach.remove'));
         elements.composerAttachRemove.hidden = !present;
       }
+      const failed = attachment?.status === 'error';
       if (elements.composerAttachLabel) {
-        elements.composerAttachLabel.textContent = attachment?.status === 'error' ? t('attach.error')
-          : attachment?.status === 'preparing' ? t('attach.preparing')
-            : present ? t('attach.ready') : '';
+        elements.composerAttachLabel.textContent = failed ? t('attach.error') : '';
       }
       if (elements.composerAttachHint) {
-        elements.composerAttachHint.textContent = attachment?.status === 'error'
-          ? (attachment.error || t('attach.error')) : '';
+        elements.composerAttachHint.textContent = failed && attachment.error && attachment.error !== t('attach.error')
+          ? attachment.error : '';
       }
+      if (elements.composerAttachMeta) elements.composerAttachMeta.hidden = !failed;
       if (elements.composerAttachStatus) {
         elements.composerAttachStatus.hidden = attachment?.status !== 'preparing';
       }
       if (elements.composerAttachRetry) {
-        elements.composerAttachRetry.hidden = attachment?.status !== 'error';
+        elements.composerAttachRetry.hidden = !failed;
         elements.composerAttachRetry.textContent = t('attach.retry');
       }
     }

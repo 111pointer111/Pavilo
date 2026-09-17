@@ -42,7 +42,7 @@ function harness(options = {}) {
     const attrs = {};
     listeners.set(name, callbacks);
     return {
-      value: '', style: {}, hidden: name === 'composerAttach' || name === 'composerDrop' || name === 'composerAttachRetry' || name === 'composerAttachStatus',
+      value: '', style: {}, hidden: name === 'composerAttach' || name === 'composerDrop' || name === 'composerAttachRetry' || name === 'composerAttachStatus' || name === 'composerAttachMeta',
       disabled: false, scrollHeight: 30, maxLength: 2000, selectionStart: 0, files: null, alt: '', textContent: '',
       ownerDocument: null,
       classList: {
@@ -75,7 +75,7 @@ function harness(options = {}) {
   const names = ['composer', 'composerText', 'sendButton', 'emojiButton', 'attachmentButton', 'imageInput',
     'replyingBar', 'replyingName', 'replyingText', 'cancelReplyButton', 'composerWrap', 'composerAttach',
     'composerAttachThumb', 'composerAttachImage', 'composerAttachStatus', 'composerAttachLabel',
-    'composerAttachHint', 'composerAttachRetry', 'composerAttachRemove', 'composerDrop', 'messageScroll', 'document'];
+    'composerAttachHint', 'composerAttachMeta', 'composerAttachRetry', 'composerAttachRemove', 'composerDrop', 'messageScroll', 'document'];
   const elements = Object.fromEntries(names.map((name) => [name, element(name)]));
   const documentTarget = elements.document;
   documentTarget.defaultView = clock;
@@ -326,7 +326,14 @@ test('image input stages instead of sending and clears the selected input immedi
   assert.equal(room.pending.size, 0);
   assert.equal(room.composer.hasAttachment, true);
   assert.equal(room.elements.composerAttach.hidden, false);
+  assert.equal(room.elements.composer.classList.contains('has-attach'), true);
+  assert.equal(room.elements.composerAttachMeta.hidden, true);
+  assert.equal(room.elements.composerAttachLabel.textContent, '');
   assert.equal(room.composer.imageProcessingCount, 0);
+  room.elements.composerAttachRemove.emit('click');
+  assert.equal(room.composer.hasAttachment, false);
+  assert.equal(room.elements.composerAttach.hidden, true);
+  assert.equal(room.elements.composer.classList.contains('has-attach'), false);
 });
 
 test('image preparation keeps emoji and attach enabled, then sendAll queues the image and caption', async () => {
@@ -339,8 +346,10 @@ test('image preparation keeps emoji and attach enabled, then sendAll queues the 
   assert.equal(room.elements.emojiButton.disabled, false);
   assert.equal(room.elements.attachmentButton.disabled, false);
   assert.equal(room.elements.composerText.disabled, false);
+  assert.equal(room.elements.composerAttachThumb.getAttribute('aria-busy'), 'true');
   processing.resolve(room.image);
   assert.equal(await staging, true);
+  assert.equal(room.elements.composerAttachThumb.getAttribute('aria-busy'), 'false');
   assert.equal(room.pending.size, 0);
   assert.equal(room.composer.sendAll(), true);
   const item = [...room.pending.values()][0];
@@ -466,6 +475,9 @@ test('preparation errors keep the chip, preserve reply, and explain the failure'
     assert.deepEqual(room.toasts, [[message, true]]);
     assert.equal(room.composer.hasAttachment, true);
     assert.equal(room.elements.composerAttachRetry.hidden, false);
+    assert.equal(room.elements.composerAttachMeta.hidden, false);
+    assert.equal(room.elements.composerAttachLabel.textContent, '无法使用这张图片');
+    assert.equal(room.elements.composerAttachHint.textContent, message);
     assert.equal(room.composer.imageProcessingCount, 0);
     assert.equal(room.elements.sendButton.disabled, false);
     assert.equal(room.elements.attachmentButton.disabled, false);
