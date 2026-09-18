@@ -141,12 +141,22 @@ async function ready(page, channelId) {
 }
 
 async function login(page, baseUrl, name) {
-  await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
-  await page.locator('#usernameInput').fill(name);
-  await page.waitForFunction(() => !document.querySelector('#loginForm .enter-button').disabled);
-  // The room's supported login interaction is form submission, not a synthetic click.
-  await page.locator('#usernameInput').press('Enter');
-  await ready(page, 'projects');
+  const blockedHidden = [];
+  const onConsole = (msg) => {
+    if (String(msg.text()).includes('Blocked aria-hidden')) blockedHidden.push(msg.text());
+  };
+  page.on('console', onConsole);
+  try {
+    await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    await page.locator('#usernameInput').fill(name);
+    await page.waitForFunction(() => !document.querySelector('#loginForm .enter-button').disabled);
+    // The room's supported login interaction is form submission, not a synthetic click.
+    await page.locator('#usernameInput').press('Enter');
+    await ready(page, 'projects');
+  } finally {
+    page.off('console', onConsole);
+  }
+  assert.equal(blockedHidden.length, 0, blockedHidden.join('\n'));
 }
 
 async function switchChannel(page, channelId) {

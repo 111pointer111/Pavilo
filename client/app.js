@@ -242,17 +242,24 @@
     errorController.setConnectionStatus(online, t(key, vars), variant);
   }
 
+  // Reveal the destination, move focus, then aria-hide the source. Chrome
+  // blocks aria-hidden on an ancestor of document.activeElement.
+  function moveFocusFrom(root, next) {
+    if (!root.contains(document.activeElement)) return;
+    if (next && !next.disabled) next.focus();
+    if (root.contains(document.activeElement)) document.activeElement.blur();
+  }
+
   function showChat() {
     appShell.hidden = false;
     appShell.setAttribute('aria-hidden', 'false');
+    moveFocusFrom(loginScreen, composerText);
     loginScreen.hidden = true;
     loginScreen.setAttribute('aria-hidden', 'true');
     document.body.classList.add('chat-active');
   }
 
   function showLogin(message = '', focus = true) {
-    appShell.hidden = true;
-    appShell.setAttribute('aria-hidden', 'true');
     loginScreen.hidden = false;
     loginScreen.setAttribute('aria-hidden', 'false');
     document.body.classList.remove('chat-active', 'sheet-open', 'viewer-open');
@@ -260,6 +267,9 @@
     loginForm.querySelector('.enter-button').disabled = false;
     loginError.textContent = message;
     if (focus) usernameInput.focus();
+    else moveFocusFrom(appShell);
+    appShell.hidden = true;
+    appShell.setAttribute('aria-hidden', 'true');
   }
 
   function finishResume() {

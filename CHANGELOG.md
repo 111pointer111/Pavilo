@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 图片消息可带可选配文与 `@` 提及，图和字显示在同一条气泡里（上图下字）
 
 ### Fixed
+- 登录成功后先移走用户名框焦点，再给登录层加 `aria-hidden`，避免 Chrome 报 Blocked aria-hidden
 - CHANGELOG v0.2.0 曾写「Paste from clipboard / Drag-and-drop」，当时并未落地；现已实现
 - 图文混排仍上图下字，气泡按每张缩略图自己的显示宽度收紧（宽图宽、竖图窄），回复和回应按钮贴回气泡右侧
 
