@@ -6,6 +6,41 @@
 
   const REACTION_EMOJIS = ['👍', '❤️', '😂', '🎉', '👀', '🔥'];
 
+  // RGI_Emoji needs the `v` flag (Node 20+, Chromium 112+, Safari 17+). Older
+  // engines still match ZWJ sequences, VS16, skin tones, flags and keycaps.
+  let emojiPatternSource = '\\p{RGI_Emoji}';
+  let emojiPatternFlags = 'gv';
+  try {
+    new RegExp(emojiPatternSource, emojiPatternFlags);
+  } catch {
+    emojiPatternSource = '(?:\\p{Extended_Pictographic}(?:\\uFE0F)?(?:\\u{1F3FB}|\\u{1F3FC}|\\u{1F3FD}|\\u{1F3FE}|\\u{1F3FF})?(?:\\u200D\\p{Extended_Pictographic}(?:\\uFE0F)?(?:\\u{1F3FB}|\\u{1F3FC}|\\u{1F3FD}|\\u{1F3FE}|\\u{1F3FF})?)*|\\p{Regional_Indicator}{2}|[0-9#*]\\uFE0F?\\u20E3)';
+    emojiPatternFlags = 'gu';
+  }
+  function emojiPattern() {
+    return new RegExp(emojiPatternSource, emojiPatternFlags);
+  }
+
+  function emojiCount(text) {
+    return [...String(text || '').matchAll(emojiPattern())].length;
+  }
+
+  function isEmojiOnly(text) {
+    const trimmed = String(text || '').trim();
+    if (!trimmed) return false;
+    const matches = trimmed.match(emojiPattern());
+    if (!matches || !matches.length) return false;
+    return trimmed.replace(emojiPattern(), '').replace(/\s+/g, '') === '';
+  }
+
+  function wrapInlineEmoji(html) {
+    const emoji = emojiPattern();
+    return String(html || '').replace(/(<[^>]+>)|([^<]+)/g, (chunk, tag, text) => {
+      if (tag) return tag;
+      emoji.lastIndex = 0;
+      return text.replace(emoji, '<span class="inline-emoji">$&</span>');
+    });
+  }
+
   function isNearBottom(scroll) {
     return scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 90;
   }
@@ -95,19 +130,21 @@
       return classes;
     }
 
-    function isEmojiOnly(text) {
-      return /^\s*(?:\p{Extended_Pictographic}|\p{Emoji_Presentation}|\s)+$/u.test(text || '');
-    }
-
-    function textBodyMarkup(text, mentions) {
+    function textBodyMarkup(text, mentions, jumbo = false) {
       if (!text) return '';
-      return `<div class="message-body${isEmojiOnly(text) ? ' emoji-only' : ''}">${textMarkup(text, mentions)}</div>`;
+      const only = jumbo && isEmojiOnly(text);
+      const count = only ? emojiCount(text) : 0;
+      const sizeClass = !only ? ''
+        : count <= 1 ? ' emoji-solo'
+          : count <= 3 ? ' emoji-few'
+            : ' emoji-many';
+      return `<div class="message-body${only ? ' emoji-only' : ''}${sizeClass}">${wrapInlineEmoji(textMarkup(text, mentions))}</div>`;
     }
 
     function messageBubbleMarkup(message, author) {
       const thumb = message.kind === 'image' && message.image?.src ? thumbnailSize(message.image) : null;
       const image = thumb ? imageMarkup(message, author, thumb) : '';
-      const text = message.text ? textBodyMarkup(message.text, message.mentions) : '';
+      const text = message.text ? textBodyMarkup(message.text, message.mentions, !thumb) : '';
       const classes = bubbleClassList(message, thumb);
       const style = classes.includes('has-media') ? ` style="--thumb-w:${thumb.width}px"` : '';
       return `<div class="${classes.join(' ')}"${style}>${renderReply(message)}${image}${text}${reactionMarkup(message)}</div>`;
@@ -190,7 +227,7 @@
           pendingThumb
             ? `<img class="pending-image" src="${escapeHtml(item.image.src)}" alt="${escapeHtml(t('pending.imageAlt'))}" width="${pendingThumb.width}" height="${pendingThumb.height}" style="width:${pendingThumb.width}px;max-width:100%">`
             : '',
-          item.text ? `<div class="message-body">${textMarkup(item.text, item.mentions)}</div>` : '',
+          item.text ? textBodyMarkup(item.text, item.mentions, !pendingThumb) : '',
         ].join('');
         const avatar = continued
           ? `<span class="message-gutter-time">${escapeHtml(t('pending.now'))}</span>`
@@ -198,9 +235,7 @@
         const meta = continued
           ? `<span class="visually-hidden">${escapeHtml(self?.username || t('people.self'))}</span>`
           : `<div class="message-meta"><span class="message-author">${escapeHtml(self?.username || t('people.self'))}</span><span class="message-time">${escapeHtml(t('pending.now'))}</span></div>`;
-        const classes = ['message-bubble'];
-        if (pendingThumb && !item.text) classes.push('bare-media');
-        else if (pendingThumb) classes.push('has-media');
+        const classes = bubbleClassList(item, pendingThumb);
         const style = classes.includes('has-media') ? ` style="--thumb-w:${pendingThumb.width}px"` : '';
         node.innerHTML = `<div class="message-avatar">${avatar}</div><div class="message-main">${meta}<div class="message-stack"><div class="${classes.join(' ')}"${style}>${body}</div><div class="pending-status" role="status" aria-live="polite"></div></div></div>`;
         hydrateIcons(node);
@@ -403,5 +438,5 @@
       closeReactionPopover, openReactionPopover };
   }
 
-  return { createMessages, isNearBottom, captureReadingOffset, readingScrollTop };
+  return { createMessages, isNearBottom, captureReadingOffset, readingScrollTop, isEmojiOnly };
 });

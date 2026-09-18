@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const { test } = require('node:test');
 const messagesApi = require('../client/messages');
-const { createMessages, isNearBottom, captureReadingOffset, readingScrollTop } = messagesApi;
+const { createMessages, isNearBottom, captureReadingOffset, readingScrollTop, isEmojiOnly } = messagesApi;
 const { createI18n } = require('../client/i18n');
 
 const self = { id: 'alice', username: 'Alice', avatarSeed: 1 };
@@ -127,8 +127,53 @@ test('image dimensions, image button accessibility and emoji-only class match th
   assert.match(articles[0].innerHTML, /<button class="message-image-link" type="button" data-viewer-message-id="photo" aria-label="查看 Bob 分享的图片"><img class="message-image" src="data:image\/png;base64,aa&quot;" alt="Bob 分享的图片" loading="lazy" decoding="async" width="390" height="300" style="width:390px;max-width:100%"><\/button>/);
   assert.match(articles[0].innerHTML, /class="message-bubble bare-media"/);
   assert.match(articles[1].innerHTML, /class="message-bubble bare-emoji"/);
-  assert.match(articles[1].innerHTML, /<div class="message-body emoji-only">🔥 😂<\/div>/);
+  assert.match(articles[1].innerHTML, /<div class="message-body emoji-only emoji-few"><span class="inline-emoji">🔥<\/span> <span class="inline-emoji">😂<\/span><\/div>/);
   assert.equal(articles[1].className, 'message self');
+});
+
+test('emoji-only detection covers ZWJ, VS16 and keycaps, and mixed text stays in a bubble', () => {
+  assert.equal(isEmojiOnly('🔥 😂'), true);
+  assert.equal(isEmojiOnly('❤️'), true);
+  assert.equal(isEmojiOnly('👨‍💻'), true);
+  assert.equal(isEmojiOnly('👍🏻'), true);
+  assert.equal(isEmojiOnly('1️⃣'), true);
+  assert.equal(isEmojiOnly('☺️'), true);
+  assert.equal(isEmojiOnly('  '), false);
+  assert.equal(isEmojiOnly('©'), false);
+  assert.equal(isEmojiOnly('你好 😂'), false);
+  assert.equal(isEmojiOnly('😂哈哈'), false);
+
+  const room = harness([
+    message('heart', { author: self, text: '❤️' }),
+    message('zwj', { text: '👨‍💻' }),
+    message('mixed', { text: '你好 😂' }),
+    message('caption', { kind: 'image', text: '😂', image: { src: 'data:image/png;base64,aa', width: 80, height: 50 } }),
+  ]);
+  room.renderer.renderHistory();
+  const articles = room.elements.messageList.children.filter((child) => child.tag === 'article');
+  assert.match(articles[0].innerHTML, /class="message-bubble bare-emoji"/);
+  assert.match(articles[0].innerHTML, /message-body emoji-only emoji-solo/);
+  assert.match(articles[0].innerHTML, /<span class="inline-emoji">❤️<\/span>/);
+  assert.match(articles[1].innerHTML, /class="message-bubble bare-emoji"/);
+  assert.match(articles[1].innerHTML, /<span class="inline-emoji">👨‍💻<\/span>/);
+  assert.doesNotMatch(articles[2].innerHTML, /bare-emoji/);
+  assert.doesNotMatch(articles[2].innerHTML, /emoji-only/);
+  assert.match(articles[2].innerHTML, /class="message-bubble"/);
+  assert.match(articles[2].innerHTML, /你好 <span class="inline-emoji">😂<\/span>/);
+  assert.match(articles[3].innerHTML, /class="message-bubble has-media"/);
+  assert.doesNotMatch(articles[3].innerHTML, /emoji-only/);
+  assert.match(articles[3].innerHTML, /<span class="inline-emoji">😂<\/span>/);
+});
+
+test('pending emoji-only drafts skip the bubble the same way as sent ones', () => {
+  const room = harness();
+  room.renderer.renderHistory();
+  const pending = { id: 'pending-emoji', kind: 'text', text: '❤️', status: 'sending' };
+  room.transition({ ...room.getState(), pending: { [pending.id]: pending } }, { type: 'pending/add' });
+  const article = room.elements.messageList.children.find((child) => child.tag === 'article');
+  assert.match(article.innerHTML, /class="message-bubble bare-emoji"/);
+  assert.match(article.innerHTML, /message-body emoji-only emoji-solo/);
+  assert.match(article.innerHTML, /<span class="inline-emoji">❤️<\/span>/);
 });
 
 test('image-only messages with reactions keep a padded bubble and chips inside it', () => {

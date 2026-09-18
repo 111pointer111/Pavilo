@@ -97,6 +97,14 @@
     border-color: color-mix(in srgb, var(--teal) 28%, var(--line));
   }
 
+  .message-bubble.bare-emoji,
+  .message-bubble.bare-media,
+  .message.self .message-bubble.bare-emoji,
+  .message.self .message-bubble.bare-media {
+    background: transparent;
+    border-color: transparent;
+  }
+
   .reaction-button {
     background: color-mix(in srgb, var(--ink) 10%, transparent);
   }
@@ -667,7 +675,9 @@ button, .channel, .person, .avatar, .top-action, .reaction-button, .composer-but
   background: color-mix(in srgb, var(--teal-pale) 72%, var(--paper));
 }
 .message-bubble.bare-emoji,
-.message-bubble.bare-media {
+.message-bubble.bare-media,
+.message.self .message-bubble.bare-emoji,
+.message.self .message-bubble.bare-media {
   padding: 0;
   border: 0;
   background: transparent;
@@ -703,7 +713,29 @@ button, .channel, .person, .avatar, .top-action, .reaction-button, .composer-but
   min-width: 100%;
 }
 .message-body { margin: 0; color: var(--ink); font-size: var(--font-body); line-height: var(--line-body); overflow-wrap: anywhere; white-space: pre-wrap; }
-.message-body.emoji-only { font-size: 34px; line-height: 1.2; letter-spacing: .06em; }
+.message-body .inline-emoji {
+  display: inline-block;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1;
+}
+.message-body:not(.emoji-only) .inline-emoji {
+  font-size: 1.15em;
+  vertical-align: -0.2em;
+}
+.message-body.emoji-only {
+  font-size: 36px;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+.message-body.emoji-only.emoji-solo { font-size: 48px; }
+.message-body.emoji-only.emoji-many { font-size: 28px; }
+.message-body.emoji-only .inline-emoji {
+  font-size: 1em;
+  vertical-align: baseline;
+  margin: 0 .04em;
+}
 .message-mention { display: inline; padding: 1px 4px; border: 0; border-radius: 4px; background: var(--teal-pale); color: var(--teal-deep); cursor: pointer; font: inherit; line-height: inherit; text-align: inherit; overflow-wrap: anywhere; white-space: pre-wrap; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .message-mention:hover { background: #c7e5dc; text-decoration: underline; text-underline-offset: 3px; }
 .message-mention.mention-self { background: var(--yellow-pale); color: #765415; }

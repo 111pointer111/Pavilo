@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 图文混排仍上图下字，气泡按每张缩略图自己的显示宽度收紧（宽图宽、竖图窄），回复和回应按钮贴回气泡右侧
 
 ### Changed
+- 纯 emoji 消息不再带气泡背景（与纯图片一致）；含文字时才显示气泡。混排时内联 emoji 略放大并对齐文字基线
 - 聊天首页字号收成 caption 11 / label 12 / ui 13 / body 15 / title 22，去掉 9px 辅助文字；消息与输入框统一 15px
 - 顶栏与频道头合并：当前频道名和连接状态进顶栏，重复的「临时/可信」文案只留左侧「只在此刻」卡片
 - 1180px 以下先收成员栏、保留频道列表；成员改走抽屉。离开按钮改为幽灵/危险样式
@@ -30,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 回应表情改到气泡内部底部，只显示 emoji 和数量
 
 ### Tests
-- 总测试数：279 个（278 通过，1 跳过）；浏览器合同 17/17
+- 总测试数：281 个（280 通过，1 跳过）；浏览器合同 17/17
 
 ## [0.8.0] - 2026-09-17
 
