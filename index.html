@@ -18,6 +18,14 @@
 <body>
   <div class="login-screen" id="loginScreen" aria-hidden="false">
     <section class="login-card" role="dialog" aria-modal="true" aria-labelledby="loginTitle" aria-describedby="loginCopy">
+      <div class="login-brand" aria-hidden="true">
+        <span class="brand-mark">
+          <svg viewBox="0 0 256 256">
+            <path fill="#0f7772" d="M127 46C119 47 113 61 105 69C87 87 66 99 37 108C30 110 32 119 40 124L51 129V199C51 205 56 210 63 210H84L98 189C87 186 81 180 81 171V142C81 133 86 129 95 122C111 111 122 101 129 89C137 103 147 113 161 122C171 129 175 135 175 143V171C175 183 168 190 156 192H116C108 194 102 201 96 207C92 210 94 210 101 210H193C200 210 205 205 205 198V129L217 123C225 119 225 110 219 108C187 98 166 84 152 70L134 48C132 45 130 45 127 46Z"/>
+            <circle cx="196.7" cy="71.7" r="15.1" fill="#e86f57"/>
+          </svg>
+        </span>
+      </div>
       <div class="login-flag" data-i18n="login.flag">LAN / ephemeral room</div>
       <h1 id="loginTitle" data-i18n-html="login.title">进场，<br>只留当下。</h1>
       <p class="login-copy" id="loginCopy" data-i18n="login.copy">这是一个同一局域网里的临时房间。输入名字就能加入；服务停止后，消息、头像和在线状态一起消失。</p>
@@ -48,8 +56,16 @@
         <span class="brand-name">Pavilo</span>
       </a>
       <div class="room-center">
-        <p class="room-kicker" id="roomKicker" data-i18n="room.kicker">临时房间</p>
-        <p class="room-title" id="roomTitle" data-i18n="room.defaultTitle">语亭 · 临时频道</p>
+        <h1 class="room-heading" id="roomHeading">闲聊 · general</h1>
+        <p class="chat-subline">
+          <span id="roomTitle" data-i18n="room.defaultTitle">语亭 · 临时频道</span>
+          <span id="roomKicker" hidden></span>
+          <span aria-hidden="true">·</span>
+          <span class="live-dot" id="connectionDot"></span>
+          <span id="connectionText" role="status" aria-live="polite" aria-atomic="true" data-i18n="chat.connecting">连接中…</span>
+          <span aria-hidden="true">·</span>
+          <span id="messageCount" data-i18n="chat.messagesZero">0 条消息</span>
+        </p>
       </div>
       <div class="top-actions">
         <button class="top-action" id="languageButton" type="button" title="语言" aria-label="语言">
@@ -68,7 +84,7 @@
           <span class="icon" data-icon="users-round" data-icon-size="15" aria-hidden="true"></span>
           <span class="top-action-label">成员</span>
         </button>
-        <button class="top-action" id="leaveButton" type="button" title="离开频道">
+        <button class="top-action top-action-leave" id="leaveButton" type="button" title="离开频道">
           <span class="icon" data-icon="log-out" data-icon-size="15" aria-hidden="true"></span>
           <span class="top-action-label">离开</span>
         </button>
@@ -93,13 +109,8 @@
 
       <section class="chat" aria-labelledby="roomHeading">
         <header class="chat-header">
-          <div class="chat-heading">
-            <p class="section-label" data-i18n="room.openLabel">OPEN ROOM · 可信网络可见</p>
-            <h1 id="roomHeading">闲聊 · general</h1>
-            <p class="chat-subline"><span class="live-dot" id="connectionDot"></span><span id="connectionText" role="status" aria-live="polite" aria-atomic="true" data-i18n="chat.connecting">连接中…</span><span aria-hidden="true">·</span><span id="messageCount" data-i18n="chat.messagesZero">0 条消息</span></p>
-          </div>
+          <p class="channel-description" id="channelDescription" hidden></p>
           <select class="mobile-channel-picker" id="mobileChannelPicker" aria-label="切换频道" disabled></select>
-          <div class="room-privacy" id="channelDescription" data-i18n-html="room.privacyNote">同一 Wi‑Fi 的人可以看见这里<br>头像是随机的，不代表身份</div>
         </header>
 
         <div class="message-scroll" id="messageScroll" tabindex="0" role="log" aria-live="polite" aria-relevant="additions" aria-label="消息列表">

@@ -125,11 +125,11 @@
       const user = userById(userId);
       if (!user) return;
       renderProfile(user);
-      if (window.matchMedia('(max-width: 760px)').matches) setMobileSheet(true, opener);
+      if (window.matchMedia('(max-width: 1180px)').matches) setMobileSheet(true, opener);
     }
 
     function setMobileSheet(open, opener = null, restoreFocus = true) {
-      if (window.matchMedia('(min-width: 761px)').matches && open) return;
+      if (window.matchMedia('(min-width: 1181px)').matches && open) return;
       if (open) mobileSheetOpener = opener || document.activeElement;
       mobileSheet.hidden = !open;
       mobileSheet.setAttribute('aria-hidden', String(!open));
@@ -382,7 +382,7 @@
     }, { passive: false });
     listen(viewerStage, 'dblclick', () => viewerSetScale((viewerMeta?.scale ?? 1) === 1 ? 2 : 1));
     listen(window, 'resize', () => {
-      if (window.innerWidth > 760 && !mobileSheet.hidden) setMobileSheet(false, null, false);
+      if (window.innerWidth > 1180 && !mobileSheet.hidden) setMobileSheet(false, null, false);
       if (!imageViewer.hidden) viewerSetScale(viewerMeta?.scale ?? 1);
     });
     listen(window, 'keydown', (event) => {

@@ -275,12 +275,21 @@
     $('#roomHeading').textContent = `${channel.name} · ${channel.id}`;
     const channelIndex = roomChannels.indexOf(channel);
     const totalChannels = roomChannels.length;
+    const kicker = $('#roomKicker');
     if (totalChannels > 1) {
-      $('#roomKicker').textContent = t('room.kickerCount', { index: channelIndex + 1, total: totalChannels });
+      kicker.textContent = t('room.kickerCount', { index: channelIndex + 1, total: totalChannels });
+      kicker.hidden = false;
     } else {
-      $('#roomKicker').textContent = t('room.kicker');
+      kicker.textContent = '';
+      kicker.hidden = true;
     }
-    channelDescription.innerHTML = channel.description ? escapeHtml(channel.description) : t('room.privacyNote');
+    if (channel.description) {
+      channelDescription.textContent = channel.description;
+      channelDescription.hidden = false;
+    } else {
+      channelDescription.textContent = '';
+      channelDescription.hidden = true;
+    }
   }
 
   function updateChannelOccupancy(state = store.getState()) {
