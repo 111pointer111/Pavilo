@@ -119,9 +119,12 @@
         </div>
         <div class="typing-line" id="typingLine" aria-live="polite"></div>
         <div class="composer-wrap" id="composerWrap">
-          <div class="channel-readonly-notice" id="channelReadonlyNotice" hidden>
+          <div class="channel-readonly-notice" id="channelReadonlyNotice" hidden role="status">
             <span class="icon" data-icon="megaphone" aria-hidden="true"></span>
-            <span data-i18n="readonly.notice">这是一个只读频道，你可以查看和回应表情，但无法发送消息。</span>
+            <span class="channel-readonly-copy">
+              <strong data-i18n="readonly.title">只读频道</strong>
+              <span data-i18n="readonly.notice">可以阅读、回应表情，不能发言</span>
+            </span>
           </div>
           <div class="replying" id="replyingBar" hidden>
             <span class="replying-copy"><span data-i18n="reply.prefix">回复</span> <strong id="replyingName"></strong>：<span id="replyingText"></span></span>

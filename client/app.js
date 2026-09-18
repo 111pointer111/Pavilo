@@ -580,6 +580,8 @@
       return overlaysController?.openProfile(action.userId, action.anchor);
     }
     if (action.type === 'reply') {
+      const channel = roomChannels.find((item) => item.id === store.getState().channelId);
+      if (channel?.readOnly) return;
       const message = findMessage(action.messageId);
       if (message) composerController?.setReply(message);
       return;
@@ -609,7 +611,7 @@
     composerAttachLabel: $('#composerAttachLabel'), composerAttachHint: $('#composerAttachHint'),
     composerAttachMeta: $('#composerAttachMeta'), composerAttachRetry: $('#composerAttachRetry'),
     composerAttachRemove: $('#composerAttachRemove'),
-    composerDrop: $('#composerDrop'),
+    composerDrop: $('#composerDrop'), composerHint: $('#composerHint'),
     replyingBar: $('#replyingBar'), replyingName: $('#replyingName'), replyingText: $('#replyingText'), cancelReplyButton: $('#cancelReplyButton'),
     channelReadonlyNotice: $('#channelReadonlyNotice'), appShell,
     errorOverlay: $('#errorOverlay'),
@@ -701,7 +703,10 @@
   store.subscribe((next, event, previous) => {
     if (next.channelId !== previous.channelId || next.self?.id !== previous.self?.id
       || previous.room.epoch && next.room.epoch && next.room.epoch !== previous.room.epoch
-      || next.connection.status === 'stopped') mentionController.clear();
+      || next.connection.status === 'stopped') {
+      mentionController.clear();
+      closeComposerPopover();
+    }
     syncChrome(next, event, previous);
     messagesController.onState(next, event, previous);
     overlaysController.onState(next, event, previous);

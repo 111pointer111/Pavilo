@@ -42,7 +42,7 @@ function harness(options = {}) {
     const attrs = {};
     listeners.set(name, callbacks);
     return {
-      value: '', style: {}, hidden: name === 'composerAttach' || name === 'composerDrop' || name === 'composerAttachRetry' || name === 'composerAttachStatus' || name === 'composerAttachMeta',
+      value: '', style: {}, hidden: name === 'composerAttach' || name === 'composerDrop' || name === 'composerAttachRetry' || name === 'composerAttachStatus' || name === 'composerAttachMeta' || name === 'channelReadonlyNotice',
       disabled: false, scrollHeight: 30, maxLength: 2000, selectionStart: 0, files: null, alt: '', textContent: '',
       ownerDocument: null,
       classList: {
@@ -63,7 +63,14 @@ function harness(options = {}) {
       setAttribute(key, value) { attrs[key] = String(value); },
       addEventListener(type, handler) { if (!callbacks.has(type)) callbacks.set(type, new Set()); callbacks.get(type).add(handler); },
       removeEventListener(type, handler) { callbacks.get(type)?.delete(handler); },
-      focus() { this.focusCount = (this.focusCount || 0) + 1; },
+      focus() {
+        this.focusCount = (this.focusCount || 0) + 1;
+        if (this.ownerDocument) this.ownerDocument.activeElement = this;
+      },
+      blur() {
+        this.blurCount = (this.blurCount || 0) + 1;
+        if (this.ownerDocument && this.ownerDocument.activeElement === this) this.ownerDocument.activeElement = null;
+      },
       click() { this.clickCount = (this.clickCount || 0) + 1; },
       emit(type, payload = {}) {
         const event = { defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, target: this, ...payload };
@@ -75,7 +82,8 @@ function harness(options = {}) {
   const names = ['composer', 'composerText', 'sendButton', 'emojiButton', 'attachmentButton', 'imageInput',
     'replyingBar', 'replyingName', 'replyingText', 'cancelReplyButton', 'composerWrap', 'composerAttach',
     'composerAttachThumb', 'composerAttachImage', 'composerAttachStatus', 'composerAttachLabel',
-    'composerAttachHint', 'composerAttachMeta', 'composerAttachRetry', 'composerAttachRemove', 'composerDrop', 'messageScroll', 'document'];
+    'composerAttachHint', 'composerAttachMeta', 'composerAttachRetry', 'composerAttachRemove', 'composerDrop',
+    'composerHint', 'channelReadonlyNotice', 'messageScroll', 'document'];
   const elements = Object.fromEntries(names.map((name) => [name, element(name)]));
   const documentTarget = elements.document;
   documentTarget.defaultView = clock;
@@ -84,7 +92,11 @@ function harness(options = {}) {
   elements.composer.requestSubmit = () => { elements.composer.submitCount = (elements.composer.submitCount || 0) + 1; elements.composer.emit('submit'); };
   elements.composerText.value = options.draft || '';
   let initial = createInitialState();
-  initial = { ...initial, channelId: 'general', self: { id: 'alice', username: 'Alice' },
+  initial = { ...initial, channelId: options.channelId || 'general', self: { id: 'alice', username: 'Alice' },
+    channels: options.channels || [
+      { id: 'general', name: 'General', readOnly: false },
+      { id: 'board', name: 'Board', readOnly: true },
+    ],
     room: { ...initial.room, epoch: 'epoch-one' }, connection: { ...initial.connection, joined: true, status: 'joined' } };
   const store = createStore(initial);
   const actions = [];
@@ -310,6 +322,60 @@ test('reply UI uses textContent and the unchanged image label, and cancel clears
   assert.equal(room.clearCount, 1);
   assert.equal(room.elements.replyingBar.hidden, true);
   assert.equal(room.elements.composer.classList.contains('has-reply'), false);
+});
+
+test('read-only channel replaces the composer, keeps the draft, and ignores reply', async () => {
+  const room = harness({ draft: 'keep me', channelId: 'board' });
+  room.elements.composerText.focus();
+  room.composer.update();
+  assert.equal(room.elements.composer.hidden, true);
+  assert.equal(room.elements.composerHint.hidden, true);
+  assert.equal(room.elements.channelReadonlyNotice.hidden, false);
+  assert.equal(room.elements.composerWrap.classList.contains('is-readonly'), true);
+  assert.equal(room.elements.composerText.value, 'keep me');
+  assert.equal(room.elements.composerText.disabled, true);
+  assert.equal(room.elements.sendButton.disabled, true);
+  assert.equal(room.elements.emojiButton.disabled, true);
+  assert.equal(room.elements.attachmentButton.disabled, true);
+  assert.equal(room.elements.composerText.blurCount, 1);
+  assert.equal(room.elements.messageScroll.focusCount, 1);
+  assert.equal(room.composer.sendText(), false);
+  assert.deepEqual(room.toasts, [['这个频道是只读频道，无法发送消息。', true]]);
+  assert.equal(await room.composer.stageImage(photo), false);
+  assert.deepEqual(room.toasts.at(-1), ['这个频道是只读频道，无法发送图片。', true]);
+  room.composer.setReply(reply);
+  assert.equal(room.reply, null);
+  assert.equal(room.elements.replyingBar.hidden, true);
+  assert.equal(room.elements.composerText.value, 'keep me');
+});
+
+test('read-only paint hides a pending reply without clearing it', () => {
+  const room = harness();
+  room.composer.setReply(reply);
+  assert.equal(room.elements.replyingBar.hidden, false);
+  room.store.dispatch({
+    type: 'state',
+    self: room.store.getState().self,
+    users: [],
+    channelId: 'board',
+    messages: [],
+  });
+  room.composer.update();
+  assert.equal(room.reply, reply);
+  assert.equal(room.elements.replyingBar.hidden, true);
+  assert.equal(room.elements.composer.hidden, true);
+  room.store.dispatch({
+    type: 'state',
+    self: room.store.getState().self,
+    users: [],
+    channelId: 'general',
+    messages: [],
+  });
+  room.composer.update();
+  assert.equal(room.elements.composer.hidden, false);
+  assert.equal(room.elements.composerHint.hidden, false);
+  assert.equal(room.elements.channelReadonlyNotice.hidden, true);
+  assert.equal(room.elements.replyingBar.hidden, false);
 });
 
 test('image input stages instead of sending and clears the selected input immediately', async () => {

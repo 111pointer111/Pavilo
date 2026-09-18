@@ -19,7 +19,10 @@ function message(id, overrides = {}) {
 function harness(messages = [], options = {}) {
   const handlers = {};
   let rebuilds = 0;
-  let state = { messages, pending: {}, self, connection: { joined: true }, channel: {} };
+  let state = {
+    messages, pending: {}, self, connection: { joined: true }, channel: {},
+    channelId: options.channelId, channels: options.channels || [],
+  };
   function node(tag) {
     return {
       tag, dataset: {}, style: {}, hidden: false, children: [], innerHTML: '', className: '',
@@ -117,6 +120,28 @@ test('text, reply, reaction, action and day-divider markup stays unchanged and e
   assert.equal(article.dataset.messageId, 'one');
   assert.equal(article.innerHTML, '<div class="message-avatar"><avatar>Bob</avatar></div><div class="message-main"><div class="message-meta"><span class="message-author">Bob</span><time class="message-time" datetime="1970-01-01T00:00:01.000Z">12:00</time></div><div class="message-stack"><div class="message-bubble has-reactions"><div class="reply-quote"><strong>回复 &lt;Bob&gt;</strong><span>&amp;quote</span></div><div class="message-body">&lt;hello&gt;</div><div class="reaction-list" aria-label="消息回应"><button class="reaction-button active" type="button" data-reaction="👍" data-message-id="one" aria-label="👍 取消回应，2 人" aria-pressed="true"><span class="reaction-emoji">👍</span><span class="reaction-count">2</span></button></div></div><div class="message-actions"><button class="message-action reaction-action" type="button" data-message-id="one" data-popover-align="right" aria-label="表情回应" title="表情回应"><span class="icon" data-icon="smile-plus" data-icon-size="16" aria-hidden="true"></span><span class="icon reaction-plus" data-icon="plus" data-icon-size="10" aria-hidden="true"></span></button><button class="message-action reply-action" type="button" data-message-id="one" aria-label="回复这条消息" title="回复"><span class="icon" data-icon="reply" data-icon-size="14" aria-hidden="true"></span></button></div></div></div>');
   assert.equal(room.elements.messageCount.textContent, '1 条消息');
+});
+
+test('read-only empty state does not tell the reader to type', () => {
+  const room = harness([], {
+    channelId: 'board',
+    channels: [{ id: 'board', name: 'Board', readOnly: true }],
+  });
+  room.renderer.renderHistory();
+  const empty = room.elements.messageList.children.find((child) => child.className === 'message-empty');
+  assert.match(empty.innerHTML, /这里不能发言/);
+  assert.equal(empty.innerHTML.includes('输入框'), false);
+});
+
+test('read-only channels keep reaction actions and omit reply', () => {
+  const room = harness([message('one')], {
+    channelId: 'board',
+    channels: [{ id: 'board', name: 'Board', readOnly: true }],
+  });
+  room.renderer.renderHistory();
+  const article = room.elements.messageList.children.find((child) => child.tag === 'article');
+  assert.match(article.innerHTML, /class="message-action reaction-action"/);
+  assert.equal(article.innerHTML.includes('reply-action'), false);
 });
 
 test('image dimensions, image button accessibility and emoji-only class match the source', () => {

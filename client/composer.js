@@ -106,8 +106,9 @@
     }
 
     function paintReply(message) {
-      if (replyingBar) replyingBar.hidden = !message;
-      if (message) {
+      const show = Boolean(message) && !isReadOnly();
+      if (replyingBar) replyingBar.hidden = !show;
+      if (show) {
         if (replyingName) replyingName.textContent = message.author.username;
         if (replyingText) replyingText.textContent = message.kind === 'image' ? (message.text || t('reply.image')) : message.text;
         composer.classList.add('has-reply');
@@ -166,6 +167,7 @@
 
     function setReply(message) {
       if (!message) { clearReply(); return; }
+      if (isReadOnly()) return;
       writeReply(message);
       paintReply(message);
       composerText.focus();
@@ -188,6 +190,17 @@
       update();
     }
 
+    function releaseComposerFocus() {
+      const active = document.activeElement;
+      if (!active) return;
+      const inComposer = active === composerText || active === sendButton || active === emojiButton
+        || active === attachmentButton || active === imageInput
+        || (typeof composer.contains === 'function' && composer.contains(active));
+      if (!inComposer) return;
+      if (typeof active.blur === 'function') active.blur();
+      elements.messageScroll?.focus?.({ preventScroll: true });
+    }
+
     function update() {
       const state = getState();
       const switching = Boolean(state.channel?.switching);
@@ -204,8 +217,17 @@
       composerText.disabled = switching || readOnly;
       if (emojiButton) emojiButton.disabled = switching || readOnly;
       if (attachmentButton) attachmentButton.disabled = switching || readOnly || !ready;
-      composer.classList.toggle('has-notice', readOnly);
+      if (elements.mentionButton) elements.mentionButton.disabled = switching || readOnly;
+      composer.hidden = readOnly;
+      if (elements.composerHint) elements.composerHint.hidden = readOnly;
+      if (elements.composerWrap) elements.composerWrap.classList.toggle('is-readonly', readOnly);
       if (elements.channelReadonlyNotice) elements.channelReadonlyNotice.hidden = !readOnly;
+      if (readOnly) {
+        paintDrop(false);
+        dragDepth = 0;
+        mentions?.close();
+        releaseComposerFocus();
+      }
       const maxTextLength = Number(getLimits()?.maxTextLength);
       if (Number.isFinite(maxTextLength) && maxTextLength > 0) composerText.maxLength = Math.floor(maxTextLength);
       composerText.style.height = 'auto';
@@ -477,6 +499,7 @@
     }
 
     function pasteAllowed() {
+      if (isReadOnly()) return false;
       if (typeof canCapturePaste === 'function') return canCapturePaste();
       return !elements.appShell?.hidden;
     }

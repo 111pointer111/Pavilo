@@ -129,13 +129,20 @@ async function ready(page, channelId) {
     const stateIndex = trace.received.findLastIndex((event) => event.type === 'stateStart' && event.channelId === expected);
     const state = trace.received[stateIndex];
     const ended = trace.received.slice(stateIndex + 1).some((event) => event.type === 'historyEnd' && event.roomEpoch === state?.roomEpoch);
+    const wrap = document.querySelector('#composerWrap');
+    const notice = document.querySelector('#channelReadonlyNotice');
+    const composer = document.querySelector('#composer');
+    const readOnly = wrap?.classList.contains('is-readonly');
+    const composerReady = readOnly
+      ? Boolean(notice && !notice.hidden && composer?.hidden)
+      : Boolean(composer && !composer.hidden && !document.querySelector('#composerText').disabled);
     return Boolean(stateIndex >= 0 && state?.channelId === expected && ended
       && socket && socket.readyState === WebSocket.OPEN
       && document.querySelector('#connectionText').textContent === '已连接'
       && !document.querySelector('#connectionDot').classList.contains('offline')
       && !document.querySelector('#appShell').hidden
       && document.querySelector('#loginScreen').hidden
-      && !document.querySelector('#composerText').disabled
+      && composerReady
       && !document.querySelector('#mobileChannelPicker').disabled);
   }, channelId);
 }
@@ -226,6 +233,10 @@ channels:
   - id: solo
     name: Solo
     maxUsers: 1
+  - id: board
+    name: Board
+    description: Announcements only
+    readOnly: true
   - id: disabled
     name: Disabled
     enabled: false
@@ -717,6 +728,33 @@ rateLimits:
     await alice.mouse.move(actionBox.x + actionBox.width / 2, actionBox.y + actionBox.height / 2);
     await waitOpacity('show', 'hovering the action chip should keep it visible');
     await alice.screenshot({ path: path.join(directory, 'message-actions-hover.png') });
+  });
+
+  await contract('read-only channel replaces the composer with a status strip', async () => {
+    await switchChannel(alice, 'board');
+    assert.equal(await alice.locator('#composerWrap').evaluate((node) => node.classList.contains('is-readonly')), true);
+    assert.equal(await alice.locator('#composer').isHidden(), true);
+    assert.equal(await alice.locator('#composerHint').isHidden(), true);
+    assert.equal(await alice.locator('#replyingBar').isHidden(), true);
+    const notice = alice.locator('#channelReadonlyNotice');
+    assert.equal(await notice.isVisible(), true);
+    assert.match(await notice.innerText(), /只读频道/);
+    assert.match(await notice.innerText(), /可以阅读、回应表情，不能发言/);
+    assert.equal(await alice.locator('#composerText').inputValue(), '');
+    await switchChannel(alice, 'projects');
+    assert.equal(await alice.locator('#composerWrap').evaluate((node) => node.classList.contains('is-readonly')), false);
+    assert.equal(await alice.locator('#composer').isHidden(), false);
+    assert.equal(await alice.locator('#composerHint').isVisible(), true);
+    assert.equal(await alice.locator('#channelReadonlyNotice').isHidden(), true);
+    assert.equal(await alice.locator('#composerText').isDisabled(), false);
+
+    await switchChannel(bob, 'board');
+    assert.equal(await bob.locator('#composer').isHidden(), true);
+    assert.equal(await bob.locator('#channelReadonlyNotice').isVisible(), true);
+    assert.match(await bob.locator('#channelReadonlyNotice').innerText(), /只读频道/);
+    await switchChannel(bob, 'projects');
+    assert.equal(await bob.locator('#composer').isHidden(), false);
+    assert.equal(await bob.locator('#channelReadonlyNotice').isHidden(), true);
   });
 
   await contract('graceful stop returns both pages to login and restart starts empty', async () => {
