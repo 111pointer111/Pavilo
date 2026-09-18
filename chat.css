@@ -44,6 +44,8 @@
   --transition-base: 250ms;
   --transition-slow: 400ms;
   --ease-smooth: cubic-bezier(.4, 0, .2, 1);
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+  --ease-in: cubic-bezier(.4, 0, 1, 1);
   --ease-bounce: cubic-bezier(.68, -0.55, .27, 1.55);
 }
 
@@ -116,6 +118,10 @@
     background: var(--paper);
     border-color: var(--line-strong);
     box-shadow: 0 10px 24px rgba(0, 0, 0, .45);
+  }
+  .message-stack:hover .message-actions,
+  .message-stack:focus-within .message-actions {
+    box-shadow: 0 14px 32px rgba(0, 0, 0, .55);
   }
 
   .avatar {
@@ -579,8 +585,8 @@ button, .channel, .person, .avatar, .top-action, .reaction-button, .composer-but
 }
 .message:not(.continued) { margin-top: 14px; }
 .message:hover, .message:focus-within { z-index: 1; }
-.message:hover .message-bubble:not(.bare-emoji):not(.bare-media),
-.message:focus-within .message-bubble:not(.bare-emoji):not(.bare-media) {
+.message-stack:hover .message-bubble:not(.bare-emoji):not(.bare-media),
+.message-stack:focus-within .message-bubble:not(.bare-emoji):not(.bare-media) {
   border-color: var(--line-strong);
 }
 .message-list > .message:first-child,
@@ -657,7 +663,16 @@ button, .channel, .person, .avatar, .top-action, .reaction-button, .composer-but
   width: fit-content;
   max-width: min(100%, calc(100% - 84px));
 }
+/* Hover pad: the bubble plus a little around it, including the action chip. */
+.message-stack::before {
+  position: absolute;
+  z-index: 0;
+  inset: -6px -92px -6px -12px;
+  content: "";
+}
 .message-bubble {
+  position: relative;
+  z-index: 1;
   grid-column: 1;
   display: grid;
   width: fit-content;
@@ -669,6 +684,7 @@ button, .channel, .person, .avatar, .top-action, .reaction-button, .composer-but
   background: var(--paper);
   box-shadow: 0 1px 0 rgba(24, 45, 50, .04);
   color: var(--ink);
+  transition: border-color var(--transition-fast) var(--ease-smooth);
 }
 .message.self .message-bubble {
   border-color: color-mix(in srgb, var(--teal) 16%, var(--line));
@@ -797,22 +813,31 @@ button, .channel, .person, .avatar, .top-action, .reaction-button, .composer-but
   box-shadow: 0 8px 20px rgba(24, 64, 64, .12);
   opacity: 0;
   pointer-events: none;
-  transform: translateY(4px);
-  transition: opacity var(--transition-fast) var(--ease-smooth), transform var(--transition-fast) var(--ease-smooth);
+  transform: translate3d(8px, 2px, 0) scale(.94);
+  transform-origin: left center;
+  transition:
+    opacity 140ms var(--ease-in) 70ms,
+    transform 160ms var(--ease-in) 70ms,
+    box-shadow 160ms var(--ease-in) 70ms;
 }
 .message-actions::before {
   position: absolute;
-  top: 0;
+  top: -8px;
   right: 100%;
-  width: 10px;
-  height: 100%;
+  bottom: -8px;
+  width: 14px;
   content: "";
 }
-.message:hover .message-actions,
-.message:focus-within .message-actions {
+.message-stack:hover .message-actions,
+.message-stack:focus-within .message-actions {
   opacity: 1;
   pointer-events: auto;
-  transform: translateY(0);
+  transform: translate3d(0, 0, 0) scale(1);
+  box-shadow: 0 12px 28px rgba(24, 64, 64, .16);
+  transition:
+    opacity 180ms var(--ease-out),
+    transform 280ms var(--ease-out),
+    box-shadow 280ms var(--ease-out);
 }
 .message-action {
   display: inline-flex;
@@ -828,10 +853,16 @@ button, .channel, .person, .avatar, .top-action, .reaction-button, .composer-but
   color: var(--ink-soft);
   cursor: pointer;
   font-size: var(--font-caption);
+  transition:
+    background var(--transition-fast) var(--ease-smooth),
+    color var(--transition-fast) var(--ease-smooth),
+    transform var(--transition-fast) var(--ease-out);
 }
-.message-action:hover { background: var(--teal-pale); color: var(--teal-deep); }
+.message-action:hover { background: var(--teal-pale); color: var(--teal-deep); transform: translateY(-1px); }
+.message-action:active { transform: translateY(0) scale(.96); }
 .message-action .icon { width: 14px; height: 14px; }
 @media (hover: none), (pointer: coarse) {
+  .message-stack::before { display: none; }
   .message-actions {
     position: static;
     grid-column: 2;
@@ -841,6 +872,8 @@ button, .channel, .person, .avatar, .top-action, .reaction-button, .composer-but
     opacity: 1;
     pointer-events: auto;
     transform: none;
+    box-shadow: 0 8px 20px rgba(24, 64, 64, .12);
+    transition: none;
   }
   .message-actions::before { display: none; }
   .message-stack { max-width: 100%; }
@@ -1777,7 +1810,10 @@ html.resuming .login-screen { visibility: hidden; }
     opacity: 1;
     pointer-events: auto;
     transform: none;
+    box-shadow: 0 8px 20px rgba(24, 64, 64, .12);
+    transition: none;
   }
+  .message-stack::before,
   .message-actions::before { display: none; }
   /* 移动端：表情回馈栏只占消息列，跳过头像避免挤在一起 */
   .reaction-list { grid-column: 1; margin-top: 10px; margin-bottom: 6px; }

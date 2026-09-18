@@ -668,6 +668,57 @@ rateLimits:
     await bob.setViewportSize({ width: 390, height: 844 });
   });
 
+  await contract('desktop message actions appear near the bubble, not the whole row', async () => {
+    const text = 'short action hover target';
+    await sendText(alice, text, [bob]);
+    const messageId = await alice.locator('#messageList .message[data-message-id]').evaluateAll((nodes, expected) => {
+      const node = [...nodes].reverse().find((item) => item.querySelector('.message-body')?.textContent === expected);
+      return node?.dataset.messageId || '';
+    }, text);
+    assert.ok(messageId, 'hover target message was rendered');
+    const points = await alice.locator(`.message[data-message-id="${messageId}"]`).evaluate((node) => {
+      const row = node.getBoundingClientRect();
+      const bubble = node.querySelector('.message-bubble').getBoundingClientRect();
+      const y = bubble.top + bubble.height / 2;
+      return {
+        bubble: { x: bubble.left + bubble.width / 2, y },
+        nearby: { x: bubble.right + 24, y },
+        farRow: { x: Math.min(row.right - 12, bubble.right + 180), y },
+        gutter: { x: row.left + 10, y },
+      };
+    });
+    assert.ok(points.farRow.x - points.nearby.x > 80, `far-row sample is too close to the bubble: ${JSON.stringify(points)}`);
+
+    async function actionOpacity() {
+      return alice.locator(`.message[data-message-id="${messageId}"] .message-actions`).evaluate((node) => (
+        Number(getComputedStyle(node).opacity)
+      ));
+    }
+    async function waitOpacity(predicate, label) {
+      await alice.waitForFunction(({ id, show }) => {
+        const node = document.querySelector(`[data-message-id="${id}"] .message-actions`);
+        const opacity = Number(getComputedStyle(node).opacity);
+        return show ? opacity > 0.9 : opacity < 0.05;
+      }, { id: messageId, show: predicate === 'show' });
+      const opacity = await actionOpacity();
+      assert.ok(predicate === 'show' ? opacity > 0.9 : opacity < 0.05, `${label}: opacity=${opacity}`);
+    }
+
+    await alice.mouse.move(points.farRow.x, points.farRow.y);
+    await waitOpacity('hide', 'empty row space should not reveal actions');
+    await alice.mouse.move(points.gutter.x, points.gutter.y);
+    await waitOpacity('hide', 'gutter hover should not reveal actions');
+    await alice.mouse.move(points.bubble.x, points.bubble.y);
+    await waitOpacity('show', 'hovering the bubble should reveal actions');
+    await alice.mouse.move(points.nearby.x, points.nearby.y);
+    await waitOpacity('show', 'hovering near the bubble should keep actions');
+    const actionBox = await alice.locator(`.message[data-message-id="${messageId}"] .message-actions`).boundingBox();
+    assert.ok(actionBox, 'action chip should be measurable while visible');
+    await alice.mouse.move(actionBox.x + actionBox.width / 2, actionBox.y + actionBox.height / 2);
+    await waitOpacity('show', 'hovering the action chip should keep it visible');
+    await alice.screenshot({ path: path.join(directory, 'message-actions-hover.png') });
+  });
+
   await contract('graceful stop returns both pages to login and restart starts empty', async () => {
     const oldPort = server.port;
     await server.stop();
