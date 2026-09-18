@@ -372,7 +372,22 @@
       const reply = event.target.closest('.reply-action');
       if (reply) { onAction({ type: 'reply', messageId: reply.dataset.messageId }); return; }
       const reactionAction = event.target.closest('.reaction-action');
-      if (reactionAction) openReactionPopover(reactionAction.dataset.messageId, reactionAction);
+      if (reactionAction) {
+        // Mobile: 以消息气泡为锚点，让表情弹窗出现在气泡正下方
+        const mobile = window.matchMedia('(max-width: 760px)').matches;
+        const msg = reactionAction.closest('.message');
+        const anchor = mobile && msg ? (msg.querySelector('.message-bubble') || reactionAction) : reactionAction;
+        openReactionPopover(reactionAction.dataset.messageId, anchor);
+        return;
+      }
+      // Toggle message actions on tap (mobile)
+      const msg = event.target.closest('.message');
+      if (msg && msg.dataset.messageId && !event.target.closest('.reaction-list')) {
+        for (const other of messageList.querySelectorAll('.message.show-actions')) {
+          if (other !== msg) other.classList.remove('show-actions');
+        }
+        msg.classList.toggle('show-actions');
+      }
     });
 
     reactionChoices.addEventListener('click', (event) => {

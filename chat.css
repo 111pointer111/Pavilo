@@ -1578,34 +1578,83 @@ html.resuming .login-screen { visibility: hidden; }
       max(10px, env(safe-area-inset-bottom))
       max(10px, env(safe-area-inset-left));
   }
-  .topbar { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; min-height: 48px; padding-bottom: 11px; }
+  .topbar {
+    grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
+    gap: 8px;
+    min-height: 48px;
+    padding-bottom: 11px;
+  }
   .room-center { display: none; }
-  .brand { min-width: 0; }
+  .brand { min-width: 0; gap: 8px; overflow: hidden; }
   .brand-mark { width: 31px; height: 31px; flex: 0 0 auto; font-size: 17px; }
-  .brand-name { font-size: 10px; letter-spacing: .16em; }
-  .top-actions { gap: 6px; }
+  .brand-name {
+    font-size: 10px;
+    letter-spacing: .16em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .top-actions { gap: 5px; overflow: hidden; }
   /* The header actions and the notification stack share the top-right corner,
      so on one column the toasts drop below the header instead of over it. */
   .toast-region { top: calc(max(12px, env(safe-area-inset-top)) + 62px); right: max(10px, env(safe-area-inset-right)); width: min(336px, calc(100vw - 20px)); }
   .top-actions .top-action-label { display: none; }
-  .top-action { width: 44px; min-height: 44px; justify-content: center; padding: 7px; }
+  .top-action { width: 40px; min-width: 40px; min-height: 40px; justify-content: center; padding: 6px; }
+  .top-action .icon { width: 14px; height: 14px; }
+  /* 离开二次确认在移动端需可见 */
+  .top-action.confirming .top-action-label {
+    display: inline;
+  }
+  .top-action.confirming {
+    border-color: var(--coral);
+    background: var(--coral-pale);
+    color: var(--coral);
+  }
   .mobile-members-button { display: inline-flex; }
-  .workspace { display: block; min-height: 0; margin-top: 10px; border-radius: 10px; }
+  .workspace { display: block; min-height: 0; margin-top: 10px; border-radius: 10px; overflow: hidden; }
   .rail, .info-panel { display: none; }
   .chat { height: 100%; min-height: 0; }
-  .chat-header { align-items: flex-start; padding: 15px 15px 13px; gap: 9px; }
-  .chat-heading { flex: 1 1 auto; }
-  .chat-heading h1 { font-size: 25px; }
-  .mobile-channel-picker { display: block; width: min(42vw, 180px); min-height: 44px; flex: 0 1 180px; padding: 8px 30px 8px 10px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--paper); color: var(--teal-deep); font-size: 12px; font-weight: 800; }
+  .chat-header {
+    align-items: flex-start;
+    padding: 14px 14px 12px;
+    gap: 10px;
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+  .chat-heading { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+  .chat-heading h1 {
+    font-size: 20px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .mobile-channel-picker {
+    display: block;
+    width: auto;
+    min-width: 90px;
+    max-width: 40vw;
+    min-height: 40px;
+    flex: 0 0 auto;
+    padding: 6px 26px 6px 8px;
+    border: 1px solid var(--line-strong);
+    border-radius: 7px;
+    background: var(--paper);
+    color: var(--teal-deep);
+    font-size: 13px;
+    font-weight: 800;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .mobile-channel-picker:disabled { cursor: wait; opacity: .58; }
   .room-privacy { display: none; }
-  .message-list { padding: 12px 14px 20px; }
-  .message { grid-template-columns: 32px minmax(0, 1fr); gap: 8px; margin-left: 0; padding: 0; }
+  .message-list { padding: 10px 10px 18px; }
+  .message { grid-template-columns: 30px minmax(0, 1fr); gap: 10px; margin-left: 0; padding: 0; min-width: 0; }
   .message:not(.continued) { margin-top: 12px; }
-  .message-stack { max-width: 100%; }
+  .message-avatar { width: 30px; }
+  .message-avatar .avatar { width: 30px; height: 30px; font-size: 14px; }
+  .message-stack { max-width: 100%; min-width: 0; }
   .message-bubble { max-width: min(520px, 100%); border-radius: 4px 14px 14px 14px; }
-  .typing-line { padding: 0 15px; }
-  .composer-wrap { padding: 0 10px max(10px, env(safe-area-inset-bottom)); }
+  .message-meta { margin: 0 0 3px 1px; }
+  .typing-line { padding: 0 14px; }
+  .composer-wrap { padding: 0 12px max(10px, env(safe-area-inset-bottom)); }
   .composer {
     gap: 8px;
     padding: 9px;
@@ -1623,21 +1672,39 @@ html.resuming .login-screen { visibility: hidden; }
   }
   .composer-actions { justify-self: end; }
   .composer-attach-thumb,
-  .composer-attach-thumb img { height: 64px; }
+  .composer-attach-thumb img { height: 56px; }
   .composer-hint { display: none; }
   .mention-footer { display: none; }
-  .composer-button { width: 44px; height: 44px; }
-  .composer-button .icon { width: 18px; height: 18px; }
-  .send-button { min-width: 88px; min-height: 44px; }
+  .composer-button { width: 40px; height: 40px; }
+  .composer-button .icon { width: 17px; height: 17px; }
+  .send-button { min-width: 72px; min-height: 40px; font-size: 11px; padding: 5px 10px; }
   .message-image {
     max-width: 100%;
     max-height: min(260px, 38vh);
   }
-  .message-actions { position: static; grid-column: 2; width: fit-content; margin: 0; opacity: 1; pointer-events: auto; transform: none; }
+  /* 移动端：操作按钮默认隐藏，点击消息后显示 */
+  .message-actions { display: none; }
+  .message.show-actions .message-actions {
+    display: flex;
+    position: static;
+    grid-column: 2;
+    width: fit-content;
+    margin: 0;
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+  }
   .message-actions::before { display: none; }
-  .message-action { min-width: 44px; min-height: 44px; justify-content: center; }
-  .message-action.reaction-action { min-width: 44px; min-height: 44px; }
-  .login-card { padding: 28px 23px 24px; }
+  /* 移动端：表情回馈栏只占消息列，跳过头像避免挤在一起 */
+  .reaction-list { grid-column: 1; margin-top: 10px; margin-bottom: 6px; }
+  .message-action { min-width: 34px; min-height: 34px; justify-content: center; }
+  .message-action.reaction-action { min-width: 34px; min-height: 34px; }
+  .message-action .icon { width: 12px; height: 12px; }
+  .message-action.reaction-action .icon { width: 14px; height: 14px; }
+  .login-card { padding: 24px 20px 22px; }
+  .login-card h1 { font-size: 38px; }
+  .login-row { grid-template-columns: 1fr; }
+  .enter-button { width: 100%; }
   .mobile-sheet-backdrop {
     position: fixed;
     z-index: 39;
@@ -1673,8 +1740,6 @@ html.resuming .login-screen { visibility: hidden; }
 }
 
 @media (max-width: 480px) {
-  .login-row { grid-template-columns: 1fr; }
-  .enter-button { width: 100%; }
   /* Six controls plus the sender identity do not fit one 390px row, so the
      header stacks: who sent it on top, the controls in their own row below. */
   .viewer-top { flex-direction: column; align-items: stretch; gap: 8px; padding-block: max(9px, env(safe-area-inset-top)) 9px; }
@@ -1685,7 +1750,6 @@ html.resuming .login-screen { visibility: hidden; }
   .viewer-nav { width: 40px; height: 40px; }
   .viewer-note { display: none; }
   .viewer-stage { padding-inline: 10px; }
-  .send-button { min-width: 88px; }
   .message-body { font-size: 13px; }
 }
 
@@ -1707,6 +1771,14 @@ html.resuming .login-screen { visibility: hidden; }
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }
 
+/* iOS Safari：输入框字号 < 16px 会自动缩放页面，强制锁定 */
+@supports (-webkit-touch-callout: none) {
+  .composer-text,
+  .login-input {
+    font-size: 16px;
+  }
+}
+
 /* 移动端触摸优化 */
 @media (hover: none) and (pointer: coarse) {
   .composer-attach-remove {
@@ -1724,6 +1796,14 @@ html.resuming .login-screen { visibility: hidden; }
 
   .composer-wrap {
     padding-bottom: max(16px, calc(env(safe-area-inset-bottom) + 8px));
+  }
+
+  /* 禁止双击缩放 */
+  button, .channel, .person, .top-action,
+  .composer-button, .send-button, .avatar,
+  .reaction-button, .reaction-choice,
+  .message-action, .viewer-button, .viewer-nav {
+    touch-action: manipulation;
   }
 
   /* 触摸设备上的反馈更明显 */
