@@ -79,6 +79,13 @@
     border-color: color-mix(in srgb, var(--teal) 28%, var(--line));
   }
 
+  .reaction-button {
+    background: color-mix(in srgb, var(--ink) 10%, transparent);
+  }
+  .reaction-button.active {
+    background: color-mix(in srgb, var(--teal) 22%, var(--paper));
+  }
+
   .message-actions {
     background: var(--paper);
     border-color: var(--line-strong);
@@ -799,11 +806,68 @@ button, .channel, .person, .avatar, .top-action, .reaction-button, .composer-but
   .message-gutter-time { display: none; }
 }
 
-.reaction-list { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; grid-column: 1 / -1; margin-top: 6px; }
-.reaction-button { display: inline-flex; align-items: center; gap: 4px; min-height: 30px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; background: rgba(249, 251, 248, .9); color: var(--ink-soft); cursor: pointer; font-size: 14px; line-height: 1; transition: border-color var(--transition-fast) var(--ease-smooth), background var(--transition-fast) var(--ease-smooth), color var(--transition-fast) var(--ease-smooth), transform var(--transition-fast) var(--ease-smooth); will-change: transform; }
-.reaction-button:hover, .reaction-button.active { border-color: var(--teal); background: var(--teal-pale); color: var(--teal-deep); transform: scale(1.08); }
-.reaction-button:active { transform: scale(.95); transition-duration: 100ms; }
-.reaction-button .reaction-count { font-family: var(--mono); font-size: 10px; }
+.reaction-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+  margin: 8px 0 0;
+}
+.message-bubble.has-media .reaction-list {
+  width: 0;
+  min-width: 100%;
+}
+.message-bubble.has-media.has-reactions {
+  padding-bottom: 8px;
+}
+.reaction-button {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-height: 26px;
+  padding: 0 7px 0 5px;
+  border: 0;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ink) 11%, transparent);
+  color: var(--ink-soft);
+  cursor: pointer;
+  line-height: 1;
+  transition: background var(--transition-fast) var(--ease-smooth), color var(--transition-fast) var(--ease-smooth);
+}
+.reaction-emoji {
+  display: inline-grid;
+  width: 1.15em;
+  place-items: center;
+  font-size: 15px;
+  line-height: 1;
+}
+.reaction-count {
+  margin-left: 5px;
+  padding-left: 5px;
+  border-left: 1px solid color-mix(in srgb, var(--ink) 16%, transparent);
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.reaction-button:hover {
+  background: color-mix(in srgb, var(--teal) 14%, transparent);
+  color: var(--teal-deep);
+}
+.reaction-button.active {
+  background: color-mix(in srgb, var(--teal-pale) 82%, var(--paper));
+  color: var(--teal-deep);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--teal) 34%, transparent);
+}
+.reaction-button:hover .reaction-count,
+.reaction-button.active .reaction-count {
+  border-left-color: color-mix(in srgb, var(--teal) 28%, transparent);
+  color: var(--teal-deep);
+}
+.reaction-button:active { background: color-mix(in srgb, var(--teal) 22%, transparent); }
+.reaction-button:focus-visible { outline-offset: 1px; }
 .pending-message { opacity: .72; }
 .pending-status { display: inline-flex; align-items: center; gap: 6px; grid-column: 1 / -1; margin-top: 6px; color: var(--ink-soft); font-family: var(--mono); font-size: 10px; }
 .pending-status.error { color: var(--coral); }
@@ -856,6 +920,7 @@ button, .channel, .person, .avatar, .top-action, .reaction-button, .composer-but
 }
 @media (hover: none), (pointer: coarse) {
   .reaction-choice { width: 46px; height: 46px; font-size: 26px; }
+  .reaction-button { min-height: 30px; padding: 0 8px 0 6px; }
 }
 
 .composer-popover emoji-picker {
@@ -1075,7 +1140,11 @@ button, .channel, .person, .avatar, .top-action, .reaction-button, .composer-but
 .message-image-link + .message-body,
 .pending-image + .message-body,
 .reply-quote + .message-body,
-.reply-quote + .message-image-link { margin-top: 8px; }
+.reply-quote + .message-image-link,
+.message-body + .reaction-list,
+.message-image-link + .reaction-list,
+.pending-image + .reaction-list,
+.reply-quote + .reaction-list { margin-top: 8px; }
 
 .composer {
   display: grid;

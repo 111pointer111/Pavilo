@@ -115,7 +115,7 @@ test('text, reply, reaction, action and day-divider markup stays unchanged and e
   assert.equal(divider.innerHTML, '<span>今天</span>');
   assert.equal(article.className, 'message');
   assert.equal(article.dataset.messageId, 'one');
-  assert.equal(article.innerHTML, '<div class="message-avatar"><avatar>Bob</avatar></div><div class="message-main"><div class="message-meta"><span class="message-author">Bob</span><time class="message-time" datetime="1970-01-01T00:00:01.000Z">12:00</time></div><div class="message-stack"><div class="message-bubble"><div class="reply-quote"><strong>回复 &lt;Bob&gt;</strong><span>&amp;quote</span></div><div class="message-body">&lt;hello&gt;</div></div><div class="message-actions"><button class="message-action reaction-action" type="button" data-message-id="one" data-popover-align="right" aria-label="表情回应" title="表情回应"><span class="icon" data-icon="smile-plus" data-icon-size="16" aria-hidden="true"></span><span class="icon reaction-plus" data-icon="plus" data-icon-size="10" aria-hidden="true"></span></button><button class="message-action reply-action" type="button" data-message-id="one" aria-label="回复这条消息" title="回复"><span class="icon" data-icon="reply" data-icon-size="14" aria-hidden="true"></span></button></div><div class="reaction-list" aria-label="消息回应"><button class="reaction-button active" type="button" data-reaction="👍" data-message-id="one" aria-label="👍 取消回应，2 人" aria-pressed="true"><span>👍</span><span class="reaction-count">2</span></button></div></div></div>');
+  assert.equal(article.innerHTML, '<div class="message-avatar"><avatar>Bob</avatar></div><div class="message-main"><div class="message-meta"><span class="message-author">Bob</span><time class="message-time" datetime="1970-01-01T00:00:01.000Z">12:00</time></div><div class="message-stack"><div class="message-bubble has-reactions"><div class="reply-quote"><strong>回复 &lt;Bob&gt;</strong><span>&amp;quote</span></div><div class="message-body">&lt;hello&gt;</div><div class="reaction-list" aria-label="消息回应"><button class="reaction-button active" type="button" data-reaction="👍" data-message-id="one" aria-label="👍 取消回应，2 人" aria-pressed="true"><span class="reaction-emoji">👍</span><span class="reaction-count">2</span></button></div></div><div class="message-actions"><button class="message-action reaction-action" type="button" data-message-id="one" data-popover-align="right" aria-label="表情回应" title="表情回应"><span class="icon" data-icon="smile-plus" data-icon-size="16" aria-hidden="true"></span><span class="icon reaction-plus" data-icon="plus" data-icon-size="10" aria-hidden="true"></span></button><button class="message-action reply-action" type="button" data-message-id="one" aria-label="回复这条消息" title="回复"><span class="icon" data-icon="reply" data-icon-size="14" aria-hidden="true"></span></button></div></div></div>');
   assert.equal(room.elements.messageCount.textContent, '1 条消息');
 });
 
@@ -129,6 +129,20 @@ test('image dimensions, image button accessibility and emoji-only class match th
   assert.match(articles[1].innerHTML, /class="message-bubble bare-emoji"/);
   assert.match(articles[1].innerHTML, /<div class="message-body emoji-only">🔥 😂<\/div>/);
   assert.equal(articles[1].className, 'message self');
+});
+
+test('image-only messages with reactions keep a padded bubble and chips inside it', () => {
+  const room = harness([message('photo', { kind: 'image', text: '',
+    image: { src: 'data:image/png;base64,aa', width: 780, height: 600 },
+    reactions: { '👍': { count: 1, userIds: [self.id] }, '😂': { count: 3, userIds: [bob.id] } } })]);
+  room.renderer.renderHistory();
+  const article = room.elements.messageList.children.find((child) => child.tag === 'article');
+  assert.match(article.innerHTML, /class="message-bubble has-media has-reactions" style="--thumb-w:390px"/);
+  assert.doesNotMatch(article.innerHTML, /bare-media/);
+  assert.match(article.innerHTML, /message-image-link[\s\S]*<div class="reaction-list"/);
+  assert.doesNotMatch(article.innerHTML, /message-actions[\s\S]*reaction-list/);
+  assert.match(article.innerHTML, /<span class="reaction-emoji">👍<\/span><span class="reaction-count">1<\/span>/);
+  assert.match(article.innerHTML, /<span class="reaction-emoji">😂<\/span><span class="reaction-count">3<\/span>/);
 });
 
 test('image captions render below the thumbnail in the same bubble', () => {

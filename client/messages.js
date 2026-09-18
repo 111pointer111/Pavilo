@@ -69,14 +69,30 @@
       return `<button class="message-image-link" type="button" data-viewer-message-id="${escapeHtml(message.id)}" aria-label="${escapeHtml(t('image.viewAria', { name: author.username }))}"><img class="message-image" src="${source}" alt="${escapeHtml(t('image.alt', { name: author.username }))}" loading="lazy" decoding="async" width="${width}" height="${height}" style="width:${width}px;max-width:100%"></button>`;
     }
 
+    function reactionEntries(message) {
+      return Object.entries(message.reactions || {}).filter(([, item]) => item && item.count > 0);
+    }
+
     function reactionMarkup(message) {
-      const entries = Object.entries(message.reactions || {}).filter(([, item]) => item && item.count > 0);
+      const entries = reactionEntries(message);
       if (!entries.length) return '';
       return `<div class="reaction-list" aria-label="${escapeHtml(t('reaction.group'))}">${entries.map(([emoji, item]) => {
         const active = item.userIds?.includes(getSelf()?.id);
         const label = t(active ? 'reaction.toggleOff' : 'reaction.toggleOn', { emoji, count: item.count || 0 });
-        return `<button class="reaction-button${active ? ' active' : ''}" type="button" data-reaction="${escapeHtml(emoji)}" data-message-id="${escapeHtml(message.id)}" aria-label="${escapeHtml(label)}" aria-pressed="${Boolean(active)}"><span>${escapeHtml(emoji)}</span><span class="reaction-count">${item.count || 0}</span></button>`;
+        return `<button class="reaction-button${active ? ' active' : ''}" type="button" data-reaction="${escapeHtml(emoji)}" data-message-id="${escapeHtml(message.id)}" aria-label="${escapeHtml(label)}" aria-pressed="${Boolean(active)}"><span class="reaction-emoji">${escapeHtml(emoji)}</span><span class="reaction-count">${item.count || 0}</span></button>`;
       }).join('')}</div>`;
+    }
+
+    function bubbleClassList(message, thumb) {
+      const image = Boolean(thumb);
+      const text = Boolean(message.text);
+      const reactions = reactionEntries(message).length > 0;
+      const classes = ['message-bubble'];
+      if (image && !text && !message.replyTo && !reactions) classes.push('bare-media');
+      else if (!image && text && isEmojiOnly(message.text) && !message.replyTo && !reactions) classes.push('bare-emoji');
+      else if (image) classes.push('has-media');
+      if (reactions) classes.push('has-reactions');
+      return classes;
     }
 
     function isEmojiOnly(text) {
@@ -92,12 +108,9 @@
       const thumb = message.kind === 'image' && message.image?.src ? thumbnailSize(message.image) : null;
       const image = thumb ? imageMarkup(message, author, thumb) : '';
       const text = message.text ? textBodyMarkup(message.text, message.mentions) : '';
-      const classes = ['message-bubble'];
-      if (image && !text && !message.replyTo) classes.push('bare-media');
-      else if (!image && text && isEmojiOnly(message.text) && !message.replyTo) classes.push('bare-emoji');
-      else if (image) classes.push('has-media');
+      const classes = bubbleClassList(message, thumb);
       const style = classes.includes('has-media') ? ` style="--thumb-w:${thumb.width}px"` : '';
-      return `<div class="${classes.join(' ')}"${style}>${renderReply(message)}${image}${text}</div>`;
+      return `<div class="${classes.join(' ')}"${style}>${renderReply(message)}${image}${text}${reactionMarkup(message)}</div>`;
     }
 
     function actionMarkup(messageId) {
@@ -129,7 +142,7 @@
       const meta = continued
         ? `<span class="visually-hidden">${escapeHtml(author.username)}</span>`
         : `<div class="message-meta"><span class="message-author">${escapeHtml(author.username)}</span>${timeMarkup(message.createdAt)}</div>`;
-      article.innerHTML = `<div class="message-avatar">${avatar}</div><div class="message-main">${meta}<div class="message-stack">${messageBubbleMarkup(message, author)}${actionMarkup(message.id)}${reactionMarkup(message)}</div></div>`;
+      article.innerHTML = `<div class="message-avatar">${avatar}</div><div class="message-main">${meta}<div class="message-stack">${messageBubbleMarkup(message, author)}${actionMarkup(message.id)}</div></div>`;
       hydrateIcons(article);
       messageNodes.set(message.id, article);
       return article;
@@ -262,13 +275,20 @@
     function updateReactionNode(message) {
       const node = messageNodes.get(message.id);
       if (!node) return;
-      const list = node.querySelector('.reaction-list');
+      const bubble = node.querySelector('.message-bubble');
+      if (!bubble) return;
+      const thumb = message.kind === 'image' && message.image?.src ? thumbnailSize(message.image) : null;
+      const classes = bubbleClassList(message, thumb);
+      bubble.className = classes.join(' ');
+      if (classes.includes('has-media') && thumb) bubble.style.setProperty('--thumb-w', `${thumb.width}px`);
+      else bubble.style.removeProperty('--thumb-w');
+      const list = bubble.querySelector('.reaction-list');
       const markup = reactionMarkup(message);
       if (list) {
         if (markup) list.outerHTML = markup;
         else list.remove();
       } else if (markup) {
-        node.querySelector('.message-actions')?.insertAdjacentHTML('afterend', markup);
+        bubble.insertAdjacentHTML('beforeend', markup);
       }
     }
 
