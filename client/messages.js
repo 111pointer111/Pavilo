@@ -53,14 +53,20 @@
       return `<div class="reply-quote"><strong>${escapeHtml(t('reply.quote', { name: message.replyTo.username }))}</strong><span>${escapeHtml(message.replyTo.text)}</span></div>`;
     }
 
-    function imageMarkup(message, author) {
-      const rawWidth = Number(message.image?.width) || 640;
-      const rawHeight = Number(message.image?.height) || 480;
-      const scale = Math.min(1, 390 / rawWidth, 300 / rawHeight);
-      const width = Math.max(1, Math.round(rawWidth * scale));
-      const height = Math.max(1, Math.round(rawHeight * scale));
+    function thumbnailSize(image, maxWidth = 390, maxHeight = 300) {
+      const rawWidth = Number(image?.width) || 640;
+      const rawHeight = Number(image?.height) || 480;
+      const scale = Math.min(1, maxWidth / rawWidth, maxHeight / rawHeight);
+      return {
+        width: Math.max(1, Math.round(rawWidth * scale)),
+        height: Math.max(1, Math.round(rawHeight * scale)),
+      };
+    }
+
+    function imageMarkup(message, author, thumb = thumbnailSize(message.image)) {
+      const { width, height } = thumb;
       const source = escapeHtml(message.image.src);
-      return `<button class="message-image-link" type="button" data-viewer-message-id="${escapeHtml(message.id)}" aria-label="${escapeHtml(t('image.viewAria', { name: author.username }))}"><img class="message-image" src="${source}" alt="${escapeHtml(t('image.alt', { name: author.username }))}" loading="lazy" decoding="async" width="${width}" height="${height}"></button>`;
+      return `<button class="message-image-link" type="button" data-viewer-message-id="${escapeHtml(message.id)}" aria-label="${escapeHtml(t('image.viewAria', { name: author.username }))}"><img class="message-image" src="${source}" alt="${escapeHtml(t('image.alt', { name: author.username }))}" loading="lazy" decoding="async" width="${width}" height="${height}" style="width:${width}px;max-width:100%"></button>`;
     }
 
     function reactionMarkup(message) {
@@ -83,13 +89,15 @@
     }
 
     function messageBubbleMarkup(message, author) {
-      const image = message.kind === 'image' && message.image?.src ? imageMarkup(message, author) : '';
+      const thumb = message.kind === 'image' && message.image?.src ? thumbnailSize(message.image) : null;
+      const image = thumb ? imageMarkup(message, author, thumb) : '';
       const text = message.text ? textBodyMarkup(message.text, message.mentions) : '';
       const classes = ['message-bubble'];
       if (image && !text && !message.replyTo) classes.push('bare-media');
       else if (!image && text && isEmojiOnly(message.text) && !message.replyTo) classes.push('bare-emoji');
       else if (image) classes.push('has-media');
-      return `<div class="${classes.join(' ')}">${renderReply(message)}${image}${text}</div>`;
+      const style = classes.includes('has-media') ? ` style="--thumb-w:${thumb.width}px"` : '';
+      return `<div class="${classes.join(' ')}"${style}>${renderReply(message)}${image}${text}</div>`;
     }
 
     function actionMarkup(messageId) {
@@ -164,9 +172,10 @@
         node.className = `message self pending-message${continued ? ' continued' : ''}`;
         node.dataset.pendingId = item.id;
         const self = getSelf();
+        const pendingThumb = item.kind === 'image' && item.image?.src ? thumbnailSize(item.image, 260, 180) : null;
         const body = [
-          item.kind === 'image' && item.image?.src
-            ? `<img class="pending-image" src="${escapeHtml(item.image.src)}" alt="${escapeHtml(t('pending.imageAlt'))}">`
+          pendingThumb
+            ? `<img class="pending-image" src="${escapeHtml(item.image.src)}" alt="${escapeHtml(t('pending.imageAlt'))}" width="${pendingThumb.width}" height="${pendingThumb.height}" style="width:${pendingThumb.width}px;max-width:100%">`
             : '',
           item.text ? `<div class="message-body">${textMarkup(item.text, item.mentions)}</div>` : '',
         ].join('');
@@ -177,9 +186,10 @@
           ? `<span class="visually-hidden">${escapeHtml(self?.username || t('people.self'))}</span>`
           : `<div class="message-meta"><span class="message-author">${escapeHtml(self?.username || t('people.self'))}</span><span class="message-time">${escapeHtml(t('pending.now'))}</span></div>`;
         const classes = ['message-bubble'];
-        if (item.kind === 'image' && item.image?.src && !item.text) classes.push('bare-media');
-        else if (item.kind === 'image' && item.image?.src) classes.push('has-media');
-        node.innerHTML = `<div class="message-avatar">${avatar}</div><div class="message-main">${meta}<div class="message-stack"><div class="${classes.join(' ')}">${body}</div><div class="pending-status" role="status" aria-live="polite"></div></div></div>`;
+        if (pendingThumb && !item.text) classes.push('bare-media');
+        else if (pendingThumb) classes.push('has-media');
+        const style = classes.includes('has-media') ? ` style="--thumb-w:${pendingThumb.width}px"` : '';
+        node.innerHTML = `<div class="message-avatar">${avatar}</div><div class="message-main">${meta}<div class="message-stack"><div class="${classes.join(' ')}"${style}>${body}</div><div class="pending-status" role="status" aria-live="polite"></div></div></div>`;
         hydrateIcons(node);
         pendingNodes.set(item.id, node);
         messageList.append(node);

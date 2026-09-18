@@ -658,7 +658,34 @@ button, .channel, .person, .avatar, .top-action, .reaction-button, .composer-but
   box-shadow: none;
   overflow: visible;
 }
-.message-bubble.has-media { padding: 6px; }
+/* Mixed bubbles stay image-above-caption. The displayed thumbnail width
+   (--thumb-w, 390×300 fit) sizes the media; the bubble shrink-wraps around
+   it so a 75×300 portrait is a narrow card and a 390×98 landscape is a
+   wide one. Caption is out of shrink-wrap and wraps to that width. */
+.message-bubble.has-media {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: max-content;
+  max-width: 100%;
+  min-width: 0;
+  padding: 6px;
+}
+.message-bubble.has-media .message-image-link,
+.message-bubble.has-media .pending-image {
+  width: var(--thumb-w, 390px);
+  max-width: 100%;
+}
+.message-bubble.has-media .message-image {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+}
+.message-bubble.has-media .message-body,
+.message-bubble.has-media .reply-quote {
+  width: 0;
+  min-width: 100%;
+}
 .message-body { margin: 0; color: var(--ink); font-size: 14px; line-height: 1.62; overflow-wrap: anywhere; white-space: pre-wrap; }
 .message-body.emoji-only { font-size: 34px; line-height: 1.2; letter-spacing: .06em; }
 .message-mention { display: inline; padding: 1px 4px; border: 0; border-radius: 4px; background: var(--teal-pale); color: var(--teal-deep); cursor: pointer; font: inherit; line-height: inherit; text-align: inherit; overflow-wrap: anywhere; white-space: pre-wrap; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
@@ -781,7 +808,7 @@ button, .channel, .person, .avatar, .top-action, .reaction-button, .composer-but
 .pending-status { display: inline-flex; align-items: center; gap: 6px; grid-column: 1 / -1; margin-top: 6px; color: var(--ink-soft); font-family: var(--mono); font-size: 10px; }
 .pending-status.error { color: var(--coral); }
 .pending-status button { min-height: 28px; padding: 3px 8px; border: 1px solid currentColor; border-radius: 5px; background: transparent; color: inherit; cursor: pointer; font-size: 10px; }
-.pending-image { max-width: min(260px, 100%); max-height: 180px; margin: 0; border: 0; border-radius: 10px; object-fit: contain; }
+.pending-image { display: block; width: auto; height: auto; max-width: 260px; max-height: 180px; margin: 0; border: 0; border-radius: 10px; object-fit: contain; }
 .message-action.reaction-action { position: relative; min-width: 36px; min-height: 32px; padding: 0; }
 .message-action.reaction-action .icon { width: 16px; height: 16px; }
 .message-action.reaction-action .reaction-plus { position: absolute; right: 3px; bottom: 3px; width: 9px; height: 9px; border-radius: 50%; background: var(--teal-pale); stroke-width: 2.4; }

@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - CHANGELOG v0.2.0 曾写「Paste from clipboard / Drag-and-drop」，当时并未落地；现已实现
+- 图文混排仍上图下字，气泡按每张缩略图自己的显示宽度收紧（宽图宽、竖图窄），回复和回应按钮贴回气泡右侧
 
 ### Changed
 - 附件按钮不再立刻发图；发送按钮在有待发图片或文字时可用
@@ -23,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 消息改为独立气泡：同一人连续发言只在第一条显示头像，回复和表情按钮悬停出现在气泡右侧顶部
 
 ### Tests
-- 总测试数：276 个（275 通过，1 跳过）；浏览器合同 17/17
+- 总测试数：278 个（277 通过，1 跳过）；浏览器合同 17/17
 
 ## [0.8.0] - 2026-09-17
 

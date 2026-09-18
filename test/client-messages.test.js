@@ -124,7 +124,7 @@ test('image dimensions, image button accessibility and emoji-only class match th
     message('emoji', { author: self, text: '🔥 😂' })]);
   room.renderer.renderHistory();
   const articles = room.elements.messageList.children.filter((child) => child.tag === 'article');
-  assert.match(articles[0].innerHTML, /<button class="message-image-link" type="button" data-viewer-message-id="photo" aria-label="查看 Bob 分享的图片"><img class="message-image" src="data:image\/png;base64,aa&quot;" alt="Bob 分享的图片" loading="lazy" decoding="async" width="390" height="300"><\/button>/);
+  assert.match(articles[0].innerHTML, /<button class="message-image-link" type="button" data-viewer-message-id="photo" aria-label="查看 Bob 分享的图片"><img class="message-image" src="data:image\/png;base64,aa&quot;" alt="Bob 分享的图片" loading="lazy" decoding="async" width="390" height="300" style="width:390px;max-width:100%"><\/button>/);
   assert.match(articles[0].innerHTML, /class="message-bubble bare-media"/);
   assert.match(articles[1].innerHTML, /class="message-bubble bare-emoji"/);
   assert.match(articles[1].innerHTML, /<div class="message-body emoji-only">🔥 😂<\/div>/);
@@ -135,9 +135,47 @@ test('image captions render below the thumbnail in the same bubble', () => {
   const room = harness([message('photo', { kind: 'image', text: '<look>', image: { src: 'data:image/png;base64,aa"', width: 780, height: 600 } })]);
   room.renderer.renderHistory();
   const article = room.elements.messageList.children.find((child) => child.tag === 'article');
-  assert.match(article.innerHTML, /class="message-bubble has-media"/);
+  assert.match(article.innerHTML, /class="message-bubble has-media" style="--thumb-w:390px"/);
   assert.match(article.innerHTML, /data-viewer-message-id="photo"/);
-  assert.match(article.innerHTML, /<div class="message-bubble has-media">[\s\S]*<div class="message-body">&lt;look&gt;<\/div>/);
+  assert.match(article.innerHTML, /<div class="message-bubble has-media" style="--thumb-w:390px">[\s\S]*<div class="message-body">&lt;look&gt;<\/div>/);
+  assert.match(article.innerHTML, /style="width:390px;max-width:100%"/);
+});
+
+test('mixed-media bubbles stay image-above-caption and hug each displayed thumbnail', () => {
+  const room = harness([
+    message('wide', { kind: 'image', text: 'wide', image: { src: 'data:image/png;base64,aa', width: 1600, height: 400 } }),
+    message('square', { kind: 'image', text: 'square', image: { src: 'data:image/png;base64,bb', width: 600, height: 600 } }),
+    message('tall', { kind: 'image', text: 'tall', image: { src: 'data:image/png;base64,cc', width: 200, height: 800 } }),
+    message('small', { kind: 'image', text: 'small', image: { src: 'data:image/png;base64,dd', width: 80, height: 50 } }),
+  ]);
+  room.renderer.renderHistory();
+  const articles = room.elements.messageList.children.filter((child) => child.tag === 'article');
+  assert.match(articles[0].innerHTML, /class="message-bubble has-media" style="--thumb-w:390px"/);
+  assert.match(articles[0].innerHTML, /width="390" height="98" style="width:390px;max-width:100%"/);
+  assert.match(articles[0].innerHTML, /message-image-link[\s\S]*message-body/);
+  assert.match(articles[1].innerHTML, /class="message-bubble has-media" style="--thumb-w:300px"/);
+  assert.match(articles[1].innerHTML, /width="300" height="300" style="width:300px;max-width:100%"/);
+  assert.match(articles[2].innerHTML, /class="message-bubble has-media" style="--thumb-w:75px"/);
+  assert.match(articles[2].innerHTML, /width="75" height="300" style="width:75px;max-width:100%"/);
+  assert.match(articles[3].innerHTML, /class="message-bubble has-media" style="--thumb-w:80px"/);
+  assert.match(articles[3].innerHTML, /width="80" height="50" style="width:80px;max-width:100%"/);
+});
+
+test('pending mixed images hug the pending thumbnail, not the sent 390px cap', () => {
+  const room = harness();
+  room.renderer.renderHistory();
+  const pending = {
+    id: 'pending-img',
+    kind: 'image',
+    text: 'soon',
+    status: 'sending',
+    image: { src: 'data:image/png;base64,aa', width: 200, height: 800 },
+  };
+  room.transition({ ...room.getState(), pending: { [pending.id]: pending } }, { type: 'pending/add' });
+  const article = room.elements.messageList.children.find((child) => child.tag === 'article');
+  assert.match(article.innerHTML, /class="message-bubble has-media" style="--thumb-w:45px"/);
+  assert.match(article.innerHTML, /width="45" height="180" style="width:45px;max-width:100%"/);
+  assert.match(article.innerHTML, /pending-image[\s\S]*message-body/);
 });
 
 test('consecutive messages from one author hide the later avatars', () => {

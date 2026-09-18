@@ -300,7 +300,7 @@ box-shadow:
 ## 组件设计模式
 
 ### 消息气泡
-每条消息是独立气泡，而不是整行高亮。同一人连续发言时，只有第一条显示头像和名字；后续消息把头像槽让给悬停才出现的时间。回应与回复按钮出现在气泡右侧顶部，桌面悬停 / 键盘聚焦时出现，触摸设备常显。
+每条消息是独立气泡，而不是整行高亮。同一人连续发言时，只有第一条显示头像和名字；后续消息把头像槽让给悬停才出现的时间。回应与回复按钮出现在气泡右侧顶部，桌面悬停 / 键盘聚焦时出现，触摸设备常显。图文混排一律上图下字，气泡宽度跟每张缩略图的显示宽度走（宽图宽、方图中、竖图窄），配文折行贴合，不撑开空列。
 
 ```css
 .message-bubble {
@@ -310,6 +310,20 @@ box-shadow:
 }
 .message.self .message-bubble {
   background: color-mix(in srgb, var(--teal-pale) 72%, var(--paper));
+}
+.message-bubble.has-media {
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  max-width: 100%;
+}
+.message-bubble.has-media .message-image-link {
+  width: var(--thumb-w, 390px);
+}
+.message-bubble.has-media .message-body,
+.message-bubble.has-media .reply-quote {
+  width: 0;
+  min-width: 100%;
 }
 ```
 
