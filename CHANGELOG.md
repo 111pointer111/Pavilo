@@ -1,9 +1,8 @@
 # Changelog
 
-All notable changes to Pavilo will be documented in this file.
+Pavilo 的重要变更都记在这份文件里。
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
 ## [Unreleased]
 
@@ -61,7 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 客户端白名单 13 → 14 个文件（`i18n.js` 排在 `app.js` 之前）
 - 总测试数：273 个（272 通过，1 跳过）
 
-## [0.7.0] - 2024-12-19
+## [0.7.0] - 2026-09-12
 
 ### Added
 - **用户文档**
@@ -110,7 +109,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 新增 6 个文档文件、1 个接线回归测试
 - 现有架构文档已完善（docs/architecture/）
 
-## [0.6.0] - 2024-12-19
+## [0.6.0] - 2026-09-12
 
 ### Added
 - Issue 模板系统
@@ -138,7 +137,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 新增 4 个 GitHub 模板文件
 - 新增 3 个流程文档
 
-## [0.5.0] - 2024-12-19
+## [0.5.0] - 2026-09-12
 
 ### Added
 - 错误状态统一管理模块（client/error-states.js）
@@ -163,155 +162,151 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 总测试数：254 个（253 通过，1 跳过）
 - 测试覆盖率保持稳定
 
-## [0.4.0] - 2024-12-19
+## [0.4.0] - 2026-09-12
 
 ### Added
-- HTTP security headers for enhanced protection
-  - X-Frame-Options: DENY (prevents clickjacking)
-  - Referrer-Policy: strict-origin-when-cross-origin (controls referrer leakage)
-  - Applied uniformly to all HTTP responses (HTML/CSS/JS/JSON/vendor files)
-- Security headers test suite (test/security-headers.test.js)
-- Malformed input test suite (test/malformed-input.test.js)
-  - Malformed YAML configuration parsing tests
-  - Invalid configuration value validation tests
-  - Deeply nested channel configuration tests
-  - Special character handling tests
-- CHANGELOG.md following Keep a Changelog format
-  - Retroactively documented v0.1.0, v0.2.0, v0.3.0
+- HTTP 安全响应头
+  - `X-Frame-Options: DENY`（防止点击劫持）
+  - `Referrer-Policy: strict-origin-when-cross-origin`（控制 Referrer 泄漏）
+  - 统一加到所有 HTTP 响应（HTML / CSS / JS / JSON / vendor）
+- 安全头测试套件（`test/security-headers.test.js`）
+- 畸形输入测试套件（`test/malformed-input.test.js`）
+  - 畸形 YAML 配置解析
+  - 非法配置值校验
+  - 深层嵌套频道配置
+  - 特殊字符处理
+- 按 Keep a Changelog 格式创建 `CHANGELOG.md`
+  - 回溯记录 v0.1.0、v0.2.0、v0.3.0
 
 ### Changed
-- Updated package.json version from 0.1.0 to 0.4.0
-- Simplified ROADMAP.md (removed performance testing to maintain focus)
+- `package.json` 版本号从 0.1.0 更新为 0.4.0
+- 精简 `ROADMAP.md`（去掉性能测试，保持聚焦）
 
 ### Security
-- Enhanced HTTP security posture with additional response headers
+- 用额外响应头加强 HTTP 安全基线
 
 ### Tests
-- Total tests: 234 (233 passing)
-- New tests: 9 (3 security headers + 4 malformed input + 2 config validation)
+- 总测试数：234 个（233 通过）
+- 新增 9 个测试（3 个安全头 + 4 个畸形输入 + 2 个配置校验）
 
-## [0.3.0] - 2024-01-XX
+## [0.3.0] - 2026-09-12
 
 ### Added
-- **Docker support** with multi-stage builds and security hardening
-  - Dockerfile with Node 22 Alpine base image
-  - Non-root user (pavilo:pavilo, uid/gid 1001)
-  - Read-only filesystem support
-  - Built-in health check (/healthz endpoint)
-  - Security options (no-new-privileges, cap_drop: ALL)
-- **docker-compose.yml** with production-ready configuration
-- **.dockerignore** for optimized build context
-- **Enhanced startup logs** with clear, structured information
-  - Application version (v0.1.0)
-  - Protocol version (v4)
-  - Storage mode (ephemeral)
-  - Config source (file path or built-in defaults)
-  - Network addresses (local + LAN)
-  - Security boundaries (Origin check, IP visibility, capacity limits)
-- **Deployment documentation**
-  - Docker deployment guide (docs/deployment/docker.md)
-  - Reverse proxy configuration guide for Nginx and Caddy (docs/deployment/reverse-proxy.md)
-  - Health check contract documentation (docs/healthcheck.md)
-- **Offline startup verification** - confirmed no external network dependencies
+- **Docker 支持**：多阶段构建与安全加固
+  - 基于 Node 22 Alpine 的 Dockerfile
+  - 非 root 用户（pavilo:pavilo，uid/gid 1001）
+  - 只读根文件系统
+  - 内置健康检查（`/healthz`）
+  - 安全选项（`no-new-privileges`、`cap_drop: ALL`）
+- 可用于生产的 `docker-compose.yml`
+- 优化构建上下文的 `.dockerignore`
+- **更清晰的启动日志**
+  - 应用版本
+  - 协议版本（v4）
+  - 存储模式（ephemeral）
+  - 配置来源（文件路径或内置默认值）
+  - 网络地址（本机 + 局域网）
+  - 安全边界（Origin 检查、IP 可见性、容量上限）
+- **部署文档**
+  - Docker 部署指南（`docs/deployment/docker.md`）
+  - Nginx / Caddy 反向代理配置（`docs/deployment/reverse-proxy.md`）
+  - 健康检查契约（`docs/healthcheck.md`）
+- **离线启动验证**：确认不依赖公网第三方资源
 
 ### Changed
-- Startup logs now display comprehensive system information
-- README updated with Docker quick start section
+- 启动日志展示更完整的系统信息
+- README 增加 Docker 快速开始
 
 ### Fixed
-- Configuration file loading now shows clear source information
+- 配置加载时明确打印配置来源
 
-## [0.2.0] - 2024-01-XX
+## [0.2.0] - 2026-09-12
 
 ### Added
-- **Protocol v4** - stable WebSocket protocol
-  - Message ACK with client-side ack tracking
-  - Idempotency support with deduplication
-  - Connection resilience (auto-reconnect, history catch-up)
-  - Sequence-based ordering guarantees
-- **Emoji reactions** - 6 quick reactions (👍 ❤️ 😂 🎉 👀 🔥)
-- **Image upload and inline display**
-  - Drag-and-drop support
-  - Paste from clipboard
-  - 300KB size limit per image
-  - JPEG, PNG, WebP support
-- **Message replies** - thread-like conversations
-- **Enhanced UI**
-  - Deep dark mode with system theme detection
-  - Glassmorphism design (frosted glass effects)
-  - Smooth micro-interactions and animations
-  - Responsive mobile layout
-  - Keyboard navigation support
-- **Read-only channels** - announcement and rules channels
-- **Member list** with online status
-- **Typing indicators**
-- **Browser notifications** (opt-in, with permission request)
-- **Unread indicators** (page title badge, dynamic favicon)
-- **Design language documentation** (docs/design-language.md)
-- **Test strategy documentation** (TEST_STRATEGY.md)
-- **Comprehensive test suite** (200+ tests)
-  - Unit tests for core logic
-  - Integration tests for WebSocket protocol
-  - Browser automation tests with Playwright
+- **Protocol v4**：稳定 WebSocket 协议
+  - 消息 ACK，客户端跟踪确认
+  - `clientMessageId` 幂等去重
+  - 断线自动重连与历史补齐
+  - 基于序号的顺序保证
+- **表情回应**：6 个快捷表情（👍 ❤️ 😂 🎉 👀 🔥）
+- **图片上传与页内展示**
+  - 拖放
+  - 剪贴板粘贴
+  - 单张上限 300 KB
+  - 支持 JPEG、PNG、WebP
+- **消息回复**
+- **界面增强**
+  - 深色模式，跟随系统主题
+  - 玻璃态设计
+  - 微交互动画
+  - 响应式移动端布局
+  - 键盘操作
+- **只读频道**：适合公告与规则
+- **在线成员列表**
+- **输入状态提示**
+- **浏览器通知**（需用户点击后申请权限）
+- **未读提示**（标题角标、动态图标）
+- 设计语言文档（`docs/design-language.md`）
+- 测试策略文档（`docs/TEST_STRATEGY.md`）
+- 测试套件（200+ 个）
+  - 核心逻辑单元测试
+  - WebSocket 协议集成测试
+  - Playwright 浏览器验收
 
 ### Changed
-- Upgraded to Protocol v4 (v1/v2/v3 still supported for compatibility)
-- Improved connection stability and error handling
-- Enhanced security with Origin validation
-- Static resources (Lucide icons, emoji picker) now self-hosted
+- 升级到 Protocol v4（当时仍兼容 v1/v2/v3）
+- 改善连接稳定性与错误处理
+- Origin 校验加强安全
+- Lucide 图标与表情选择器改为自托管
 
 ### Security
-- Origin header validation for WebSocket connections
-- Rate limiting for messages and reactions
-- Input sanitization and validation
-- Resource limits (max users, connections, messages, bytes)
+- WebSocket Origin 校验
+- 消息与回应限流
+- 输入校验
+- 资源上限（人数、连接、消息、字节）
 
-## [0.1.0] - 2024-01-XX
+## [0.1.0] - 2026-09-12
 
 ### Added
-- **Initial release** - ephemeral chat system
-- **Multi-channel support** with configurable channels
-- **WebSocket-based real-time communication**
-- **Markdown support** in messages
-- **YAML configuration** (pavilo.yaml)
-- **Graceful shutdown** (SIGINT/SIGTERM handling)
-- **Static file serving** with gzip compression
-- **ETag caching** for static resources
-- **Built-in defaults** - works without configuration file
-- **Security boundaries**
-  - Max users and connections limits
-  - Message size limits
-  - Channel capacity limits
-  - Backpressure handling
-- **Documentation**
-  - README with quick start guide
-  - Configuration examples
-  - Contributing guidelines (CONTRIBUTING.md)
-  - Security policy (SECURITY.md)
-  - Code of conduct (CODE_OF_CONDUCT.md)
-  - Roadmap (ROADMAP.md)
+- **首个版本**：默认临时的聊天系统
+- **多频道**，可由配置定义
+- **基于 WebSocket 的实时通信**
+- 消息 Markdown
+- YAML 配置（`pavilo.yaml`）
+- 优雅停服（SIGINT / SIGTERM）
+- 静态文件提供，支持 gzip
+- 静态资源 ETag 缓存
+- **内置默认值**：没有配置文件也能启动
+- **安全边界**
+  - 用户数与连接数上限
+  - 消息大小上限
+  - 频道容量上限
+  - 写缓冲 backpressure
+- **文档**
+  - README 快速开始
+  - 配置示例
+  - 贡献指南（`CONTRIBUTING.md`）
+  - 安全政策（`SECURITY.md`）
+  - 行为准则（`CODE_OF_CONDUCT.md`）
+  - 路线图（`ROADMAP.md`）
 
 ### Architecture
-- Pure in-memory storage (ephemeral mode only)
-- Node.js 22+ required
-- Minimal dependencies (only `yaml` for config parsing)
-- Clean separation: core logic + transport layer
-- Protocol versioning support
+- 纯内存存储（仅 ephemeral 模式）
+- 需要 Node.js 22+
+- 运行时依赖只有 `yaml`
+- core 与 transport 分层
+- 协议版本协商
 
 ---
 
-## Version History Summary
+## 版本摘要
 
-- **v0.3.0** - Docker support and deployment readiness
-- **v0.2.0** - Protocol v4, reactions, images, enhanced UI
-- **v0.1.0** - Initial ephemeral chat system
+- **v0.3.0** — Docker 支持与可部署性
+- **v0.2.0** — Protocol v4、回应、图片、界面增强
+- **v0.1.0** — 首个临时聊天系统
 
-## Links
+## 链接
 
-- [GitHub Repository](https://github.com/caigg188/Pavilo)
-- [Issue Tracker](https://github.com/caigg188/Pavilo/issues)
-- [Roadmap](ROADMAP.md)
-
----
-
-**Note**: Dates are placeholders (2024-01-XX) and will be updated with actual release dates.
+- [GitHub 仓库](https://github.com/caigg188/Pavilo)
+- [Issue](https://github.com/caigg188/Pavilo/issues)
+- [路线图](ROADMAP.md)
