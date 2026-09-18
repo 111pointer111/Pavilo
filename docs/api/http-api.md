@@ -97,7 +97,7 @@ Referrer-Policy: strict-origin-when-cross-origin
 
 {
   "protocolVersion": 4,
-  "deprecatedProtocols": [1, 2, 3],
+  "deprecatedProtocols": [],
   "roomEpoch": "room-general_4efe0d43ef23052f",
   "roomTitle": "语亭 · 临时频道",
   "defaultChannelId": "general",
@@ -143,7 +143,7 @@ Referrer-Policy: strict-origin-when-cross-origin
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `protocolVersion` | number | 当前协议版本，固定为 `4` |
-| `deprecatedProtocols` | array | 仍可连接但已废弃的协议版本，固定为 `[1, 2, 3]` |
+| `deprecatedProtocols` | array | 仍可连接但已废弃的协议版本；v0.9 起为空数组 `[]` |
 | `roomEpoch` | string | **默认频道**的 epoch（兼容字段，形如 `room-general_<16 位十六进制>`） |
 | `roomTitle` | string | 房间标题（`room.title`） |
 | `defaultChannelId` | string | 默认频道 ID（`room.defaultChannel`） |

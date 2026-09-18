@@ -34,7 +34,7 @@ async function state(client) {
 
 async function member(port, username, channelId = 'general', token = `session-${username}-001`) {
   const client = await openWebSocket({ port });
-  client.sendJson({ type: 'join', protocolVersion: 3, username, channelId, clientSessionId: token });
+  client.sendJson({ type: 'join', protocolVersion: 4, username, channelId, clientSessionId: token });
   return { client, initial: await state(client) };
 }
 
@@ -91,11 +91,11 @@ test('failed switch leaves member in source and disabled channels reject direct 
   await member(port, 'Bob', 'other');
   await member(port, 'Carol', 'other');
   a.client.sendJson({ type: 'switchChannel', channelId: 'other' });
-  assert.equal((await a.client.nextJson()).code, 'CHANNEL_FULL');
+  assert.equal((await a.client.nextJson((payload) => payload.type === 'error')).code, 'CHANNEL_FULL');
   const event = await post(a.client, 'message-still-source', 'still here');
   assert.equal(event.roomEpoch, a.initial.roomEpoch);
   const denied = await openWebSocket({ port });
-  denied.sendJson({ type: 'join', protocolVersion: 3, username: 'Denied', channelId: 'disabled' });
+  denied.sendJson({ type: 'join', protocolVersion: 4, username: 'Denied', channelId: 'disabled' });
   assert.equal((await denied.nextJson()).code, 'CHANNEL_UNAVAILABLE');
 });
 
@@ -104,7 +104,7 @@ test('global user capacity includes disconnect leases but permits resume and rel
   const a = await member(port, 'Alice');
   await a.client.destroy();
   const denied = await openWebSocket({ port });
-  denied.sendJson({ type: 'join', protocolVersion: 3, username: 'Bob', channelId: 'other' });
+  denied.sendJson({ type: 'join', protocolVersion: 4, username: 'Bob', channelId: 'other' });
   assert.equal((await denied.nextJson()).code, 'SERVER_FULL');
   const resumed = await member(port, 'Alice', 'general', a.initial.resumeToken);
   resumed.client.sendJson({ type: 'leave' });
@@ -115,20 +115,35 @@ test('global user capacity includes disconnect leases but permits resume and rel
   assert.equal(b.initial.self.username, 'Bob');
 });
 
-test('v2 still receives chunked history, v1 gets legacy state, non-general default works', async (t) => {
+test('unsupported protocol versions are rejected and the socket is closed', async (t) => {
   const { port } = await setup(t, { defaultChannelId: 'other' });
-  const v2 = await openWebSocket({ port });
-  v2.sendJson({ type: 'join', protocolVersion: 2, username: 'Two', clientSessionId: 'session-protocol-two' });
-  assert.equal((await state(v2)).channelId, 'other');
-  const v1 = await openWebSocket({ port });
-  v1.sendJson({ type: 'join', username: 'One' });
-  assert.equal((await v1.nextJson()).type, 'state');
+  const cases = [1, 2, 3, 5, 4.5, '4', null];
+  for (const version of cases) {
+    const client = await openWebSocket({ port });
+    client.sendJson({ type: 'join', protocolVersion: version, username: 'Old', clientSessionId: 'session-old-protocol-01' });
+    const error = await client.nextJson((payload) => payload.type === 'error');
+    assert.equal(error.code, 'PROTOCOL_NOT_SUPPORTED', `version ${version}`);
+    const closed = await client.waitForClose();
+    assert.equal(closed.code, 1002);
+    assert.equal(closed.reason, 'protocol not supported');
+    await client.destroy();
+  }
+  const missing = await openWebSocket({ port });
+  missing.sendJson({ type: 'join', username: 'One', clientSessionId: 'session-missing-protocol' });
+  assert.equal((await missing.nextJson((payload) => payload.type === 'error')).code, 'PROTOCOL_NOT_SUPPORTED');
+  assert.equal((await missing.waitForClose()).code, 1002);
+  await missing.destroy();
+  const current = await openWebSocket({ port });
+  current.sendJson({ type: 'join', protocolVersion: 4, username: 'Four', clientSessionId: 'session-protocol-four' });
+  assert.equal((await state(current)).channelId, 'other');
 });
 
 test('public metadata is allowlisted and private files or vendor symlinks cannot be downloaded', async (t) => {
   const { url } = await setup(t, { allowedOrigins: ['https://private.example'], exposeMemberIps: false });
   const metadata = await (await fetch(`${url}/room-info`)).json();
   assert.deepEqual(Object.keys(metadata).sort(), ['channels', 'defaultChannelId', 'defaultLanguage', 'deprecatedProtocols', 'ephemeral', 'lanUrls', 'limits', 'localUrl', 'protocolVersion', 'roomEpoch', 'roomTitle', 'supportedLanguages'].sort());
+  assert.equal(metadata.protocolVersion, 4);
+  assert.deepEqual(metadata.deprecatedProtocols, []);
   assert.equal(metadata.defaultLanguage, 'zh-CN');
   assert.deepEqual(metadata.supportedLanguages, ['zh-CN', 'en']);
   assert.ok(!JSON.stringify(metadata).includes('private.example'));
@@ -175,7 +190,7 @@ test('eviction reports removedIds on every message so clients can rebuild once',
 
   const seen = await (async () => {
     const joiner = await openWebSocket({ port });
-    joiner.sendJson({ type: 'join', protocolVersion: 3, username: 'Auditor', clientSessionId: 'session-auditor-001' });
+    joiner.sendJson({ type: 'join', protocolVersion: 4, username: 'Auditor', clientSessionId: 'session-auditor-001' });
     return state(joiner);
   })();
   const texts = seen.history.map((message) => message.text);
@@ -205,7 +220,7 @@ test('a message that cannot fit the channel budget is refused instead of emptyin
 
   const after = await (async () => {
     const joiner = await openWebSocket({ port });
-    joiner.sendJson({ type: 'join', protocolVersion: 3, username: 'Checker', clientSessionId: 'session-checker-001' });
+    joiner.sendJson({ type: 'join', protocolVersion: 4, username: 'Checker', clientSessionId: 'session-checker-001' });
     return state(joiner);
   })();
   assert.deepEqual(after.history.map((message) => message.text), ['fits'], 'the earlier message survives a refused send');
@@ -222,7 +237,7 @@ test('a client that reconnects mid-sync resumes with a complete history', async 
   await new Promise((resolve) => setTimeout(resolve, 40));
 
   const again = await openWebSocket({ port });
-  again.sendJson({ type: 'join', protocolVersion: 3, username: 'Historian', channelId: 'general', clientSessionId: token });
+  again.sendJson({ type: 'join', protocolVersion: 4, username: 'Historian', channelId: 'general', clientSessionId: token });
   const resumed = await state(again);
   assert.equal(resumed.self.username, 'Historian');
   // Chunking is transparent to the client: it still sees the whole history and a
@@ -240,7 +255,7 @@ test.skip('a client is told to wait rather than losing events while its history 
   // The join pushes a multi-chunk history; a message sent during it must be
   // refused with SYNC_IN_PROGRESS instead of accepted and dropped.
   const joiner = await openWebSocket({ port });
-  joiner.sendJson({ type: 'join', protocolVersion: 3, username: 'Latecomer', clientSessionId: 'session-latecomer-001' });
+  joiner.sendJson({ type: 'join', protocolVersion: 4, username: 'Latecomer', clientSessionId: 'session-latecomer-001' });
   await joiner.nextJson((p) => p.type === 'stateStart');
   joiner.sendJson({ type: 'message', kind: 'text', clientMessageId: 'during-sync', text: 'too early' });
   while (true) {

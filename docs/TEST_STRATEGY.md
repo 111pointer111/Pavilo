@@ -45,9 +45,9 @@ _注：以上统计为时间点快照，运行 `npm test` 查看当前实际状�
 1. **channels.test.js 有 1 个跳过的测试**
    ```javascript
    test.skip('a client is told to wait', async (t) => {
-     // TODO: 同步状态时序问题，Core 与 Transport 层状态不一致
+     // 历史同步期间发消息应返回 SYNC_IN_PROGRESS
    ```
-   - **决策**: 作为技术债务跟踪，在 v0.3.0 修复同步状态管理后取消跳过
+   - **决策**: 已知限制，不挡 v0.9.0。Core 在 `syncing` 时会拒绝命令；集成测试的时序仍不稳定。v1.0 前再评估是修还是删。
 
 ### 🟡 结构优化
 
@@ -55,11 +55,11 @@ _注：以上统计为时间点快照，运行 `npm test` 查看当前实际状�
    - regressions 文件是为了隔离特定 bug 的回归测试
    - **决策**: 保留分离，regressions 文件仅添加真正的线上 bug 回归用例
 
-4. **协议兼容性测试分散**
-   - client-server-contract.test.js: 4 个版本兼容测试（protocol v1-4）
-   - server.test.js: 包含协议测试
-   - client-protocol.test.js: 包含解析测试
-   - **决策**: 保持现状，这些是不同层面的测试（wire format vs behavior vs parsing）
+4. **协议测试分层**
+   - `core.test.js` / `channels.test.js`：v4 行为 + 拒绝非 v4
+   - `server.test.js`：wire 契约
+   - `client-protocol.test.js`：客户端解析
+   - **决策**: 保持分层；v1–v3 兼容测试已在 v0.9.0 删除
 
 ## 测试分类与职责
 
@@ -214,7 +214,7 @@ node --test test/channels.test.js
 ### 🔄 何时删除/合并测试
 
 1. **功能废弃**: 同步删除相关测试
-2. **协议版本**: Protocol v1-v3 将在 v0.9.0 移除，届时删除兼容性测试
+2. **协议版本**: v1–v3 兼容测试已在 v0.9.0 删除；保留拒绝路径测试
 3. **重复覆盖**: 如果两个测试验证相同边界，保留更清晰的那个
 
 ### 🚨 跳过测试的规则
@@ -223,11 +223,10 @@ node --test test/channels.test.js
 
 **当前跳过的测试**:
 ```javascript
-// test/channels.test.js:233
-test.skip('a client is told to wait', async (t) => {
-  // 问题: Core 和 Transport 层的同步状态不一致
-  // 修复计划: v0.3.0 重构同步状态管理
-  // 跟踪: ROADMAP.md "Technical Debt"
+// test/channels.test.js
+test.skip('a client is told to wait rather than losing events while its history syncs', async (t) => {
+  // 问题: 集成层难以稳定命中 SYNC_IN_PROGRESS 窗口
+  // 跟踪: 已知限制，不挡 v0.9.0
 });
 ```
 
@@ -291,8 +290,7 @@ test.skip('a client is told to wait', async (t) => {
 
 ### 长期（v1.0）
 
-5. **移除 Protocol v1-v3 兼容性测试**
-   - 在 v0.9.0 删除废弃协议后，清理相关测试
+5. **评估跳过的 SYNC_IN_PROGRESS 集成测试**：修时序或删除
 
 6. **考虑快照测试**
    - 对于复杂的客户端状态转换，使用快照减少断言代码

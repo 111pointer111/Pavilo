@@ -50,7 +50,7 @@ Pavilo 致力于为所有贡献者提供友好、尊重的环境。请遵循基�
 ### 安装
 
 ```bash
-git clone https://github.com/你的用户名/Pavilo.git
+git clone https://github.com/caigg188/Pavilo.git
 cd Pavilo
 npm install
 ```
@@ -141,7 +141,7 @@ git commit -m "refactor(core): 提取 ConversationStore 接口"
 feat(protocol): 删除 Protocol v1/v2/v3 支持
 
 BREAKING CHANGE: 服务端只接受 Protocol v4 客户端。
-旧客户端连接时返回 PROTOCOL_NOT_SUPPORTED 错误。
+旧客户端连接时返回 PROTOCOL_NOT_SUPPORTED 并以 1002 关闭。
 ```
 
 ## Pull Request 流程

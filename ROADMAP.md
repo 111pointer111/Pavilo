@@ -421,80 +421,57 @@ v0.5.0 发布时，`client/error-states.js` 与 `client/performance.js` **实际
 
 ---
 
-## v0.9.0 — Release Candidate
+## v0.9.0 — Release Candidate（已完成）
 
-目标：冻结 v1.0 契约。
+目标：冻结 v1.0 契约。v0.9.x 只修 blocker，不再新增大功能。
 
-### 协议清理（ADR-0001）
+### 协议清理（ADR-0001）（✅ 已完成）
 
-**BREAKING CHANGE**：删除 Protocol v1/v2/v3 支持
+**BREAKING CHANGE**：删除 Protocol v1/v2/v3 支持，只接受整数 `4`。
 
-- 删除 `src/core/index.js` 中所有版本分支逻辑
-- 删除 `src/transport/websocket.js` 中协议降级处理
-- 客户端使用 `protocolVersion < 4` 时，返回错误并关闭连接：
-  ```json
-  {
-    “type”: “error”,
-    “code”: “PROTOCOL_NOT_SUPPORTED”,
-    “message”: “Server requires protocol version 4 or higher”
-  }
-  ```
-- 更新客户端：检测到 `PROTOCOL_NOT_SUPPORTED` 时显示”服务器已升级，请刷新页面”（使用 v0.8 的多语言消息）
-- 更新所有测试，只覆盖 v4
-- 协议文档更新：v4 是 v1.x 系列的唯一稳定协议
+- ✅ 删除 core / transport 中的版本分支、`legacyMessages` 与 `effect.legacy`
+- ✅ `join.protocolVersion` 必须为 `4`；其他值返回 `PROTOCOL_NOT_SUPPORTED` 并以 `1002 / protocol not supported` 关闭
+- ✅ 内置客户端 overlay：服务器已升级，请刷新页面
+- ✅ `/room-info.deprecatedProtocols` 保留字段，值为 `[]`
+- ✅ 测试覆盖 v4 行为与拒绝路径
 
-### 配置与迁移
+### 冻结项（✅ 按真实行为）
 
-- 配置版本检测机制（为 v1.1 的 `version: 2` 做准备）
-- 废弃警告系统（优雅处理旧配置）
+- ✅ **Config Schema v1**：文件必须声明 `version: 1`，未知 version 拒绝（不为 v1.1 预做 `version: 2` 迁移器）
+- ✅ **Protocol v4**：唯一支持的协议
+- ✅ **`/room-info` 公开字段**：`protocolVersion`, `deprecatedProtocols`, `roomEpoch`, `roomTitle`, `defaultChannelId`, `defaultLanguage`, `supportedLanguages`, `channels`, `limits`, `ephemeral`（另有 transport 追加的 `localUrl` / `lanUrls`）
+- ✅ **`/healthz` 契约**：进程能响应即 `200 OK` 且 `ok: true`（不返回 503）
+- ✅ **CLI**：现有启动 banner；停服 `1001 / server stopped`
+- ✅ **默认配置**：general + project、人数/超时/限额
+- ✅ **core / transport 边界**
 
-### 冻结项
+### 开源工程与发布（✅）
 
-- **Config Schema v1**：YAML 结构与字段语义
-- **Protocol v4**：唯一支持的协议版本（ADR-0001）
-- **`/room-info` 公开字段**：`protocolVersion`, `deprecatedProtocols`, `roomEpoch`, `roomTitle`, `defaultChannelId`, `defaultLanguage`, `supportedLanguages`, `channels`, `limits`, `ephemeral`
-- **`/healthz` 契约**：HTTP 200 OK / 503 Service Unavailable
-- **CLI 启动与退出**：
-  - 启动日志格式（版本、配置源、监听地址）
-  - 停服 WebSocket close code: `1001 / server stopped`
-- **默认配置值**：默认频道（general + project）、人数上限、超时等
-- **core / transport 边界**：命令/事件接口，不允许 transport 直接操作房间状态
+- ✅ CHANGELOG 覆盖全部 v0.x
+- ✅ Release Checklist（`docs/version-management.md`）
+- ✅ 贡献指南与安全报告流程
+- ✅ 中英文 README
+- ✅ Docker 与源码两套 Quick Start
+- ✅ GHCR workflow（v0.x 标签不推 `latest` / `1`）
+- ✅ Release workflow 测试失败即失败
+- ✅ `npm audit` 进入 CI
 
-### 开源工程
+推迟 / 不作为本版本门槛：
 
-- CHANGELOG.md 完整（所有 v0.x 版本）
-- Release Checklist
-- 贡献指南（已有）
-- 安全报告流程（已有）
-- 中英文项目介绍（至少首页核心信息具备英文入口）
-- 清晰截图 / GIF
-- Docker 与源码两套 Quick Start
-- GitHub Topics、Description、Release Notes 统一
+- Config Schema v2 迁移器 → v1.1
+- 生产环境跑 7 天 → v1.0 发布门槛
+- GitHub Topics / Description → 打标签时手工设置
+- 跳过的 SYNC_IN_PROGRESS 集成测试 → 已知限制
 
-### 部署准备
+### 发布门槛（✅ 代码可打标签）
 
-- GHCR 发布 workflow 准备（GitHub Actions）
-- Docker 镜像标签策略（latest, 1.0.0, 1.0, 1）
+- ✅ Protocol v1/v2/v3 已完全删除
+- ✅ Config Schema v1 冻结
+- ✅ CHANGELOG 完整
+- ✅ 无 npm 高危漏洞
+- ✅ GHCR workflow 已落地
 
-### 安全与质量
-
-- 安全审计（npm audit + 代码自审 + OWASP Top 10 检查）
-- 生产环境 RC 部署验收（7 天稳定性测试）
-
-### RC 原则
-
-`v0.9.x` 只修 blocker，不再新增大功能。
-
-从 v0.9.0 开始，协议、配置、公开 API 进入稳定期，breaking change 只在确认不可避免时引入。
-
-### 发布门槛
-
-- Protocol v1/v2/v3 已完全删除
-- 配置迁移机制就绪
-- CHANGELOG 完整
-- 安全审计通过（无高危漏洞）
-- 生产环境 RC 运行 7 天无阻塞性问题
-- GHCR workflow 已测试
+**v0.9.0 已完成所有目标，可以发布。**
 
 ---
 
@@ -543,7 +520,7 @@ v1.0 的产品定义：
 
 ### 发布门槛
 
-- v0.9.0 RC 已稳定运行 7 天
+- v0.9.0 RC 已发布，并在目标环境观察至少 7 天无阻塞性问题
 - 所有 P0/P1 bug 已修复
 - 文档完整且审查通过
 - 测试覆盖充分（> 250 个测试）

@@ -32,6 +32,9 @@ jobs:
       - name: Validate configuration
         run: npm run config:check
 
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
       - name: Run tests
         run: npm test
         continue-on-error: ${{ matrix.node != '22' }}  # 只有 Node 22 的失败才阻塞

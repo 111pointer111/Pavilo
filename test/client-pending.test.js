@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const { test } = require('node:test');
-const { PendingQueue, createPendingQueue, draftMatches } = require('../client/pending');
+const { PendingQueue, createPendingQueue, draftMatches, EPOCH_ERROR } = require('../client/pending');
 
 function harness(options = {}) {
   let nextTimer = 1;
@@ -190,7 +190,7 @@ test('reconcile refuses an old epoch and marks it for explicit user retry', () =
   queue.reconcile([], { roomEpoch: 'epoch-2', allowRetry: true, send() { sends += 1; return true; } });
   assert.equal(sends, 0);
   assert.equal(item.status, 'error');
-  assert.equal(item.error, '房间已经重启，请确认后重试。');
+  assert.equal(item.error, EPOCH_ERROR);
   assert.equal(events.at(-1).reason, 'error');
 });
 

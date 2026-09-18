@@ -10,7 +10,16 @@
 
 Pavilo (**Pavilion + Local**) is a minimal, self-hosted group chat that runs in the browser and is ephemeral by default. Like a small pavilion you can put up anywhere: start a Node.js process, and anyone on the same local network can open a web page and talk. When the service stops, everything returns to blank.
 
-Current version: **v0.8.0** — multiple ephemeral channels, in-memory storage only, Simplified Chinese and English UI. Built for trusted LANs, private networks, and VPNs.
+Current version: **v0.9.0** (Release Candidate) — multiple ephemeral channels, in-memory storage only, Simplified Chinese and English UI, WebSocket Protocol v4 only. Built for trusted LANs, private networks, and VPNs.
+
+<p align="center">
+  <img src="docs/screenshots/chat-desktop.png" width="720" alt="Pavilo desktop chat">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/login-desktop.png" width="360" alt="Pavilo login">
+  <img src="docs/screenshots/chat-mobile.png" width="220" alt="Pavilo mobile chat">
+</p>
 
 ## Design principles
 
@@ -57,6 +66,7 @@ Current version: **v0.8.0** — multiple ephemeral channels, in-memory storage o
 - Images are downsampled in the browser to a 1600 px long edge and encoded at a quality that converges between 0.5–0.82 to fit the size budget; GIFs keep their animation and are never downsampled, but share the same size cap
 - A graceful shutdown returns the page to the login state; an unexpected disconnect keeps reconnecting. A new process produces a new channel epoch, so stale unacknowledged content is never silently delivered into the new room
 - YAML configuration is validated for version, strict types, unknown keys, duplicate keys, aliases, and cross-field capacity relationships
+- **Protocol v4 only**: `join.protocolVersion` must be `4`. An unrefreshed tab after a server upgrade is asked to reload
 
 **Current read-only boundaries**
 
@@ -112,6 +122,10 @@ See the [Docker deployment guide](docs/deployment/docker.md) (Chinese).
 - **Health checks** — see the [health check contract](docs/healthcheck.md) (Chinese)
 
 Press `Ctrl-C` to stop the service.
+
+## Protocol stability
+
+From v0.9.0 the server accepts only [Protocol v4](docs/api/websocket-protocol.md). v1–v3 have been removed. v1.0 will keep v4 stable throughout v1.x. Third-party clients: see the [migration notes](docs/api/websocket-protocol.md#从旧协议迁移).
 
 ## Configuration
 

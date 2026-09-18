@@ -264,6 +264,29 @@ gh release view v0.6.0
 - [ ] 更新官方文档
 - [ ] 通知重要用户（如果是重大版本）
 
+## Release Checklist
+
+打标签前：
+
+- [ ] `package.json` 版本号与 CHANGELOG 标题一致
+- [ ] ROADMAP 对应版本已标记完成
+- [ ] `npm ci && npm test && npm run config:check` 通过
+- [ ] `npm audit --audit-level=high` 无高危
+- [ ] README / README.en.md 版本号与协议说明已更新
+- [ ] 协议、`/room-info`、`/healthz` 文档与实现一致
+- [ ] SECURITY.md 联系方式不是占位符
+- [ ] breaking change 写在 CHANGELOG 的 Removed/Changed，并有迁移说明
+
+打标签后：
+
+- [ ] GitHub Release 已创建（v0.x 为 pre-release）
+- [ ] GHCR 镜像标签符合策略：v0.x 只有 `0.9.0` / `0.9`；`latest` 与 `1` 留给 v1.0
+- [ ] 手工更新 GitHub Description / Topics（不进代码仓库）
+
+v1.0 额外：
+
+- [ ] v0.9 RC 在目标环境观察至少 7 天无阻塞问题
+
 ## Git 提交规范
 
 ### Commit Message 格式

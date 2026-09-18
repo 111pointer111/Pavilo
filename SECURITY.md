@@ -69,12 +69,10 @@ room:
 **请勿公开披露安全漏洞**。请通过以下方式私密报告：
 
 1. **GitHub Security Advisory**（推荐）
-   - 访问 https://github.com/your-username/Pavilo/security/advisories
+   - 访问 https://github.com/caigg188/Pavilo/security/advisories
    - 点击 "New draft security advisory"
 
-2. **邮件报告**
-   - 发送邮件到：security@pavilo.example（请在实际部署时替换为真实联系方式）
-   - 主题：`[Security] Pavilo vulnerability report`
+2. 不要在公开 Issue 中披露可利用细节。
 
 ### 报告应包含
 
@@ -222,9 +220,19 @@ room:
 - **v1.5**：访问控制、邀请制、角色权限
 - **v2.0+**：端到端加密（如果社区有需求）
 
+## v0.9 RC 安全自查
+
+对照当前产品边界（可信网络、无账号、无 TLS）做过一次收口，不是完整渗透测试：
+
+- Origin 检查、连接数/帧/JSON/图片预算、消息与回应限流仍是默认防护
+- 静态白名单不提供配置文件与源码
+- 协议解析只走 v4，旧版本不再扩大攻击面
+- `npm audit` 进入 CI（`--audit-level=high`）
+- 不承诺把裸端口直接暴露到公网；TLS 与访问控制仍由反向代理 / VPN 提供
+
 ## 联系方式
 
-- **安全问题**：security@pavilo.example（请在实际部署时替换为真实联系方式）
+- **安全问题**：https://github.com/caigg188/Pavilo/security/advisories
 - **一般问题**：GitHub Issues
 - **架构讨论**：GitHub Discussions
 

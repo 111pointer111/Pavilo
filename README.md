@@ -10,7 +10,16 @@
 
 Pavilo（**Pavilion + Local**）是一个浏览器即用、默认临时、可以自行托管的极简群聊。像一座随处可搭的小亭：启动 Node.js 进程，同一局域网里的人打开网页就能交谈，服务停止后一切回到空白。
 
-当前版本 **v0.8.0**：支持配置多个临时频道，仅内存存储，界面提供简体中文与英语，适合可信局域网、私有网络或 VPN 环境。
+当前版本 **v0.9.0**（Release Candidate）：支持配置多个临时频道，仅内存存储，界面提供简体中文与英语，WebSocket 协议只接受 v4。适合可信局域网、私有网络或 VPN 环境。
+
+<p align="center">
+  <img src="docs/screenshots/chat-desktop.png" width="720" alt="Pavilo 桌面聊天界面">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/login-desktop.png" width="360" alt="Pavilo 登录页">
+  <img src="docs/screenshots/chat-mobile.png" width="220" alt="Pavilo 移动端聊天界面">
+</p>
 
 ## 设计原则
 
@@ -57,6 +66,7 @@ Pavilo（**Pavilion + Local**）是一个浏览器即用、默认临时、可以
 - 图片发送前在浏览器内降采样到长边 1600 px 并按大小在质量 0.5–0.82 之间收敛；GIF 保留动画、不降采样，仍受同一条上限约束
 - 正常停服会让页面回到登录状态；意外断线继续重连。新进程产生新的频道纪元，旧的未确认内容不会自动发入新房间
 - YAML 配置使用版本、严格类型、未知键、重复键、别名和交叉容量校验
+- **Protocol v4 only**：`join.protocolVersion` 必须为 `4`。热升级后未刷新的标签页会提示刷新页面
 
 **当前只读边界**
 
@@ -118,6 +128,10 @@ docker run -d -p 4173:4173 --name pavilo pavilo
 - **健康检查**：参考 [健康检查契约文档](docs/healthcheck.md)
 
 停止服务请按 `Ctrl-C`。
+
+## 协议稳定性
+
+v0.9.0 起只接受 [Protocol v4](docs/api/websocket-protocol.md)。v1–v3 已删除。v1.0 将承诺 v4 在整个 v1.x 系列保持稳定。第三方客户端见 [迁移说明](docs/api/websocket-protocol.md#从旧协议迁移)。
 
 ## 配置
 

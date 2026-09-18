@@ -710,7 +710,7 @@ docs/adr/
 尤其以下决策必须 ADR：
 
 - `node:sqlite` vs third-party driver；
-- protocol v1-v4 的支持窗口；
+- protocol 支持窗口（v0.9 起只承诺 v4）；
 - SQLite epoch；
 - sync vs async Store；
 - extension execution model；

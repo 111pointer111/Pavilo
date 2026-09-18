@@ -7,16 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-09-18
+
+### Removed
+- **BREAKING: Protocol v1/v2/v3**。服务端只接受 `join.protocolVersion: 4`（必须为整数 4）。其他值返回 `PROTOCOL_NOT_SUPPORTED`，并以 WebSocket `1002 / protocol not supported` 关闭。请刷新内置网页客户端，或把第三方客户端升级到 v4。
+
 ### Added
 - **图片先暂存再发送**：粘贴、选文件或拖入图片后，输入框内文字上方出现缩略图，可预览、删除，再点发送
 - 图片消息可带可选配文与 `@` 提及，图和字显示在同一条气泡里（上图下字）
+- GHCR 镜像发布 workflow（v0.x 标签推送版本号，不推 `latest` / `1`）
+- Release Checklist（`docs/version-management.md`）
+- README 产品截图（登录、桌面聊天、移动端）
 
 ### Fixed
 - 登录成功后先移走用户名框焦点，再给登录层加 `aria-hidden`，避免 Chrome 报 Blocked aria-hidden
 - CHANGELOG v0.2.0 曾写「Paste from clipboard / Drag-and-drop」，当时并未落地；现已实现
 - 图文混排仍上图下字，气泡按每张缩略图自己的显示宽度收紧（宽图宽、竖图窄），回复和回应按钮贴回气泡右侧
+- 房间重启后的 pending 错误改走 i18n，不再写死中文
 
 ### Changed
+- `/room-info.deprecatedProtocols` 改为 `[]`（字段保留）
 - 纯 emoji 消息不再带气泡背景（与纯图片一致）；含文字时才显示气泡。混排时内联 emoji 略放大并对齐文字基线
 - 聊天首页字号收成 caption 11 / label 12 / ui 13 / body 15 / title 22，去掉 9px 辅助文字；消息与输入框统一 15px
 - 顶栏与频道头合并：当前频道名和连接状态进顶栏，重复的「临时/可信」文案只留左侧「只在此刻」卡片
@@ -29,9 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 表情面板右缘贴齐聊天列，避免按钮右移后面板探出输入区
 - 消息改为独立气泡：同一人连续发言只在第一条显示头像，回复和表情按钮悬停出现在气泡右侧顶部
 - 回应表情改到气泡内部底部，只显示 emoji 和数量
+- 只读频道收起输入框，改为状态条
+- GitHub Release 在测试失败时不再创建
 
 ### Tests
-- 总测试数：281 个（280 通过，1 跳过）；浏览器合同 17/17
+- 总测试数：286 个（285 通过，1 跳过）
 
 ## [0.8.0] - 2026-09-17
 

@@ -10,26 +10,22 @@
 
 ### 版本稳定性承诺
 
-> **⚠️ Protocol v1/v2/v3 已废弃**
-> 
-> - **v0.2-v0.8**：v1/v2/v3 仍然可用，但服务端返回 deprecation 警告
-> - **v0.9.0+**：删除 v1/v2/v3 支持，只接受 Protocol v4
-> - **v1.0.0+**：Protocol v4 is stable throughout the v1.x series
->
-> 第三方客户端应基于 Protocol v4 开发。详见 [ADR-0001](../adr/0001-protocol-v4-only-for-v1.md)。
+v0.9.0 起服务端**只接受 Protocol v4**。`join.protocolVersion` 必须是整数 `4`；缺失、非整数、小于 4 或大于 4 都会返回 `PROTOCOL_NOT_SUPPORTED`，并以 WebSocket `1002 / protocol not supported` 关闭连接。内置浏览器客户端会显示「服务器已升级，请刷新页面」。
 
-### 版本兼容范围（Alpha 阶段历史记录）
+v1.0 将承诺：Protocol v4 在整个 v1.x 系列保持稳定。第三方客户端应基于 v4 开发。详见 [ADR-0001](../adr/0001-protocol-v4-only-for-v1.md)。
 
-以下内容仅供历史参考，v0.9+ 只支持 v4：
+### 版本兼容范围（Alpha 历史，已移除）
 
-| 客户端版本 | 初始状态 | 消息 ID / ACK | 频道切换 |
-|---|---|---|---|
-| v1（缺省） | 单个 `state`；历史会从尾部截取到能放进一个 JSON payload | `message` 可省略 `clientMessageId`，服务端生成内部 ID；接受后仍可收到 ACK 和房间回显 | 不支持，`switchChannel` 返回 `UNKNOWN_COMMAND` |
-| v2 | `stateStart` → 一个或多个 `history` → `historyEnd` | 要求合法 `clientMessageId`，支持 ACK 和幂等 | 不支持 |
-| v3 | 与 v2 相同 | 与 v2 相同 | 支持 `switchChannel` |
-| **v4（稳定）** | 与 v3 相同，`stateStart` 附带所有频道的占用摘要 | 与 v3 相同 | 支持 `switchChannel`；实时接收 `channelOccupancy` |
+v0.2–v0.8 曾同时接受 v1–v4。下表只作历史记录，**当前实现不再走这些分支**：
 
-v4 的 `stateStart.protocolVersion` 为 `4`；其 `capabilities` 为 `ack`、`historyChunks`、`roomEpoch`、`reconnect`、`reactions`、`typingLease`、`channelOccupancy`。
+| 客户端版本 | 当时的行为 |
+|---|---|
+| v1（缺省） | 单个 `state`；`clientMessageId` 可省略 |
+| v2 | `stateStart` → `history` → `historyEnd`；强制 `clientMessageId` |
+| v3 | 在 v2 之上支持 `switchChannel` |
+| **v4（当前唯一）** | v3 + `stateStart.occupancy` 与实时 `channelOccupancy` |
+
+v4 的 `stateStart.protocolVersion` 为 `4`；其 `capabilities` 为 `ack`、`historyChunks`、`roomEpoch`、`reconnect`、`reactions`、`typingLease`、`mentions`、`channelOccupancy`。
 
 v4 的 `channelOccupancy` 事件会向所有已加入的 v4 客户端广播完整摘要；摘要只包含频道 ID 与在线人数，不包含成员身份。
 
@@ -58,7 +54,7 @@ v4 的 `channelOccupancy` 事件会向所有已加入的 v4 客户端广播完�
 - 两种凭据都只接受 `[A-Za-z0-9_-]`、长度 8–96。已知凭据只有在用户名和频道均吻合时才恢复，否则返回 `SESSION_CONFLICT`；恢复会保留公开用户 `id`、`joinedAt` 和原 `avatarSeed`，并接管/关闭该 session 的旧连接。
 - **未知或已过期的合法凭据不是错误**：在名称、全局容量和频道容量允许时，它可成为新 session 的 token。客户端不能仅凭 token 字符串判断是否真的恢复了旧身份。
 - `avatarSeed` 只影响新 session：有限数值会取绝对整数并归一为无符号 32 位数，缺失时由服务端生成；恢复时沿用原值。
-- 服务端在 `stateStart.resumeToken` 返回当前 token（v1 `state` 不返回）。token 不进入 roster、消息或 `/room-info`。
+- 服务端在 `stateStart.resumeToken` 返回当前 token。token 不进入 roster、消息或 `/room-info`。
 
 加入成功后，其他成员收到 `presence`：新身份为 `action: "join"`，恢复/接管为 `action: "reconnect"`。发起者从初始状态获得自己的权威身份与 roster。
 
@@ -169,7 +165,7 @@ ACK 形状为：
 
 ## 7. 频道切换
 
-v3 客户端发送 `{ "type": "switchChannel", "channelId": "…" }`。服务端在修改 session 前依次检查目标频道启用、切换限流、目标频道同名冲突和频道容量：
+客户端发送 `{ "type": "switchChannel", "channelId": "…" }`。服务端在修改 session 前依次检查目标频道启用、切换限流、目标频道同名冲突和频道容量：
 
 - 任一检查失败，返回 `CHANNEL_UNAVAILABLE`、`RATE_LIMITED`、`NAME_TAKEN` 或 `CHANNEL_FULL`，session、原频道 roster、历史与恢复关系均保持不变。
 - 成功后才停止原频道 typing、改变 session 的 `channelId`，向原频道广播 leave，向切换者发送目标频道完整初始同步，再向目标频道其他成员广播 join。
@@ -183,12 +179,12 @@ v3 客户端发送 `{ "type": "switchChannel", "channelId": "…" }`。服务端
 
 | 事件 | 语义 | 持久/可恢复性 |
 |---|---|---|
-| `stateStart` / `history` / `historyEnd`、v1 `state` | 当前频道权威快照 | 可通过重新同步恢复 |
+| `stateStart` / `history` / `historyEnd` | 当前频道权威快照 | 可通过重新同步恢复 |
 | `message` | 已接受的权威消息及同批淘汰 ID | 消息留在内存历史期间可同步恢复 |
 | `reaction` | 服务端按用户集合归并后的权威回应摘要，可能附淘汰 ID | 结果写入消息，留存期间可同步恢复 |
 | `prune` | 权威 FIFO 淘汰 ID；当前由 reaction 导致目标消息自身被淘汰时单独发送 | 淘汰结果由下次快照体现 |
 | `presence` | 当前频道权威 roster 投影及 join/reconnect/leave 提示 | roster 可重同步；提示不重放，lease 期间断线仍在 roster |
-| `channelOccupancy` | v4 所有频道的在线人数摘要（包含有效 lease） | 可通过下一次 `stateStart` 恢复；不包含成员身份 |
+| `channelOccupancy` | 所有频道的在线人数摘要（包含有效 lease） | 可通过下一次 `stateStart` 恢复；不包含成员身份 |
 | `typing` | 即时展示的租约提示，服务端默认 4 秒自动撤销 | **临时、允许丢失、不进历史**；客户端还以本地到期兜底 |
 | `ack` / `error` | 仅发给命令发起者的结果 | 不广播、不进历史；重复消息可在去重窗口内重得 ACK |
 
@@ -205,6 +201,6 @@ WebSocket 本身没有应用层重放保证。`message`、`reaction`、`prune`�
 
 ## 10. HTTP 公开投影
 
-`/room-info` 只公开：`protocolVersion`、`deprecatedProtocols`、默认频道兼容 `roomEpoch`、`localUrl`、可选 `lanUrls`、`roomTitle`、`defaultChannelId`、`defaultLanguage`、`supportedLanguages`、频道白名单字段、客户端所需 limits 和 `ephemeral: true`。频道公开字段固定为 `id/name/description/enabled/readOnly/maxUsers/welcome`；limits 固定为 `maxTextLength/maxImageBytes/maxImageDimension/maxImagePixels/maxMessages`。`supportedLanguages` 固定为 `["zh-CN", "en"]`。
+`/room-info` 只公开：`protocolVersion`、`deprecatedProtocols`（v0.9 起为空数组 `[]`）、默认频道兼容 `roomEpoch`、`localUrl`、可选 `lanUrls`、`roomTitle`、`defaultChannelId`、`defaultLanguage`、`supportedLanguages`、频道白名单字段、客户端所需 limits 和 `ephemeral: true`。频道公开字段固定为 `id/name/description/enabled/readOnly/maxUsers/welcome`；limits 固定为 `maxTextLength/maxImageBytes/maxImageDimension/maxImagePixels/maxMessages`。`supportedLanguages` 固定为 `["zh-CN", "en"]`。
 
 `publicUser` 固定含 `id/username/avatarSeed/joinedAt`，仅在 `room.exposeMemberIps` 为 true 时含 `ip`。恢复 token、内部名称键、连接和 lease 信息不得公开。

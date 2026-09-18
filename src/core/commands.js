@@ -21,11 +21,16 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
   function handleJoin(client, command) {
     if (client.joined) return;
     const username = cleanUsername(command.username);
+    if (!Number.isInteger(command.protocolVersion) || command.protocolVersion !== PROTOCOL_VERSION) {
+      sendError(client, 'PROTOCOL_NOT_SUPPORTED', 'Server requires protocol version 4');
+      closeClient(client, 1002, 'protocol not supported');
+      return;
+    }
     if (!username) {
       sendError(client, 'INVALID_NAME', '请输入 1–24 个字符的用户名。');
       return;
     }
-    client.protocolVersion = Number(command.protocolVersion) || 1;
+    client.protocolVersion = PROTOCOL_VERSION;
     const resolution = resolveJoin({ username, channelId: command.channelId, resumeToken: command.resumeToken, clientSessionId: command.clientSessionId });
     if (resolution.error === 'SESSION_CONFLICT') {
       sendError(client, 'SESSION_CONFLICT', '本页会话与频道不匹配。');
@@ -83,12 +88,11 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       return;
     }
     const clientMessageId = command.clientMessageId;
-    const legacyMessage = client.protocolVersion < 2 && typeof clientMessageId !== 'string';
-    if (!legacyMessage && !validateClientId(clientMessageId)) {
+    if (!validateClientId(clientMessageId)) {
       sendError(client, 'INVALID_MESSAGE_ID', '消息标识无效，请重试。', typeof clientMessageId === 'string' ? clientMessageId : undefined);
       return;
     }
-    const effectiveClientMessageId = legacyMessage ? randomId('legacy-message') : clientMessageId;
+    const effectiveClientMessageId = clientMessageId;
     const kind = command.kind;
     if (kind !== 'text' && kind !== 'image') {
       sendError(client, 'INVALID_KIND', '不支持这种消息类型。', clientMessageId);
@@ -238,7 +242,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       else deactivateTyping(client);
       return;
     }
-    if (command.type === 'switchChannel' && client.protocolVersion >= 3) return handleSwitchChannel(client, command);
+    if (command.type === 'switchChannel') return handleSwitchChannel(client, command);
     if (command.type === 'message') return handleMessage(client, command);
     if (command.type === 'reaction') return handleReaction(client, command);
     if (command.type === 'leave') {

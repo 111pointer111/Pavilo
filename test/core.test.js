@@ -86,10 +86,12 @@ test('core broadcasts privacy-safe occupancy snapshots across channel lifecycle'
 
   core.connect('carol-peer');
   const carol = core.dispatch('carol-peer', {
-    type: 'join', protocolVersion: 3, username: 'Carol', clientSessionId: 'session-carol-0001', channelId: 'general'
+    type: 'join', protocolVersion: 4, username: 'Carol', clientSessionId: 'session-carol-0001', channelId: 'general'
   });
+  const carolStart = carol.effects.find((effect) => effect.kind === 'initial').payloads[0];
+  assert.deepEqual(carolStart.occupancy, { general: 1, other: 1, disabled: 0 });
   assert.equal(carol.effects.some((effect) => effect.payload?.type === 'channelOccupancy' && effect.peerIds.includes('carol-peer')), false,
-    'older clients must not receive occupancy events');
+    'the joining peer receives occupancy on stateStart, not as a broadcast recipient');
   core.completeSync('carol-peer');
   core.disconnect('carol-peer');
   const expiry = core.drainEffects();
@@ -215,7 +217,7 @@ test('core preserves lease capacity, resume identity, and active-session takeove
 
   assert.equal(core.connect('bob-peer'), true);
   const blocked = core.dispatch('bob-peer', {
-    type: 'join', protocolVersion: 3, username: 'Bob', clientSessionId: 'session-bob-000001'
+    type: 'join', protocolVersion: 4, username: 'Bob', clientSessionId: 'session-bob-000001'
   });
   assert.equal(blocked.error.code, 'SERVER_FULL');
   core.disconnect('bob-peer');
@@ -226,7 +228,7 @@ test('core preserves lease capacity, resume identity, and active-session takeove
 
   assert.equal(core.connect('alice-three'), true);
   const takeover = core.dispatch('alice-three', {
-    type: 'join', protocolVersion: 3, username: 'Alice', resumeToken: first.resumeToken
+    type: 'join', protocolVersion: 4, username: 'Alice', resumeToken: first.resumeToken
   });
   assert.equal(takeover.accepted, true);
   assert.ok(takeover.effects.some((effect) => effect.kind === 'close' && effect.peerId === 'alice-two' && effect.reason === 'reconnected'));
@@ -246,7 +248,7 @@ test('takeover captures broadcast recipients before the new peer is joined', () 
   core.dispatch('alice-one', { type: 'typing', active: true });
   core.connect('alice-two');
   const resumed = core.dispatch('alice-two', {
-    type: 'join', protocolVersion: 3, username: 'Alice', resumeToken: alice.resumeToken
+    type: 'join', protocolVersion: 4, username: 'Alice', resumeToken: alice.resumeToken
   });
   const typingStop = resumed.effects.find((effect) => effect.payload?.type === 'typing');
   assert.deepEqual(typingStop.peerIds, ['bob-peer']);
@@ -327,4 +329,25 @@ test('core evicts FIFO history while preserving monotonic room sequence', () => 
   assert.equal(removed[2].length, 1);
   assert.equal(core.state().messages, 2);
   assert.equal(core.state().latestSeq, 3);
+});
+
+test('core rejects protocol versions other than 4 and closes the peer', () => {
+  const { core } = createHarness();
+  const cases = [1, 2, 3, 5, 4.5, '4', null, undefined];
+  for (const [index, version] of cases.entries()) {
+    const peerId = `old-${index}`;
+    assert.equal(core.connect(peerId), true);
+    const join = { type: 'join', username: 'Old', clientSessionId: `session-old-${String(index).padStart(4, '0')}` };
+    if (version !== undefined) join.protocolVersion = version;
+    const result = core.dispatch(peerId, join);
+    assert.equal(result.accepted, false, `version ${version}`);
+    assert.equal(result.error.code, 'PROTOCOL_NOT_SUPPORTED');
+    assert.ok(result.effects.some((effect) => effect.kind === 'close' && effect.code === 1002 && effect.reason === 'protocol not supported'));
+    assert.equal(core.connectionStatus(peerId).joined, false);
+    core.disconnect(peerId);
+  }
+  const accepted = join(core, 'fresh-peer', 'Fresh', 'session-fresh-0001');
+  assert.equal(accepted.type, 'stateStart');
+  assert.equal(accepted.protocolVersion, 4);
+  assert.deepEqual(core.roomInfo().deprecatedProtocols, []);
 });

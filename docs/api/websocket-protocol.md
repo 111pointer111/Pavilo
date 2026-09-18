@@ -60,7 +60,7 @@ COMMANDS = { JOIN: 'join', MESSAGE: 'message', REACTION: 'reaction',
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `type` | string | ✅ | 固定为 `"join"` |
-| `protocolVersion` | number | ⬜ | 协议版本；缺失或非法时按 `1` 处理 |
+| `protocolVersion` | number | ✅ | 必须为整数 `4`；缺失、非整数或其他版本返回 `PROTOCOL_NOT_SUPPORTED` 并以 `1002 / protocol not supported` 关闭 |
 | `clientSessionId` | string | ⬜ | 本页面加载周期的恢复凭据，`[A-Za-z0-9_-]{8,96}` |
 | `username` | string | ✅ | 用户名：去除控制字符、首尾空白后截为 24 个字符；为空返回 `INVALID_NAME` |
 | `channelId` | string | ⬜ | 目标频道；缺失或空字符串时使用默认频道 |
@@ -75,7 +75,7 @@ COMMANDS = { JOIN: 'join', MESSAGE: 'message', REACTION: 'reaction',
 
 ### 2. `switchChannel` - 切换频道
 
-仅 `protocolVersion >= 3` 的连接支持；v2 及以下会返回 `UNKNOWN_COMMAND`。
+所有已加入的 v4 连接都支持频道切换。
 
 ```json
 {
@@ -200,7 +200,7 @@ COMMANDS = { JOIN: 'join', MESSAGE: 'message', REACTION: 'reaction',
 
 服务端事件分为两组（`client/protocol.js`）：
 
-- **同步阶段事件** `SYNC_EVENTS`：`stateStart`、`history`、`historyEnd`（v1 连接是单个 `state`）；
+- **同步阶段事件** `SYNC_EVENTS`：`stateStart`、`history`、`historyEnd`；
 - **实时事件** `DEFERRED_EVENTS`：`presence`、`message`、`reaction`、`typing`、`channelOccupancy`、`ack`、`error`。同步进行中到达的这些事件会被当前客户端暂存，收到 `historyEnd` 后再按序处理。
 
 同步期间，除 `leave` 外的客户端命令一律返回 `SYNC_IN_PROGRESS`。
@@ -244,7 +244,7 @@ COMMANDS = { JOIN: 'join', MESSAGE: 'message', REACTION: 'reaction',
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `protocolVersion` | number | 服务端协议版本，v4 |
-| `capabilities` | array | 服务端能力列表；`channelOccupancy` 仅 v4 包含 |
+| `capabilities` | array | 服务端能力列表，含 `channelOccupancy` |
 | `roomEpoch` | string | 当前频道的 epoch |
 | `roomStartedAt` | number | 频道创建时间戳 |
 | `latestSeq` | number | 快照时刻的频道序号 |
@@ -252,11 +252,9 @@ COMMANDS = { JOIN: 'join', MESSAGE: 'message', REACTION: 'reaction',
 | `self` | object | 自己的公开用户对象 |
 | `users` | array | 当前频道 roster |
 | `channelId` | string | 当前频道 ID |
-| `occupancy` | object | v4 专有，`{ "频道 ID": 在线人数 }` |
+| `occupancy` | object | `{ "频道 ID": 在线人数 }` |
 
-v1–v3 连接额外带 `deprecationWarning` 字符串。公开用户对象固定含 `id/username/avatarSeed/joinedAt`，只有 `room.exposeMemberIps` 为 `true`（默认）时才含 `ip`。
-
-v1 连接（`protocolVersion < 2`）不会收到 `stateStart`，而是单个 `state` 事件：`{ type, self, users, messages, roomEpoch, roomStartedAt, channelId }`。
+公开用户对象固定含 `id/username/avatarSeed/joinedAt`，只有 `room.exposeMemberIps` 为 `true`（默认）时才含 `ip`。
 
 #### 2. `history` - 历史消息
 
@@ -709,14 +707,26 @@ ws.onmessage = (event) => {
 
 | 版本 | 状态 | 说明 |
 |------|------|------|
-| v4 | ✅ 当前 | 增量同步、Room Epoch、频道占用摘要 |
-| v3 | 已废弃 | 支持 `switchChannel`，仍可用并在 `stateStart` 收到 `deprecationWarning` |
-| v2 | 已废弃 | 支持 ACK 与幂等，仍可用并收到 `deprecationWarning` |
-| v1 | 已废弃 | 单个 `state` 事件，仍可用并收到 `deprecationWarning` |
+| v4 | ✅ 唯一支持 | 增量同步、Room Epoch、频道占用摘要 |
+| v1–v3 | 已移除 | v0.9.0 起不再接受；见下方迁移说明 |
 
-`/room-info` 的 `deprecatedProtocols` 当前为 `[1, 2, 3]`；按 [ADR-0001](../adr/0001-protocol-v4-only-for-v1.md)，v1–v3 将在 v0.9.0 移除。
+`/room-info.deprecatedProtocols` 为 `[]`（字段保留，便于客户端探测）。
 
-**建议**：所有新客户端使用 v4 协议。
+### 从旧协议迁移
+
+v0.9.0 起 `join` 必须带 `protocolVersion: 4`。服务端对其他值的处理：
+
+```json
+{ "type": "error", "code": "PROTOCOL_NOT_SUPPORTED", "message": "Server requires protocol version 4" }
+```
+
+随后以 WebSocket `1002 / protocol not supported` 关闭。内置网页客户端会提示刷新。第三方客户端应：
+
+1. 握手时发送 `protocolVersion: 4`
+2. 读取 `/room-info.protocolVersion`（当前为 `4`）
+3. 收到 `PROTOCOL_NOT_SUPPORTED` 时提示用户刷新或升级客户端，不要静默重连旧协议
+
+**建议**：所有新客户端只实现 v4。
 
 ---
 

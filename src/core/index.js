@@ -35,10 +35,10 @@ function createChatCore(config, runtime = {}) {
     emit(events.channelEvent(channelId, payload, peerIds));
     return true;
   }
-  function broadcastAll(payload, except, minimumProtocolVersion = 1) {
+  function broadcastAll(payload, except) {
     if (Buffer.byteLength(JSON.stringify(payload)) > config.maxJsonBytes) return false;
     const peerIds = [...peers.values()]
-      .filter((peer) => peer !== except && peer.joined && !peer.closing && peer.protocolVersion >= minimumProtocolVersion)
+      .filter((peer) => peer !== except && peer.joined && !peer.closing)
       .map((peer) => peer.id);
     emit({ kind: 'broadcast', payload, peerIds });
     return true;
@@ -52,7 +52,7 @@ function createChatCore(config, runtime = {}) {
     return Object.fromEntries(config.channels.map((channel) => [channel.id, sessionStore.activeMembers(channel.id).size]));
   }
   function broadcastOccupancy(except) {
-    return broadcastAll({ type: 'channelOccupancy', occupancy: occupancySnapshot() }, except, 4);
+    return broadcastAll({ type: 'channelOccupancy', occupancy: occupancySnapshot() }, except);
   }
   const messageStore = createMessageStore(config, now);
   function sendJson(peer, payload) { emit(events.directed(peer.id, payload)); }
@@ -69,25 +69,19 @@ function createChatCore(config, runtime = {}) {
   function sendInitialState(peer, session, resumeToken) {
     const channel = rooms.get(session.channelId);
     peer.syncing = true;
-    let payloads;
-    if (peer.protocolVersion < 2) {
-      payloads = [{ type: 'state', self: publicUser(session), users: sessionStore.rosterUsers(session.channelId), messages: rooms.legacyMessages(channel), roomEpoch: channel.epoch, roomStartedAt: channel.startedAt, channelId: channel.config.id }];
-    } else {
-      const snapshot = [...channel.messages];
-      const latestSeq = channel.messageSequence;
-      const capabilities = ['ack', 'historyChunks', 'roomEpoch', 'reconnect', 'reactions', 'typingLease', 'mentions'];
-      if (peer.protocolVersion >= 4) capabilities.push('channelOccupancy');
-      const deprecationWarning = peer.protocolVersion < 4 ? 'Protocol v1-v3 are deprecated and will be removed in v0.9.0. Please upgrade to v4.' : undefined;
-      payloads = [{ type: 'stateStart', protocolVersion: events.PROTOCOL_VERSION,
-        ...(deprecationWarning ? { deprecationWarning } : {}),
-        capabilities,
-        roomEpoch: channel.epoch, roomStartedAt: channel.startedAt, latestSeq, resumeToken: resumeToken || null,
-        self: publicUser(session), users: sessionStore.rosterUsers(session.channelId), channelId: channel.config.id,
-        ...(peer.protocolVersion >= 4 ? { occupancy: occupancySnapshot() } : {}) }];
-      for (const chunk of rooms.historyChunks(channel, snapshot)) payloads.push({ type: 'history', roomEpoch: channel.epoch, messages: chunk });
-      payloads.push({ type: 'historyEnd', roomEpoch: channel.epoch, latestSeq });
-    }
-    emit({ kind: 'initial', peerId: peer.id, payloads, legacy: peer.protocolVersion < 2 });
+    const snapshot = [...channel.messages];
+    const latestSeq = channel.messageSequence;
+    const payloads = [{
+      type: 'stateStart',
+      protocolVersion: events.PROTOCOL_VERSION,
+      capabilities: ['ack', 'historyChunks', 'roomEpoch', 'reconnect', 'reactions', 'typingLease', 'mentions', 'channelOccupancy'],
+      roomEpoch: channel.epoch, roomStartedAt: channel.startedAt, latestSeq, resumeToken: resumeToken || null,
+      self: publicUser(session), users: sessionStore.rosterUsers(session.channelId), channelId: channel.config.id,
+      occupancy: occupancySnapshot()
+    }];
+    for (const chunk of rooms.historyChunks(channel, snapshot)) payloads.push({ type: 'history', roomEpoch: channel.epoch, messages: chunk });
+    payloads.push({ type: 'historyEnd', roomEpoch: channel.epoch, latestSeq });
+    emit({ kind: 'initial', peerId: peer.id, payloads });
   }
   function deactivateTyping(peer) {
     if (peer.typingTimer) cancel(peer.typingTimer);
@@ -119,7 +113,7 @@ function createChatCore(config, runtime = {}) {
   function connect(peerId, ip = 'unknown') {
     if (shuttingDown || peers.has(peerId)) return false;
     const peer = { id: peerId, ip, session: null, joined: false, closing: false, intentionalLeave: false,
-      protocolVersion: 1, syncing: false, rates: Object.create(null), typingActive: false, typingTimer: null, joinTimer: null };
+      protocolVersion: null, syncing: false, rates: Object.create(null), typingActive: false, typingTimer: null, joinTimer: null };
     peers.set(peerId, peer);
     peer.joinTimer = schedule(() => timerTask(() => closeClient(peer, 1008, 'join timeout')), config.joinTimeoutMs);
     return true;
@@ -173,7 +167,7 @@ function createChatCore(config, runtime = {}) {
     const channels = rooms.snapshot();
     return { clients: peers.size, sessions: sessionStore.size(), messages: channels.reduce((n, c) => n + c.messages, 0), roomBytes: channels.reduce((n, c) => n + c.roomBytes, 0), latestSeq: rooms.get(config.defaultChannelId).messageSequence };
   }
-  function roomInfo() { return { protocolVersion: events.PROTOCOL_VERSION, deprecatedProtocols: [1, 2, 3], roomEpoch: rooms.epoch, roomTitle: config.roomTitle, defaultChannelId: config.defaultChannelId, defaultLanguage: config.defaultLanguage || 'zh-CN', supportedLanguages: ['zh-CN', 'en'], channels: config.channels.map(events.publicChannel), limits: events.publicLimits(config), ephemeral: true }; }
+  function roomInfo() { return { protocolVersion: events.PROTOCOL_VERSION, deprecatedProtocols: [], roomEpoch: rooms.epoch, roomTitle: config.roomTitle, defaultChannelId: config.defaultChannelId, defaultLanguage: config.defaultLanguage || 'zh-CN', supportedLanguages: ['zh-CN', 'en'], channels: config.channels.map(events.publicChannel), limits: events.publicLimits(config), ephemeral: true }; }
   function health() { const value = state(); return { ok: true, users: value.sessions, messages: value.messages, roomBytes: value.roomBytes, clients: value.clients, ephemeral: true }; }
   return { connect, dispatch, disconnect, connectionStatus, completeSync, markClosing, shutdown, state, health, roomInfo, roomEpoch: rooms.epoch, pruneDedupe: messageStore.pruneDedupe, drainEffects: takeEffects };
 }

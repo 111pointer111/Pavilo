@@ -4,7 +4,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const EPOCH_ERROR = '房间已经重启，请确认后重试。';
+  const EPOCH_ERROR = 'pending.epochRestarted';
 
   function draftMatches(item, draft) {
     if (!item || !item.text) return false;
@@ -216,5 +216,5 @@
 
   function createPendingQueue(options) { return new PendingQueue(options); }
 
-  return { PendingQueue, createPendingQueue, draftMatches };
+  return { PendingQueue, createPendingQueue, draftMatches, EPOCH_ERROR };
 });

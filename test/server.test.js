@@ -84,6 +84,7 @@ test('serves the room, health, and room metadata over GET and HEAD', async (t) =
   assert.equal(roomInfo.status, 200);
   const metadata = await roomInfo.json();
   assert.equal(metadata.protocolVersion, PROTOCOL_VERSION);
+  assert.deepEqual(metadata.deprecatedProtocols, []);
   assert.equal(metadata.roomEpoch, app.roomEpoch);
   assert.equal(metadata.localUrl, `http://localhost:${port}`);
   assert.equal(metadata.ephemeral, true);

@@ -168,8 +168,7 @@ function createWebSocketTransport(server, config, core) {
         client.syncQueue.length = 0;
         client.syncQueueBytes = 0;
         refreshSyncTimeout(client);
-        if (effect.legacy) { sendJson(client, effect.payloads[0]); flushSyncQueue(client); }
-        else queueInitialPayloads(client, effect.payloads);
+        queueInitialPayloads(client, effect.payloads);
       }
     }
   }

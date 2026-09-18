@@ -345,7 +345,7 @@ YAML 严格拒绝未知字段、错误类型、重复键、别名和不支持的
 代码重构和模块调整必须满足：
 
 1. 对外命令、事件名称、字段、顺序与错误 code 不变；
-2. v1/v2/v3 兼容范围不变；v4 新增频道在线人数摘要，不改变版本协商行为；
+2. 服务端只接受 Protocol v4；不支持的版本返回 `PROTOCOL_NOT_SUPPORTED` 并以 `1002` 关闭；
 3. session/lease、每频道 epoch、幂等 key、同步队列和切换原子性不变；
 4. YAML 路径、优先级、字段含义、严格校验和默认值不变；
 5. `npm start` 继续以 `server.js` 启动；`createChatServer`、`listen`、`stop` 和测试状态入口保持兼容；

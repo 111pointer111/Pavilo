@@ -5,7 +5,7 @@
   'use strict';
 
   const DEFERRED_EVENTS = new Set(['presence', 'message', 'reaction', 'typing', 'channelOccupancy', 'ack', 'error']);
-  const EPOCH_ERROR = '房间已经重启，请确认后重试。';
+  const EPOCH_ERROR = 'pending.epochRestarted';
   const TYPING_EXPIRY = 4_500;
   // Tombstones stay non-enumerable so the public sync shape remains backwards
   // compatible while the reducer retains deterministic prune information.

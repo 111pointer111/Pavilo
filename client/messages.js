@@ -251,7 +251,7 @@
       const status = node.querySelector('.pending-status');
       const label = item.status === 'sending' ? t('pending.sending')
         : item.status === 'accepted' ? t('pending.accepted')
-          : item.status === 'error' ? t('pending.error') : t('pending.unconfirmed');
+          : item.status === 'error' ? t(item.error && item.error.startsWith('pending.') ? item.error : 'pending.error') : t('pending.unconfirmed');
       status.classList.toggle('error', item.status === 'error' || item.status === 'unconfirmed');
       status.innerHTML = `<span>${escapeHtml(label)}</span>${item.status === 'error' || item.status === 'unconfirmed' ? `<button type="button" class="pending-retry" data-pending-id="${escapeHtml(item.id)}">${escapeHtml(t('pending.retry'))}</button>` : ''}`;
       if (scroll && isNearBottom(messageScroll)) messageScroll.scrollTop = messageScroll.scrollHeight;

@@ -44,17 +44,6 @@ function createRoomStore(config, { randomId, now }) {
     return chunks;
   }
 
-  function legacyMessages(channel) {
-    const result = [];
-    for (let index = channel.messages.length - 1; index >= 0; index -= 1) {
-      const candidate = [publicMessage(channel.messages[index]), ...result];
-      if (serialize({ type: 'state', messages: candidate }).length > config.maxJsonBytes) break;
-      result.unshift(publicMessage(channel.messages[index]));
-    }
-    return result;
-  }
-
-
   function snapshot() {
     return [...channels.values()].map((channel) => ({ id: channel.config.id, messages: channel.messages.length, roomBytes: channel.roomBytes, latestSeq: channel.messageSequence }));
   }
@@ -65,6 +54,6 @@ function createRoomStore(config, { randomId, now }) {
       channel.messageSequence = 0;
     }
   }
-  return { get: (id) => channels.get(id), epoch: defaultChannel.epoch, snapshot, evictMessages, historyChunks, legacyMessages, clear };
+  return { get: (id) => channels.get(id), epoch: defaultChannel.epoch, snapshot, evictMessages, historyChunks, clear };
 }
 module.exports = { createRoomStore };

@@ -97,7 +97,7 @@ test('read-only channel rejects text and image messages with CHANNEL_READ_ONLY',
   // Verify no messages were stored
   assert.equal(core.state().messages, 0);
 
-  // Legacy v1 message without clientMessageId should not include it in error
+  // A message without clientMessageId still reports CHANNEL_READ_ONLY, not a missing-id error
   const legacyResult = core.dispatch(alice.peerId, {
     type: 'message',
     kind: 'text',
