@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **图片先暂存再发送**：粘贴、选文件或拖入图片后，输入框内文字上方出现缩略图，可预览、删除，再点发送
 - 图片消息可带可选配文与 `@` 提及，图和字显示在同一条气泡里（上图下字）
-- GHCR 镜像发布 workflow（v0.x 标签推送版本号，不推 `latest` / `1`）
+- GHCR 镜像发布 workflow（SemVer 标签含 `0.9.0`、`0.9`、`latest`；`1` 留给 v1.0）
 - Release Checklist（`docs/version-management.md`）
 - README 产品截图（登录、桌面聊天、移动端）
 

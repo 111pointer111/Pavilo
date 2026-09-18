@@ -409,18 +409,18 @@ docker compose up -d
 ### 使用镜像标签
 
 ```bash
-# v0.9.x 使用版本标签（不推 latest）
-docker pull ghcr.io/caigg188/pavilo:0.9.0
+docker pull ghcr.io/caigg188/pavilo:latest
+# 或钉死版本：ghcr.io/caigg188/pavilo:0.9.0
 
 # 停止旧容器
 docker stop pavilo
 docker rm pavilo
 
 # 启动新容器
-docker run -d --name pavilo -p 4173:4173 ghcr.io/caigg188/pavilo:0.9.0
+docker run -d --name pavilo -p 4173:4173 ghcr.io/caigg188/pavilo:latest
 ```
 
-v1.0 起才会发布 `latest`、`1.0` 与 `1` 标签。
+当前 `latest` 指向最新 SemVer 发布（含 v0.x）。`1` / `1.0` 这类主版本标签仍留给 v1.0。
 
 ---
 

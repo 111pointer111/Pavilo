@@ -452,7 +452,7 @@ v0.5.0 发布时，`client/error-states.js` 与 `client/performance.js` **实际
 - ✅ 贡献指南与安全报告流程
 - ✅ 中英文 README
 - ✅ Docker 与源码两套 Quick Start
-- ✅ GHCR workflow（v0.x 标签不推 `latest` / `1`）
+- ✅ GHCR workflow（SemVer 标签含 `latest`；`1` 留给 v1.0）
 - ✅ Release workflow 测试失败即失败
 - ✅ `npm audit` 进入 CI
 

@@ -280,7 +280,7 @@ gh release view v0.6.0
 打标签后：
 
 - [ ] GitHub Release 已创建（v0.x 为 pre-release）
-- [ ] GHCR 镜像标签符合策略：v0.x 只有 `0.9.0` / `0.9`；`latest` 与 `1` 留给 v1.0
+- [ ] GHCR 镜像标签符合策略：SemVer 发布带 `{{version}}`、`{{major}}.{{minor}}` 和 `latest`；`{{major}}`（如 `1`）从 v1.0 起打
 - [ ] 手工更新 GitHub Description / Topics（不进代码仓库）
 
 v1.0 额外：
