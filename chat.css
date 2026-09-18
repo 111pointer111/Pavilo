@@ -96,15 +96,6 @@
     border-color: rgba(77, 212, 199, .2);
   }
 
-  .login-input {
-    background: var(--bg-deep);
-    border-color: var(--line);
-  }
-
-  .login-input:focus {
-    background: var(--paper);
-  }
-
   .viewer-image {
     box-shadow: 0 24px 60px rgba(0, 0, 0, .8);
   }
@@ -1461,12 +1452,32 @@ html.resuming .login-screen { visibility: hidden; }
 .login-form { display: grid; gap: 9px; margin-top: 28px; }
 .login-label { color: var(--ink-soft); font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
 .login-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
-.login-input { min-height: 43px; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: 6px; outline: 0; background: #fff; color: var(--ink); font-size: 13px; transition: border-color var(--transition-base) var(--ease-smooth), box-shadow var(--transition-base) var(--ease-smooth), transform var(--transition-base) var(--ease-smooth); }
-.login-input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(15, 119, 114, .1); transform: translateY(-1px); }
+.login-input { min-height: 43px; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: 6px; outline: none; background: #fff; color: var(--ink); font-size: 13px; transition: border-color var(--transition-base) var(--ease-smooth), box-shadow var(--transition-base) var(--ease-smooth), transform var(--transition-base) var(--ease-smooth); }
+.login-input:focus,
+.login-input:focus-visible {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal) 22%, transparent);
+  outline: none;
+  transform: translateY(-1px);
+}
 .enter-button { min-height: 43px; padding: 9px 16px; border: 1px solid var(--teal-deep); border-radius: 6px; background: var(--teal); color: #fff; cursor: pointer; font-size: 12px; font-weight: 800; transition: background var(--transition-base) var(--ease-smooth), transform var(--transition-base) var(--ease-smooth), box-shadow var(--transition-base) var(--ease-smooth); will-change: transform; }
 .enter-button:hover { background: var(--teal-deep); transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15, 119, 114, .25); }
 .enter-button:active { transform: translateY(0); transition-duration: var(--transition-fast); }
 .enter-button:disabled { cursor: wait; opacity: .62; transform: none; }
+.enter-button:focus-visible {
+  outline: 3px solid var(--teal);
+  outline-offset: 3px;
+}
+@media (prefers-color-scheme: dark) {
+  .login-input {
+    background: var(--bg-deep);
+    border-color: var(--line);
+  }
+  .login-input:focus,
+  .login-input:focus-visible {
+    background: var(--paper);
+  }
+}
 /* 通知气泡：右上角一列，倒计时一满就自动隐去；鼠标停上去或键盘聚焦时暂停，移开继续。
    --toast-life 同时决定脚本的存活毫秒数与进度条动画时长，两边只在这里定义一次。 */
 /* The container is shrink-wrapped: its height is its content's height, so the
