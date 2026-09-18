@@ -13,12 +13,7 @@ Pavilo（**Pavilion + Local**）是一个浏览器即用、默认临时、可以
 当前版本 **v0.9.0**（Release Candidate）：支持配置多个临时频道，仅内存存储，界面提供简体中文与英语，WebSocket 协议只接受 v4。适合可信局域网、私有网络或 VPN 环境。
 
 <p align="center">
-  <img src="docs/screenshots/chat-desktop.png" width="720" alt="Pavilo 桌面聊天界面">
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/login-desktop.png" width="360" alt="Pavilo 登录页">
-  <img src="docs/screenshots/chat-mobile.png" width="220" alt="Pavilo 移动端聊天界面">
+  <img src="docs/screenshots/overview.png" width="880" alt="Pavilo 界面预览：桌面聊天、登录页与移动端">
 </p>
 
 ## 设计原则

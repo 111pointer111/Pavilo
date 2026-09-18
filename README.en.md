@@ -13,12 +13,7 @@ Pavilo (**Pavilion + Local**) is a minimal, self-hosted group chat that runs in 
 Current version: **v0.9.0** (Release Candidate) — multiple ephemeral channels, in-memory storage only, Simplified Chinese and English UI, WebSocket Protocol v4 only. Built for trusted LANs, private networks, and VPNs.
 
 <p align="center">
-  <img src="docs/screenshots/chat-desktop.png" width="720" alt="Pavilo desktop chat">
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/login-desktop.png" width="360" alt="Pavilo login">
-  <img src="docs/screenshots/chat-mobile.png" width="220" alt="Pavilo mobile chat">
+  <img src="docs/screenshots/overview.png" width="880" alt="Pavilo preview: desktop chat, login, and mobile">
 </p>
 
 ## Design principles
