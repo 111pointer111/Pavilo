@@ -16,7 +16,7 @@ function message(id, overrides = {}) {
 
 // Only the DOM operations used by this renderer are simulated. Layout is assigned
 // explicitly so scroll tests do not depend on browser layout or timing.
-function harness(messages = []) {
+function harness(messages = [], options = {}) {
   const handlers = {};
   let rebuilds = 0;
   let state = { messages, pending: {}, self, connection: { joined: true }, channel: {} };
@@ -32,6 +32,7 @@ function harness(messages = []) {
         }
         return null;
       },
+      setAttribute(name, value) { this.attrs = { ...this.attrs, [name]: value }; },
       append(child) {
         if (child.tag === 'fragment') { for (const entry of child.children) this.append(entry); return; }
         child.parent = this;
@@ -63,7 +64,8 @@ function harness(messages = []) {
     onAction: (action) => actions.push(action), iconMarkup: (name) => `<svg>${name}</svg>`,
     avatarMarkup: (user) => `<avatar>${user.username}</avatar>`,
     escapeHtml: (value) => String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]),
-    formatTime: () => '12:00', formatDay: () => '今天', t: createI18n({ language: 'zh-CN', storage: null }).t });
+    formatTime: () => '12:00', formatDay: options.formatDay || (() => '今天'),
+    t: createI18n({ language: 'zh-CN', storage: null }).t });
   return { renderer, elements, handlers, actions, get rebuilds() { return rebuilds; },
     transition(next, event) { const previous = state; state = next; renderer.onState(next, event, previous); },
     getState: () => state };
@@ -113,16 +115,18 @@ test('text, reply, reaction, action and day-divider markup stays unchanged and e
   assert.equal(divider.innerHTML, '<span>今天</span>');
   assert.equal(article.className, 'message');
   assert.equal(article.dataset.messageId, 'one');
-  assert.equal(article.innerHTML, '<div class="message-avatar"><avatar>Bob</avatar></div><div class="message-main"><div class="message-meta"><span class="message-author">Bob</span><time class="message-time" datetime="1970-01-01T00:00:01.000Z">12:00</time></div><div class="reply-quote"><strong>回复 &lt;Bob&gt;</strong><span>&amp;quote</span></div><div class="message-body">&lt;hello&gt;</div><div class="reaction-list" aria-label="消息回应"><button class="reaction-button active" type="button" data-reaction="👍" data-message-id="one" aria-label="👍 取消回应，2 人" aria-pressed="true"><span>👍</span><span class="reaction-count">2</span></button></div><div class="message-actions"><button class="message-action reaction-action" type="button" data-message-id="one" aria-label="表情回应"><span class="icon" data-icon="smile-plus" data-icon-size="16" aria-hidden="true"></span><span class="icon reaction-plus" data-icon="plus" data-icon-size="10" aria-hidden="true"></span></button><button class="message-action reply-action" type="button" data-message-id="one" aria-label="回复这条消息"><span class="icon" data-icon="reply" data-icon-size="12" aria-hidden="true"></span>回复</button></div></div>');
+  assert.equal(article.innerHTML, '<div class="message-avatar"><avatar>Bob</avatar></div><div class="message-main"><div class="message-meta"><span class="message-author">Bob</span><time class="message-time" datetime="1970-01-01T00:00:01.000Z">12:00</time></div><div class="message-stack"><div class="message-bubble"><div class="reply-quote"><strong>回复 &lt;Bob&gt;</strong><span>&amp;quote</span></div><div class="message-body">&lt;hello&gt;</div></div><div class="message-actions"><button class="message-action reaction-action" type="button" data-message-id="one" data-popover-align="right" aria-label="表情回应" title="表情回应"><span class="icon" data-icon="smile-plus" data-icon-size="16" aria-hidden="true"></span><span class="icon reaction-plus" data-icon="plus" data-icon-size="10" aria-hidden="true"></span></button><button class="message-action reply-action" type="button" data-message-id="one" aria-label="回复这条消息" title="回复"><span class="icon" data-icon="reply" data-icon-size="14" aria-hidden="true"></span></button></div><div class="reaction-list" aria-label="消息回应"><button class="reaction-button active" type="button" data-reaction="👍" data-message-id="one" aria-label="👍 取消回应，2 人" aria-pressed="true"><span>👍</span><span class="reaction-count">2</span></button></div></div></div>');
   assert.equal(room.elements.messageCount.textContent, '1 条消息');
 });
 
 test('image dimensions, image button accessibility and emoji-only class match the source', () => {
-  const room = harness([message('photo', { kind: 'image', image: { src: 'data:image/png;base64,aa"', width: 780, height: 600 } }),
+  const room = harness([message('photo', { kind: 'image', text: '', image: { src: 'data:image/png;base64,aa"', width: 780, height: 600 } }),
     message('emoji', { author: self, text: '🔥 😂' })]);
   room.renderer.renderHistory();
   const articles = room.elements.messageList.children.filter((child) => child.tag === 'article');
   assert.match(articles[0].innerHTML, /<button class="message-image-link" type="button" data-viewer-message-id="photo" aria-label="查看 Bob 分享的图片"><img class="message-image" src="data:image\/png;base64,aa&quot;" alt="Bob 分享的图片" loading="lazy" decoding="async" width="390" height="300"><\/button>/);
+  assert.match(articles[0].innerHTML, /class="message-bubble bare-media"/);
+  assert.match(articles[1].innerHTML, /class="message-bubble bare-emoji"/);
   assert.match(articles[1].innerHTML, /<div class="message-body emoji-only">🔥 😂<\/div>/);
   assert.equal(articles[1].className, 'message self');
 });
@@ -131,8 +135,55 @@ test('image captions render below the thumbnail in the same bubble', () => {
   const room = harness([message('photo', { kind: 'image', text: '<look>', image: { src: 'data:image/png;base64,aa"', width: 780, height: 600 } })]);
   room.renderer.renderHistory();
   const article = room.elements.messageList.children.find((child) => child.tag === 'article');
+  assert.match(article.innerHTML, /class="message-bubble has-media"/);
   assert.match(article.innerHTML, /data-viewer-message-id="photo"/);
-  assert.match(article.innerHTML, /<div class="message-body">&lt;look&gt;<\/div>/);
+  assert.match(article.innerHTML, /<div class="message-bubble has-media">[\s\S]*<div class="message-body">&lt;look&gt;<\/div>/);
+});
+
+test('consecutive messages from one author hide the later avatars', () => {
+  const room = harness([
+    message('one', { createdAt: 1_000 }),
+    message('two', { createdAt: 2_000, text: 'again' }),
+    message('own', { author: self, createdAt: 3_000, text: 'mine' }),
+    message('own-two', { author: self, createdAt: 4_000, text: 'still mine' }),
+  ]);
+  room.renderer.renderHistory();
+  const articles = room.elements.messageList.children.filter((child) => child.tag === 'article');
+  assert.equal(articles[0].className, 'message');
+  assert.match(articles[0].innerHTML, /<avatar>Bob<\/avatar>/);
+  assert.equal(articles[1].className, 'message continued');
+  assert.match(articles[1].innerHTML, /class="message-gutter-time"/);
+  assert.doesNotMatch(articles[1].innerHTML, /<avatar>/);
+  assert.match(articles[1].innerHTML, /class="visually-hidden">Bob</);
+  assert.equal(articles[2].className, 'message self');
+  assert.match(articles[2].innerHTML, /<avatar>Alice<\/avatar>/);
+  assert.equal(articles[3].className, 'message self continued');
+  assert.match(articles[3].innerHTML, /class="message-gutter-time"/);
+});
+
+test('a new day breaks consecutive grouping even for the same author', () => {
+  const days = new Map([[1_000, '昨天'], [2_000, '今天']]);
+  const room = harness([
+    message('one', { createdAt: 1_000 }),
+    message('two', { createdAt: 2_000, text: 'later' }),
+  ], { formatDay: (stamp) => days.get(stamp) || '今天' });
+  room.renderer.renderHistory();
+  const articles = room.elements.messageList.children.filter((child) => child.tag === 'article');
+  assert.equal(articles.length, 2);
+  assert.equal(articles[0].className, 'message');
+  assert.equal(articles[1].className, 'message');
+  assert.match(articles[1].innerHTML, /<avatar>Bob<\/avatar>/);
+});
+
+test('pending drafts continue from the last own message without a second avatar', () => {
+  const room = harness([message('own', { author: self, text: 'sent' })]);
+  room.renderer.renderHistory();
+  const pending = { id: 'pending-one', kind: 'text', text: 'draft', status: 'sending' };
+  room.transition({ ...room.getState(), pending: { [pending.id]: pending } }, { type: 'pending/add' });
+  const articles = room.elements.messageList.children.filter((child) => child.tag === 'article');
+  assert.equal(articles[0].className, 'message self');
+  assert.equal(articles[1].className, 'message self pending-message continued');
+  assert.match(articles[1].innerHTML, /class="message-gutter-time"/);
 });
 
 test('prune and append paint once, sample the old DOM and keep reading anchored instantly', () => {

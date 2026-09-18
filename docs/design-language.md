@@ -164,7 +164,7 @@ Pavilo 的设计语言围绕**临时、轻盈、可信**三个核心概念构建
 
 ```css
 --radius-sm: 6px    /* 按钮、输入框 */
---radius-md: 8px    /* 卡片、消息气泡 */
+--radius-md: 8px    /* 卡片 */
 --radius-lg: 12px   /* 面板、模态框 */
 --radius-xl: 16px   /* 大型容器 */
 --radius-full: 999px /* 圆形头像、徽标 */
@@ -300,14 +300,16 @@ box-shadow:
 ## 组件设计模式
 
 ### 消息气泡
+每条消息是独立气泡，而不是整行高亮。同一人连续发言时，只有第一条显示头像和名字；后续消息把头像槽让给悬停才出现的时间。回应与回复按钮出现在气泡右侧顶部，桌面悬停 / 键盘聚焦时出现，触摸设备常显。
+
 ```css
-.message {
-  padding: 9px 10px;
-  border-radius: 8px;
-  transition: background .16s ease;
+.message-bubble {
+  padding: 8px 12px;
+  border-radius: 4px 16px 16px 16px;
+  background: var(--paper);
 }
-.message:hover {
-  background: rgba(220, 238, 233, .33);
+.message.self .message-bubble {
+  background: color-mix(in srgb, var(--teal-pale) 72%, var(--paper));
 }
 ```
 

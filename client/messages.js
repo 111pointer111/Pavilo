@@ -82,23 +82,46 @@
       return `<div class="message-body${isEmojiOnly(text) ? ' emoji-only' : ''}">${textMarkup(text, mentions)}</div>`;
     }
 
-    function messageBodyMarkup(message, author) {
+    function messageBubbleMarkup(message, author) {
       const image = message.kind === 'image' && message.image?.src ? imageMarkup(message, author) : '';
-      const text = message.kind === 'text' || message.text ? textBodyMarkup(message.text, message.mentions) : '';
-      return `${renderReply(message)}${image}${text}${reactionMarkup(message)}`;
+      const text = message.text ? textBodyMarkup(message.text, message.mentions) : '';
+      const classes = ['message-bubble'];
+      if (image && !text && !message.replyTo) classes.push('bare-media');
+      else if (!image && text && isEmojiOnly(message.text) && !message.replyTo) classes.push('bare-emoji');
+      else if (image) classes.push('has-media');
+      return `<div class="${classes.join(' ')}">${renderReply(message)}${image}${text}</div>`;
     }
 
     function actionMarkup(messageId) {
-      return `<div class="message-actions"><button class="message-action reaction-action" type="button" data-message-id="${escapeHtml(messageId)}" aria-label="${escapeHtml(t('reaction.add'))}"><span class="icon" data-icon="smile-plus" data-icon-size="16" aria-hidden="true"></span><span class="icon reaction-plus" data-icon="plus" data-icon-size="10" aria-hidden="true"></span></button><button class="message-action reply-action" type="button" data-message-id="${escapeHtml(messageId)}" aria-label="${escapeHtml(t('reaction.replyAria'))}"><span class="icon" data-icon="reply" data-icon-size="12" aria-hidden="true"></span>${escapeHtml(t('reaction.reply'))}</button></div>`;
+      return `<div class="message-actions"><button class="message-action reaction-action" type="button" data-message-id="${escapeHtml(messageId)}" data-popover-align="right" aria-label="${escapeHtml(t('reaction.add'))}" title="${escapeHtml(t('reaction.add'))}"><span class="icon" data-icon="smile-plus" data-icon-size="16" aria-hidden="true"></span><span class="icon reaction-plus" data-icon="plus" data-icon-size="10" aria-hidden="true"></span></button><button class="message-action reply-action" type="button" data-message-id="${escapeHtml(messageId)}" aria-label="${escapeHtml(t('reaction.replyAria'))}" title="${escapeHtml(t('reaction.reply'))}"><span class="icon" data-icon="reply" data-icon-size="14" aria-hidden="true"></span></button></div>`;
     }
 
-    function createMessageNode(message) {
+    function timeMarkup(timestamp, className = 'message-time') {
+      return `<time class="${className}" datetime="${new Date(timestamp).toISOString()}">${formatTime(timestamp)}</time>`;
+    }
+
+    function continuesFrom(previous, authorId, timestamp) {
+      if (!previous || !authorId) return false;
+      const previousId = (previous.author || getSelf())?.id;
+      if (previousId !== authorId) return false;
+      if (timestamp != null && previous.createdAt != null
+        && formatDay(timestamp) !== formatDay(previous.createdAt)) return false;
+      return true;
+    }
+
+    function createMessageNode(message, continued = false) {
       const self = getSelf();
       const author = message.author || self || { id: '', username: t('people.unknown'), avatarSeed: 0 };
       const article = document.createElement('article');
-      article.className = `message${author.id === self?.id ? ' self' : ''}`;
+      article.className = `message${author.id === self?.id ? ' self' : ''}${continued ? ' continued' : ''}`;
       article.dataset.messageId = message.id;
-      article.innerHTML = `<div class="message-avatar">${avatarMarkup(author)}</div><div class="message-main"><div class="message-meta"><span class="message-author">${escapeHtml(author.username)}</span><time class="message-time" datetime="${new Date(message.createdAt).toISOString()}">${formatTime(message.createdAt)}</time></div>${messageBodyMarkup(message, author)}${actionMarkup(message.id)}</div>`;
+      const avatar = continued
+        ? timeMarkup(message.createdAt, 'message-gutter-time')
+        : avatarMarkup(author);
+      const meta = continued
+        ? `<span class="visually-hidden">${escapeHtml(author.username)}</span>`
+        : `<div class="message-meta"><span class="message-author">${escapeHtml(author.username)}</span>${timeMarkup(message.createdAt)}</div>`;
+      article.innerHTML = `<div class="message-avatar">${avatar}</div><div class="message-main">${meta}<div class="message-stack">${messageBubbleMarkup(message, author)}${actionMarkup(message.id)}${reactionMarkup(message)}</div></div>`;
       hydrateIcons(article);
       messageNodes.set(message.id, article);
       return article;
@@ -129,12 +152,16 @@
       messageScroll.style.scrollBehavior = previousBehavior;
     }
 
-    function paintPending(item, scroll = true) {
+    function paintPending(item, scroll = true, continued = null) {
       let node = pendingNodes.get(item.id);
       if (!node) {
+        if (continued == null) {
+          const last = (getState().messages || []).at(-1);
+          continued = pendingNodes.size > 0 || continuesFrom(last, getSelf()?.id, Date.now());
+        }
         messageList.querySelector('.message-empty')?.remove();
         node = document.createElement('article');
-        node.className = 'message self pending-message';
+        node.className = `message self pending-message${continued ? ' continued' : ''}`;
         node.dataset.pendingId = item.id;
         const self = getSelf();
         const body = [
@@ -143,7 +170,16 @@
             : '',
           item.text ? `<div class="message-body">${textMarkup(item.text, item.mentions)}</div>` : '',
         ].join('');
-        node.innerHTML = `<div class="message-avatar">${avatarMarkup(self || { username: t('people.self'), avatarSeed }, '', false)}</div><div class="message-main"><div class="message-meta"><span class="message-author">${escapeHtml(self?.username || t('people.self'))}</span><span class="message-time">${escapeHtml(t('pending.now'))}</span></div>${body}<div class="pending-status" role="status" aria-live="polite"></div></div>`;
+        const avatar = continued
+          ? `<span class="message-gutter-time">${escapeHtml(t('pending.now'))}</span>`
+          : avatarMarkup(self || { username: t('people.self'), avatarSeed }, '', false);
+        const meta = continued
+          ? `<span class="visually-hidden">${escapeHtml(self?.username || t('people.self'))}</span>`
+          : `<div class="message-meta"><span class="message-author">${escapeHtml(self?.username || t('people.self'))}</span><span class="message-time">${escapeHtml(t('pending.now'))}</span></div>`;
+        const classes = ['message-bubble'];
+        if (item.kind === 'image' && item.image?.src && !item.text) classes.push('bare-media');
+        else if (item.kind === 'image' && item.image?.src) classes.push('has-media');
+        node.innerHTML = `<div class="message-avatar">${avatar}</div><div class="message-main">${meta}<div class="message-stack"><div class="${classes.join(' ')}">${body}</div><div class="pending-status" role="status" aria-live="polite"></div></div></div>`;
         hydrateIcons(node);
         pendingNodes.set(item.id, node);
         messageList.append(node);
@@ -173,6 +209,8 @@
       const channel = state.channels?.find((ch) => ch.id === state.channelId);
       const welcomeCard = createWelcomeCard(channel);
       if (welcomeCard) messageList.append(welcomeCard);
+      let lastDay = '';
+      let previous = null;
       if (!messages.length) {
         const placeholder = document.createElement('div');
         placeholder.className = 'message-empty';
@@ -180,18 +218,26 @@
         placeholder.innerHTML = `<span class="message-empty-mark" aria-hidden="true">${escapeHtml(t('empty.mark'))}</span><strong>${escapeHtml(t('empty.title'))}</strong><p>${escapeHtml(t('empty.copy'))}</p>`;
         messageList.append(placeholder);
       } else {
-        let lastDay = '';
         const fragment = document.createDocumentFragment();
         for (const message of messages) {
           const day = formatDay(message.createdAt);
-          if (day !== lastDay) { fragment.append(createDayDivider(message.createdAt)); lastDay = day; }
-          fragment.append(createMessageNode(message));
+          if (day !== lastDay) {
+            fragment.append(createDayDivider(message.createdAt));
+            lastDay = day;
+          }
+          const authorId = (message.author || getSelf())?.id || '';
+          fragment.append(createMessageNode(message, continuesFrom(previous, authorId, message.createdAt)));
+          previous = message;
         }
         messageList.append(fragment);
       }
       messageCount.textContent = t('chat.messagesCount', { count: messages.length });
       const pending = Object.values(state.pending || {});
-      for (const item of pending) paintPending(item, false);
+      let pendingContinued = continuesFrom(previous, getSelf()?.id, Date.now());
+      for (const item of pending) {
+        paintPending(item, false, pendingContinued);
+        pendingContinued = true;
+      }
       if (!messages.length && !pending.length) return;
       if (shouldBottom) messageScroll.scrollTop = messageScroll.scrollHeight;
       else if (readingOffset) restoreReadingOffset(readingOffset);
@@ -208,8 +254,12 @@
       if (!node) return;
       const list = node.querySelector('.reaction-list');
       const markup = reactionMarkup(message);
-      if (list) list.outerHTML = markup;
-      else if (markup) node.querySelector('.message-actions')?.insertAdjacentHTML('beforebegin', markup);
+      if (list) {
+        if (markup) list.outerHTML = markup;
+        else list.remove();
+      } else if (markup) {
+        node.querySelector('.message-actions')?.insertAdjacentHTML('afterend', markup);
+      }
     }
 
     function renderReactionChoices() {
