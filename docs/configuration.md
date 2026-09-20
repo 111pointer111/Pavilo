@@ -12,6 +12,7 @@ Pavilo 按以下顺序加载配置（越靠后优先级越高）：
 2. **默认路径** `./pavilo.yaml` —— 文件不存在时安静回退到内置默认值
 3. **`PAVILO_CONFIG`** 指向的 YAML 文件
 4. **`PORT`** 环境变量 —— 只覆盖最终的监听端口
+5. **`PAVILO_OPERATOR_TOKEN`** —— 覆盖 `operator.token`
 
 `PAVILO_CONFIG` 一旦显式设置，目标缺失、不可读、过大、不是普通文件或校验失败都会使启动**失败**，不会回退到默认值。
 
@@ -23,9 +24,10 @@ Pavilo 按以下顺序加载配置（越靠后优先级越高）：
 # 内存模式（默认，重启即空）
 cp pavilo.example.yaml pavilo.yaml
 
-# 或 SQLite 留存（默认最近 30 天）
+# 或 SQLite 留存（默认最近 30 天；模型渠道在 /admin 配置）
 cp pavilo.sqlite.example.yaml pavilo.yaml
 mkdir -p data
+openssl rand -hex 32    # 写入 operator.token，或 export PAVILO_OPERATOR_TOKEN=...
 
 npm run config:check    # 只校验并显示实际配置来源，不启动服务
 npm start
@@ -109,14 +111,15 @@ version: 1
 
 - **必填**（配置文件）
 - **类型**：整数
-- **说明**：配置文件结构版本。支持 `1` 和 `2`。
-  - `1`：与 v1.0 相同；**禁止**出现 `storage`，内部归一为 `storage.driver: memory`
-  - `2`：允许可选 `storage`；省略则仍为 memory
+- **说明**：配置文件结构版本。支持 `1`、`2` 和 `3`。
+  - `1`：与 v1.0 相同；**禁止**出现 `storage` / `operator`，内部归一为 `storage.driver: memory`
+  - `2`：允许可选 `storage`；省略则仍为 memory；**禁止** `operator`
+  - `3`：允许 `operator.token`（sqlite 管理页）。**禁止**在 YAML 里写网关渠道
   - 其它 version 一律拒绝
 
 ---
 
-### `storage` —— 可选持久化（仅 `version: 2`）
+### `storage` —— 可选持久化（`version: 2` 或 `3`）
 
 默认安装不需要这一节。未写 `storage`、或 `driver: memory` 时，行为与 v1.0 完全一致：重启即空。完整可运行示例见 [`pavilo.sqlite.example.yaml`](../pavilo.sqlite.example.yaml)（`cp pavilo.sqlite.example.yaml pavilo.yaml`）。
 
@@ -140,7 +143,7 @@ storage:
 
 - **必填**（仅 `driver: sqlite`）
 - **类型**：字符串
-- **说明**：数据库文件路径。相对路径相对配置文件所在目录解析。不能指向 Pavilo 的 HTTP 公开路径（`index.html`、`vendor/`、`client/`）。
+- **说明**：数据库文件路径。相对路径相对配置文件所在目录解析。不能指向 Pavilo 的 HTTP 公开路径（`index.html`、`vendor/`、`client/`、`admin/`）。
 
 #### `storage.sqlite.engine`
 
@@ -165,6 +168,36 @@ npm run storage -- stats
 npm run storage -- restore --from ./data/backup.db   # 目标已存在则拒绝
 npm run storage -- restore --from ./data/backup.db --force
 ```
+
+---
+
+### `operator` —— 管理页口令（仅 `version: 3`）
+
+模型渠道和 API key **只在 `/admin` 配置**，不要写进 YAML。管理页在「sqlite + 有效 token」时打开；否则 `/admin` 为 404。
+
+sqlite 而未填 token 时服务**仍会启动**（聊天可用），但启动日志和 `npm run config:check` 会提示无法打开管理页。生成口令：
+
+```bash
+openssl rand -hex 32
+```
+
+```yaml
+version: 3
+storage:
+  driver: sqlite
+  sqlite:
+    path: ./data/pavilo.db
+operator:
+  token: ""    # 或环境变量 PAVILO_OPERATOR_TOKEN
+```
+
+#### `operator.token`
+
+- **默认值**：空字符串
+- **类型**：字符串，16–256 个可见 ASCII 字符，不能含空白
+- **说明**：管理页登录口令，不是账号系统。推荐 `openssl rand -hex 32`。也用于派生 SQLite 里渠道 API key 的加密密钥（AES-256-GCM）。**更换 token 后必须在管理页重新填写渠道 key。** YAML 里没有 `operator.enabled`：有 sqlite 且 token 足够长才会打开 `/admin`。
+
+渠道字段、preset、探测与 `complete()` 见 [gateway.md](gateway.md)。
 
 ---
 

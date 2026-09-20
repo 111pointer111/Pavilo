@@ -60,7 +60,7 @@ function localAddresses() {
   for (const entries of Object.values(os.networkInterfaces())) for (const entry of entries || []) if (entry.family === 'IPv4' && !entry.internal) addresses.push(entry.address);
   return [...new Set(addresses)];
 }
-function createHttpHandler(config, core, address, ROOT) {
+function createHttpHandler(config, core, address, ROOT, extras = {}) {
   async function serveVendorFile(request, response, pathname, headOnly = false) {
     const relative = pathname.slice('/vendor/'.length);
     if (relative.startsWith('/') || relative.includes('..') || relative.includes('\0')) {
@@ -183,7 +183,9 @@ function createHttpHandler(config, core, address, ROOT) {
     }
     const isHead = request.method === 'HEAD';
     if ((request.method === 'GET' || isHead) && requestUrl.pathname === '/healthz') {
-      jsonResponse(response, 200, core.health(), isHead);
+      const payload = core.health();
+      if (typeof extras.healthPatch === 'function') Object.assign(payload, extras.healthPatch());
+      jsonResponse(response, 200, payload, isHead);
       return;
     }
     if ((request.method === 'GET' || isHead) && requestUrl.pathname === '/room-info') {

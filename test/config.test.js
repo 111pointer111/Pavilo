@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
 
-const { CONFIG_VERSION, SUPPORTED_CONFIG_VERSIONS, DEFAULTS, loadConfig, normalizeConfig, parseConfig } = require('../config');
+const { CONFIG_VERSION, SUPPORTED_CONFIG_VERSIONS, DEFAULTS, loadConfig, normalizeConfig, parseConfig, sqliteOperatorNotice, operatorConsoleEnabled } = require('../config');
 
 const ROOT = path.resolve(__dirname, '..');
 
@@ -30,9 +30,12 @@ function throwsMatch(action, pattern) {
 }
 
 test('built-in defaults are immutable and missing default file falls back to a clone', () => {
-  assert.equal(CONFIG_VERSION, 2);
-  assert.deepEqual(SUPPORTED_CONFIG_VERSIONS, [1, 2]);
+  assert.equal(CONFIG_VERSION, 3);
+  assert.deepEqual(SUPPORTED_CONFIG_VERSIONS, [1, 2, 3]);
   assert.equal(DEFAULTS.storage.driver, 'memory');
+  assert.equal(DEFAULTS.operator.enabled, false);
+  assert.equal(DEFAULTS.operator.token, '');
+  assert.equal(DEFAULTS.gateway.timeoutMs, 30_000);
   assert.equal(DEFAULTS.exposeMemberIps, true);
   assert.equal(DEFAULTS.defaultChannelId, 'general');
   assert.equal(DEFAULTS.channels[0].maxUsers, DEFAULTS.maxUsers);
@@ -108,8 +111,11 @@ test('normalization defaults programmatic input, while files require a version a
   assert.deepEqual(normalizeConfig({}), DEFAULTS);
   assert.equal(DEFAULTS.defaultLanguage, 'zh-CN');
   throwsMatch(() => parseConfig('{}\n'), /version.*必须声明/);
-  throwsMatch(() => parseConfig('version: 3\n'), /当前只支持版本 1 或 2/);
+  throwsMatch(() => parseConfig('version: 4\n'), /当前只支持版本 1、2 或 3/);
   throwsMatch(() => parseConfig('version: 1\nstorage:\n  driver: memory\n'), /config\.storage.*未知配置项/);
+  throwsMatch(() => parseConfig('version: 1\noperator:\n  token: "' + 'a'.repeat(16) + '"\n'), /config\.operator.*未知配置项/);
+  throwsMatch(() => parseConfig('version: 2\noperator:\n  token: "' + 'a'.repeat(16) + '"\n'), /config\.operator.*未知配置项/);
+  throwsMatch(() => parseConfig('version: 3\ngateway:\n  enabled: true\n'), /config\.gateway.*未知配置项/);
   throwsMatch(() => parseConfig('version: 1\nserver:\n  maxUserz: 4\n'), /server\.maxUserz.*未知配置项/);
   throwsMatch(() => parseConfig('version: 1\nserver:\n  maxUsers: "4"\n'), /server\.maxUsers.*整数/);
   throwsMatch(() => parseConfig('version: 1\nroom:\n  exposeMemberIps: yes\n'), /room\.exposeMemberIps.*true 或 false/);
@@ -390,6 +396,13 @@ storage:
   sqlite:
     path: ${path.join(ROOT, 'vendor', 'hidden.db')}
 `), /storage\.sqlite\.path.*HTTP 公开路径/);
+  throwsMatch(() => parseConfig(`
+version: 3
+storage:
+  driver: sqlite
+  sqlite:
+    path: ${path.join(ROOT, 'admin', 'hidden.db')}
+`), /storage\.sqlite\.path.*HTTP 公开路径/);
 });
 
 test('the distributed example parses and explicitly documents every config section', () => {
@@ -418,7 +431,10 @@ test('the sqlite example parses with durable storage and the same channels', () 
   assert.equal(config.storage.sqlite.retentionDays, 30);
   assert.match(config.storage.sqlite.path, /pavilo\.db$/);
   assert.deepEqual(config.channels.map((channel) => channel.id), ['general', 'project', 'announcements']);
-  for (const section of ['storage:', 'server:', 'room:', 'channels:', 'limits:', 'timeouts:', 'rateLimits:']) {
+  assert.equal(config.operator.token, '');
+  assert.equal(config.operator.enabled, false);
+  assert.match(source, /openssl rand -hex 32/);
+  for (const section of ['storage:', 'operator:', 'server:', 'room:', 'channels:', 'limits:', 'timeouts:', 'rateLimits:']) {
     assert.match(source, new RegExp(`^${section}`, 'm'));
   }
 });
@@ -513,6 +529,56 @@ channels:
   - id: general
     name: 闲聊
 `), /room\.defaultChannel.*只读频道/);
+});
+
+test('schema v3 accepts omitted operator as disabled and rejects gateway YAML', () => {
+  const config = parseConfig('version: 3\n');
+  assert.equal(config.storage.driver, 'memory');
+  assert.equal(config.operator.enabled, false);
+  assert.equal(config.operator.token, '');
+  assert.equal(config.gateway.timeoutMs, 30_000);
+  throwsMatch(() => parseConfig('version: 3\noperator:\n  enabled: true\n'), /operator\.enabled.*未知配置项/);
+});
+
+test('operator.token is optional in YAML and may be supplied by env', (t) => {
+  const parsed = parseConfig(`
+version: 3
+operator:
+  token: ""
+`);
+  assert.equal(parsed.operator.token, '');
+  assert.equal(parsed.operator.enabled, false);
+
+  throwsMatch(() => parseConfig(`
+version: 3
+operator:
+  token: short
+`), /operator\.token.*16–256/);
+  throwsMatch(() => parseConfig(`
+version: 3
+operator:
+  token: "sixteen-chars-ok but space"
+`), /operator\.token.*空白/);
+
+  const file = writeConfig(t, `
+version: 3
+storage:
+  driver: sqlite
+  sqlite:
+    path: ./chat.db
+operator:
+  token: ""
+`);
+  const missing = loadConfig({ env: {}, configPath: file });
+  assert.equal(missing.config.operator.enabled, false);
+  assert.match(sqliteOperatorNotice(missing.config), /operator\.token/);
+  const loaded = loadConfig({
+    env: { PAVILO_OPERATOR_TOKEN: 'a'.repeat(16) },
+    configPath: file
+  });
+  assert.equal(loaded.config.operator.token, 'a'.repeat(16));
+  assert.equal(operatorConsoleEnabled(loaded.config), true);
+  assert.equal(sqliteOperatorNotice(loaded.config), null);
 });
 
 test('aggregate welcome bytes are bounded across all channels', () => {

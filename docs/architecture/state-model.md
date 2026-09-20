@@ -318,7 +318,7 @@ joined ──异常重启──────────────→ reconnect
 
 ## 10. 配置基线
 
-配置文件版本与聊天协议版本是两套独立编号：当前 YAML `version` 支持 **1** 和 **2**，当前聊天协议为 **4**。`version: 1` 禁止 `storage`，内部归一 `storage.driver: memory`；`version: 2` 允许可选 `storage`。
+配置文件版本与聊天协议版本是两套独立编号：当前 YAML `version` 支持 **1**、**2** 和 **3**，当前聊天协议为 **4**。`version: 1` 禁止 `storage` / `operator`，内部归一 `storage.driver: memory`；`version: 2` 允许可选 `storage`；`version: 3` 允许 `operator.token`。模型渠道不在 YAML 中。
 
 加载优先级与替换语义：
 

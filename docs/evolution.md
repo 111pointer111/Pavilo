@@ -731,11 +731,16 @@ docs/adr/
   0003-extension-as-trusted-scripts.md
 ```
 
-对应版本开工前再写，本次不提前起草正文：
+已于 v1.3 开工时接受：
 
 ```text
   0004-operator-config-dual-source.md
   0005-in-process-ai-gateway.md
+```
+
+对应版本开工前再写：
+
+```text
   0006-play-contract.md
 ```
 

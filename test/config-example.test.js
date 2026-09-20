@@ -26,6 +26,17 @@ test('pavilo.sqlite.example.yaml can be parsed as sqlite storage', () => {
   assert.match(config.storage.sqlite.path, /pavilo\.db$/);
 });
 
+test('pavilo.sqlite.example.yaml documents operator.token instead of gateway channels', () => {
+  const examplePath = path.join(__dirname, '../pavilo.sqlite.example.yaml');
+  const yaml = fs.readFileSync(examplePath, 'utf-8');
+  assert.ok(yaml.includes('version: 3'));
+  assert.ok(yaml.includes('openssl rand -hex 32'));
+  assert.ok(!/^gateway:/m.test(yaml));
+  const config = parseConfig(yaml, examplePath);
+  assert.equal(config.operator.token, '');
+  assert.equal(config.operator.enabled, false);
+});
+
 test('default channels match README documentation', () => {
   const readme = fs.readFileSync(path.join(__dirname, '../README.md'), 'utf-8');
 

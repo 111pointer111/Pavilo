@@ -5,9 +5,12 @@ const path = require('node:path');
 const YAML = require('yaml');
 
 const ROOT = __dirname;
-const CONFIG_VERSION = 2;
-const SUPPORTED_CONFIG_VERSIONS = Object.freeze([1, 2]);
+const CONFIG_VERSION = 3;
+const SUPPORTED_CONFIG_VERSIONS = Object.freeze([1, 2, 3]);
 const MAX_SQLITE_RETENTION_DAYS = 3650;
+const MIN_OPERATOR_TOKEN_LENGTH = 16;
+const MAX_OPERATOR_TOKEN_LENGTH = 256;
+const OPERATOR_TOKEN_COMMAND = 'openssl rand -hex 32';
 const CHANNEL_ID_RE = /^[a-z0-9](?:[a-z0-9_-]{0,31})$/;
 const DECIMAL_PORT_RE = /^(?:[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$/;
 const MAX_CONFIG_BYTES = 256 * 1024;
@@ -22,7 +25,7 @@ const MAX_ROSTER_USER_BYTES = 512;
 // Files Pavilo serves from its own root. Anything else there (including the YAML
 // config) stays private, see assertPrivateConfigPath below.
 const HTTP_PUBLIC_FILES = new Set(['index.html', 'chat.css']);
-const HTTP_PUBLIC_DIRECTORIES = new Set(['vendor', 'client']);
+const HTTP_PUBLIC_DIRECTORIES = new Set(['vendor', 'client', 'admin']);
 
 const DEFAULTS = deepFreeze({
   port: 4173,
@@ -58,6 +61,12 @@ const DEFAULTS = deepFreeze({
   exposeLanUrls: true,
   defaultLanguage: 'zh-CN',
   storage: { driver: 'memory' },
+  operator: { enabled: false, token: '' },
+  gateway: {
+    timeoutMs: 30_000,
+    maxRetries: 2,
+    maxInFlight: 4
+  },
   channels: [{
     id: 'general',
     name: '闲聊',
@@ -79,7 +88,9 @@ const DEFAULTS = deepFreeze({
 
 const ROOT_KEYS_V1 = new Set(['version', 'server', 'room', 'channels', 'limits', 'timeouts', 'rateLimits']);
 const ROOT_KEYS_V2 = new Set([...ROOT_KEYS_V1, 'storage']);
+const ROOT_KEYS_V3 = new Set([...ROOT_KEYS_V2, 'operator']);
 const STORAGE_KEYS = new Set(['driver', 'sqlite']);
+const OPERATOR_KEYS = new Set(['token']);
 const SQLITE_KEYS = new Set(['path', 'engine', 'retentionDays']);
 const STORAGE_DRIVERS = new Set(['memory', 'sqlite']);
 const SQLITE_ENGINES = new Set(['auto', 'node', 'better-sqlite3']);
@@ -190,6 +201,63 @@ function normalizeChannels(value, maxUsers) {
   return channels;
 }
 
+function rootKeysFor(schemaVersion) {
+  if (schemaVersion === 3) return ROOT_KEYS_V3;
+  if (schemaVersion === 2) return ROOT_KEYS_V2;
+  return ROOT_KEYS_V1;
+}
+
+function secretText(value, field, minimum, maximum) {
+  if (typeof value !== 'string') fail(field, '必须是字符串');
+  if (/[\x00-\x08\x0a-\x1f\x7f]/.test(value)) fail(field, '不能包含控制字符');
+  if (value.length < minimum || value.length > maximum) fail(field, `长度必须是 ${minimum}–${maximum} 个字符`);
+  return value;
+}
+
+function parseOperatorToken(value, field) {
+  if (value === undefined) return '';
+  const token = secretText(value, field, 0, MAX_OPERATOR_TOKEN_LENGTH);
+  if (token.length === 0) return '';
+  if (/\s/.test(token)) fail(field, '不能包含空白字符');
+  if (token.length < MIN_OPERATOR_TOKEN_LENGTH) {
+    fail(field, `长度必须是 ${MIN_OPERATOR_TOKEN_LENGTH}–${MAX_OPERATOR_TOKEN_LENGTH} 个字符；推荐 openssl rand -hex 32`);
+  }
+  return token;
+}
+
+function parseOperator(value) {
+  if (value === undefined) return { enabled: false, token: '' };
+  const operator = record(value, 'operator');
+  knownKeys(operator, OPERATOR_KEYS, 'operator');
+  return { enabled: false, token: parseOperatorToken(operator.token, 'operator.token') };
+}
+
+function operatorConsoleEnabled(config) {
+  return config.storage?.driver === 'sqlite' && (config.operator?.token || '').length >= MIN_OPERATOR_TOKEN_LENGTH;
+}
+
+function finalizeOperator(config) {
+  config.operator.enabled = operatorConsoleEnabled(config);
+  return config;
+}
+
+function sqliteOperatorNotice(config) {
+  if (config.storage?.driver !== 'sqlite') return null;
+  if (operatorConsoleEnabled(config)) return null;
+  return [
+    'SQLite 已启用，但未配置 operator.token，无法打开 /admin，也无法配置模型渠道。',
+    `生成口令：${OPERATOR_TOKEN_COMMAND}`,
+    '在 version: 3 的配置里写入 operator.token，或设置环境变量 PAVILO_OPERATOR_TOKEN。'
+  ].join('\n');
+}
+
+function applySecretEnv(config, env) {
+  if (typeof env.PAVILO_OPERATOR_TOKEN === 'string' && env.PAVILO_OPERATOR_TOKEN !== '') {
+    config.operator.token = parseOperatorToken(env.PAVILO_OPERATOR_TOKEN, 'PAVILO_OPERATOR_TOKEN');
+  }
+  finalizeOperator(config);
+}
+
 function parseRetentionDays(value, field) {
   if (value === undefined) return 30;
   if (value === null || value === 'forever') return null;
@@ -261,12 +329,12 @@ function validateCrossConstraints(config) {
 
 function normalizeConfig(document = {}, { requireVersion = false, baseDir = ROOT } = {}) {
   const root = record(document, 'config');
-  if (requireVersion && root.version === undefined) fail('version', '配置文件必须声明 version: 1 或 2');
+  if (requireVersion && root.version === undefined) fail('version', '配置文件必须声明 version: 1、2 或 3');
   if (root.version !== undefined && !SUPPORTED_CONFIG_VERSIONS.includes(root.version)) {
-    fail('version', '当前只支持版本 1 或 2');
+    fail('version', '当前只支持版本 1、2 或 3');
   }
   const schemaVersion = root.version === undefined ? 1 : root.version;
-  knownKeys(root, schemaVersion === 2 ? ROOT_KEYS_V2 : ROOT_KEYS_V1, 'config');
+  knownKeys(root, rootKeysFor(schemaVersion), 'config');
 
   const server = record(root.server, 'server');
   const room = record(root.room, 'room');
@@ -333,7 +401,9 @@ function normalizeConfig(document = {}, { requireVersion = false, baseDir = ROOT
   if (!defaultChannel) fail('room.defaultChannel', `找不到频道 “${config.defaultChannelId}”`);
   if (!defaultChannel.enabled) fail('room.defaultChannel', '默认频道必须启用');
   if (defaultChannel.readOnly) fail('room.defaultChannel', '默认频道不能是只读频道');
-  config.storage = schemaVersion === 2 ? parseStorage(root.storage, baseDir) : { driver: 'memory' };
+  config.storage = schemaVersion >= 2 ? parseStorage(root.storage, baseDir) : { driver: 'memory' };
+  if (schemaVersion >= 3) config.operator = parseOperator(root.operator);
+  finalizeOperator(config);
   validateCrossConstraints(config);
   return config;
 }
@@ -411,6 +481,11 @@ function loadConfig({ env = process.env, configPath } = {}) {
     if (typeof env.PORT !== 'string' || !DECIMAL_PORT_RE.test(env.PORT)) fail('PORT', '必须是 1–65535 的严格十进制整数');
     config.port = Number(env.PORT);
   }
+  try {
+    applySecretEnv(config, env);
+  } catch (error) {
+    throw new Error(`${source === undefined ? 'config' : resolvedPath}: ${error.message}`);
+  }
   return { config, configPath: source === undefined ? null : resolvedPath };
 }
 
@@ -419,12 +494,25 @@ function checkConfig() {
     const loaded = loadConfig();
     const source = loaded.configPath || '内置默认配置';
     process.stdout.write(`配置有效：${source}\n`);
+    const notice = sqliteOperatorNotice(loaded.config);
+    if (notice) process.stderr.write(`提示：${notice}\n`);
   } catch (error) {
     process.stderr.write(`配置无效：${error.message}\n`);
     process.exitCode = 1;
   }
 }
 
-module.exports = { CONFIG_VERSION, SUPPORTED_CONFIG_VERSIONS, DEFAULTS, loadConfig, normalizeConfig, parseConfig };
+module.exports = {
+  CONFIG_VERSION,
+  SUPPORTED_CONFIG_VERSIONS,
+  DEFAULTS,
+  MIN_OPERATOR_TOKEN_LENGTH,
+  OPERATOR_TOKEN_COMMAND,
+  loadConfig,
+  normalizeConfig,
+  parseConfig,
+  operatorConsoleEnabled,
+  sqliteOperatorNotice
+};
 
 if (require.main === module) checkConfig();

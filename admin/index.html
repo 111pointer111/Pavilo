@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#eef4f2">
+  <title>语亭值班</title>
+  <link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body>
+  <section class="login" id="loginScreen">
+    <div class="login-card">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 256 256">
+          <path fill="#0f7772" d="M127 46C119 47 113 61 105 69C87 87 66 99 37 108C30 110 32 119 40 124L51 129V199C51 205 56 210 63 210H84L98 189C87 186 81 180 81 171V142C81 133 86 129 95 122C111 111 122 101 129 89C137 103 147 113 161 122C171 129 175 135 175 143V171C175 183 168 190 156 192H116C108 194 102 201 96 207C92 210 94 210 101 210H193C200 210 205 205 205 198V129L217 123C225 119 225 110 219 108C187 98 166 84 152 70L134 48C132 45 130 45 127 46Z"/>
+          <circle cx="196.7" cy="71.7" r="15.1" fill="#e86f57"/>
+        </svg>
+      </span>
+      <p class="flag" data-i18n="login.flag">OPERATOR / 值班台</p>
+      <h1 data-i18n-html="login.title">管亭，<br>不进场。</h1>
+      <p class="copy" data-i18n="login.copy">这里只给部署者配置模型渠道和查看用量。</p>
+      <form id="loginForm">
+        <label for="tokenInput" data-i18n="login.label">Operator token</label>
+        <div class="login-row">
+          <input id="tokenInput" name="token" type="password" autocomplete="current-password" required>
+          <button type="submit" data-i18n="login.submit">进入值班</button>
+        </div>
+        <p class="error" id="loginError" role="alert"></p>
+      </form>
+      <div class="lang-row">
+        <button type="button" class="lang" data-lang="zh-CN" data-i18n="lang.zh">中文</button>
+        <button type="button" class="lang" data-lang="en" data-i18n="lang.en">English</button>
+      </div>
+    </div>
+  </section>
+
+  <main class="desk" id="desk" hidden>
+    <header class="top">
+      <strong data-i18n="top.desk">语亭值班</strong>
+      <div class="top-actions">
+        <button type="button" class="lang" data-lang="zh-CN" data-i18n="lang.zh">中文</button>
+        <button type="button" class="lang" data-lang="en" data-i18n="lang.en">English</button>
+        <button type="button" id="logoutButton" data-i18n="top.logout">退出</button>
+      </div>
+    </header>
+    <p class="status" id="statusBar"></p>
+    <div class="layout">
+      <section class="panel">
+        <h2 data-i18n="channels.title">渠道</h2>
+        <div id="channelList"></div>
+        <form class="editor" id="channelForm">
+          <div class="grid">
+            <label>
+              <span data-i18n="channel.id">渠道 ID</span>
+              <input name="id" required pattern="[a-z0-9][a-z0-9_-]{0,31}" maxlength="32">
+            </label>
+            <label>
+              <span data-i18n="channel.preset">Preset</span>
+              <select name="preset">
+                <option value="deepseek">DeepSeek</option>
+                <option value="openai-compatible">OpenAI compatible</option>
+              </select>
+            </label>
+            <label>
+              <span data-i18n="channel.label">显示名</span>
+              <input name="label" maxlength="80">
+            </label>
+            <label>
+              <span data-i18n="channel.model">模型</span>
+              <input name="model" maxlength="128">
+            </label>
+            <label class="wide">
+              <span data-i18n="channel.baseUrl">Base URL</span>
+              <input name="baseUrl" maxlength="2048" placeholder="https://api.deepseek.com/v1">
+            </label>
+            <label class="wide">
+              <span data-i18n="channel.apiKey">API key</span>
+              <input name="apiKey" type="password" autocomplete="off">
+              <small id="keyHelp"></small>
+            </label>
+          </div>
+          <label class="check">
+            <input type="checkbox" name="enabled" checked>
+            <span data-i18n="channel.enabled">启用</span>
+          </label>
+          <div class="actions">
+            <button type="submit" id="saveButton" data-i18n="channel.save">保存</button>
+            <button type="button" id="probeButton" data-i18n="channel.probe">探测</button>
+            <button type="button" id="deleteButton" class="danger" data-i18n="channel.delete">放弃认领</button>
+          </div>
+          <p class="note" id="formNote" role="status"></p>
+        </form>
+      </section>
+      <section class="panel">
+        <h2 data-i18n="usage.title">近 7 日用量</h2>
+        <div id="usageBox"></div>
+      </section>
+    </div>
+  </main>
+  <script src="/admin/i18n.js"></script>
+  <script src="/admin/app.js"></script>
+</body>
+</html>

@@ -146,7 +146,7 @@ There are two copy-ready examples:
 # Memory mode (default; gone after restart)
 cp pavilo.example.yaml pavilo.yaml
 
-# Or SQLite retention (last 30 days by default)
+# Or SQLite retention (last 30 days by default; model channels are configured in /admin)
 cp pavilo.sqlite.example.yaml pavilo.yaml
 mkdir -p data
 
@@ -163,7 +163,7 @@ PAVILO_CONFIG=/etc/pavilo/config.yaml npm start
 
 Configuration changes require a **process restart**; a running service never hot-reloads. `npm run config:check` validates and reports the actual configuration source without starting the service.
 
-Configuration must declare `version: 1` or `version: 2`. Version 1 forbids `storage` and matches v1.0; version 2 may enable optional SQLite. YAML uses strict types: write booleans as `true` / `false` and numbers as integers; unknown keys, duplicate keys, unknown tags, anchors/aliases, and non-object roots are rejected. Memory example: [`pavilo.example.yaml`](./pavilo.example.yaml). SQLite example: [`pavilo.sqlite.example.yaml`](./pavilo.sqlite.example.yaml). Field reference: [docs/configuration.md](docs/configuration.md) (Chinese).
+Configuration must declare `version: 1`, `2`, or `3`. Version 1 forbids `storage` / `operator` and matches v1.0; version 2 may enable optional SQLite; version 3 may set `operator.token` to open `/admin` (model channels are configured in the console, not in YAML). SQLite without a token still starts, but the process warns that `/admin` is unavailable. YAML uses strict types: write booleans as `true` / `false` and numbers as integers; unknown keys, duplicate keys, unknown tags, anchors/aliases, and non-object roots are rejected. Memory example: [`pavilo.example.yaml`](./pavilo.example.yaml). SQLite example: [`pavilo.sqlite.example.yaml`](./pavilo.sqlite.example.yaml). Field reference: [docs/configuration.md](docs/configuration.md) (Chinese).
 
 ### Channel and capacity semantics
 

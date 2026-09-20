@@ -18,7 +18,7 @@ function createChatCore(config, runtime = {}) {
   const randomResumeToken = runtime.randomResumeToken || (() => crypto.randomBytes(9).toString('base64url'));
   const randomAvatarSeed = runtime.randomAvatarSeed || (() => crypto.randomInt(0, 0x7fffffff));
   const peers = new Map();
-  const store = runtime.store || createConversationStore(config, { randomId, now });
+  const store = runtime.store || createConversationStore(config, { randomId, now, engine: runtime.engine });
   const rooms = createRoomStore(config, store);
   const publicUser = (session) => events.publicUser(session, config.exposeMemberIps);
   let effects = [];

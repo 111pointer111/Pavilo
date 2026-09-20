@@ -17,9 +17,10 @@
 #   - 请勿将配置文件放入 vendor/ 或 client/ 目录
 #   - 调优建议见文件底部的"配置调优建议"章节
 
-# 配置文件版本（必填，1 或 2）
-#   1：与 v1.0 相同，禁止出现 storage，内部归一为 memory
-#   2：允许可选 storage（省略则仍为 memory）
+# 配置文件版本（必填，1、2 或 3）
+#   1：与 v1.0 相同，禁止出现 storage / operator，内部归一为 memory
+#   2：允许可选 storage（省略则仍为 memory）；禁止 operator
+#   3：允许 operator.token（sqlite 管理页）。模型渠道不在 YAML 里配置
 # 代码默认值：无配置文件时等价于 version 1 + memory
 version: 1
 
@@ -279,6 +280,6 @@ rateLimits:
 #   - maxMessagesPerChannel: 500-1000
 #   - 可以降低 maxChannelBytes 节省内存
 #
-# 需要 SQLite 留存时，请复制 pavilo.sqlite.example.yaml，不要在本文件里加 storage。
+# 需要 SQLite 留存（以及 /admin 配置模型渠道）时，请复制 pavilo.sqlite.example.yaml。
 #
 # ============================================================================

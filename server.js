@@ -1,21 +1,52 @@
 'use strict';
 
 const http = require('node:http');
-const { DEFAULTS, loadConfig } = require('./config');
+const { DEFAULTS, loadConfig, sqliteOperatorNotice, operatorConsoleEnabled } = require('./config');
 const { createChatCore } = require('./src/core');
 const { PROTOCOL_VERSION, REACTION_EMOJIS } = require('./src/core/events');
 const { createHttpHandler } = require('./src/transport/http');
 const { createWebSocketTransport } = require('./src/transport/websocket');
+const { createGateway } = require('./src/gateway');
+const { openSqliteEngine } = require('./src/storage/sqlite-engine');
+const { createOperatorHttp, isAdminPath } = require('./src/operator/http');
 
 function createChatServer(options = {}) {
   const config = { ...DEFAULTS, ...options };
   config.channels = (options.channels || DEFAULTS.channels).map((channel) => ({ ...channel }));
+  config.operator = { ...DEFAULTS.operator, ...(options.operator || {}) };
+  config.gateway = { ...structuredClone(DEFAULTS.gateway), ...(options.gateway || {}) };
+  config.operator.enabled = operatorConsoleEnabled(config);
+  const sqliteEngine = config.storage?.driver === 'sqlite' && config.storage.sqlite?.path
+    ? openSqliteEngine(config.storage.sqlite)
+    : undefined;
   let transport;
-  const core = createChatCore(config, { onEffects: (effects) => transport.deliver(effects) });
-  const server = http.createServer(createHttpHandler(config, core, () => server.address(), __dirname));
+  const core = createChatCore(config, { onEffects: (effects) => transport.deliver(effects), engine: sqliteEngine });
+  const gateway = createGateway(config, {
+    engine: sqliteEngine,
+    fetch: options.fetch,
+    now: options.now,
+    schedule: options.schedule,
+    cancel: options.cancel
+  });
+  const publicHttp = createHttpHandler(config, core, () => server.address(), __dirname, {
+    healthPatch: () => gateway.healthPatch()
+  });
+  const operatorHttp = config.operator.enabled
+    ? createOperatorHttp(config, { gateway, core, root: __dirname })
+    : null;
+  const server = http.createServer((request, response) => {
+    if (operatorHttp && isAdminPath(request)) operatorHttp(request, response);
+    else publicHttp(request, response);
+  });
   transport = createWebSocketTransport(server, config, core);
   const { listen, stop, roomEpoch, localAddresses, state } = transport;
-  return { server, listen, stop, roomEpoch, localAddresses, config, state, storageInfo: core.storageInfo };
+  async function stopAll(signal) {
+    const result = await stop(signal);
+    gateway.close();
+    sqliteEngine?.close();
+    return result;
+  }
+  return { server, listen, stop: stopAll, roomEpoch, localAddresses, config, state, storageInfo: core.storageInfo, gateway };
 }
 
 module.exports = { createChatServer, DEFAULTS, PROTOCOL_VERSION, REACTION_EMOJIS: [...REACTION_EMOJIS] };
@@ -49,6 +80,14 @@ if (require.main === module) {
       process.stdout.write(`✓ Storage mode: sqlite (engine=${storage.engine}, path=${storage.path}, retentionDays=${retention})\n`);
     } else {
       process.stdout.write(`✓ Storage mode: memory\n`);
+    }
+    const operatorNotice = sqliteOperatorNotice(config);
+    if (operatorNotice) {
+      process.stdout.write(`\n⚠️  ${operatorNotice.replaceAll('\n', '\n    ')}\n\n`);
+    } else if (config.operator.enabled) {
+      process.stdout.write(`✓ Operator console: http://localhost:${port}/admin\n`);
+      const snapshot = app.gateway.status();
+      process.stdout.write(`✓ Gateway channels: ${snapshot.channels} (configured in /admin)\n`);
     }
     process.stdout.write(`✓ Config source: ${loaded.configPath || 'built-in defaults'}\n`);
     process.stdout.write(`  → Restart required to apply config changes\n\n`);

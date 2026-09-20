@@ -77,9 +77,17 @@ const result = core.dispatch('peer-1', command);
 
 `core.completeSync(peerId)` 由传输层在初始快照和同期直播队列都完成后调用。在此之前，内核继续拒绝普通命令并保留 `clientMessageId`。租约/typing 到期产生的 effects 通过注入的 `onEffects` 送到传输层；测试可注入虚拟时钟而完全不启动网络。
 
+### 网关 `src/gateway` 与值班台 `src/operator`
+
+可选。`server.js` 创建网关并注入 operator HTTP。`src/core` 不 import fetch 或厂商 SDK。
+
+- `gateway/`：preset（DeepSeek / openai-compatible）、OpenAI 兼容 `complete()`、用量、SQLite 密文渠道。
+- `operator/`：`/admin` 静态白名单与 JSON API；进程内 session；与聊天 WebSocket 隔离。
+- 管理页在 `admin/`，不复用聊天 DOM。未启用时 `/admin` 为 404。
+
 ### 传输层 `src/transport`
 
-- `http.js`：静态资源、`/room-info`、`/healthz`、MIME、gzip/ETag 和路径边界。只读取 core 的公开元数据/统计，不了解内部 Map。
+- `http.js`：静态资源、`/room-info`、`/healthz`、MIME、gzip/ETag 和路径边界。只读取 core 的公开元数据/统计，不了解内部 Map。可选把网关公开摘要 merge 进 `/healthz`。
 - `websocket.js`：upgrade、Origin、连接/每 IP 限制、写缓冲、初始同步队列、drain、心跳和生命周期。
 - `protocol.js`：masked frame 校验、fragment、控制帧和 JSON 解码。只将命令交给 core，不裁决聊天业务。
 
@@ -89,7 +97,7 @@ const result = core.dispatch('peer-1', command);
 
 `/client/` 不是目录挂载：只服务 `http.js` 显式列出的文件，GET/HEAD 共享 gzip、ETag 和 realpath 边界检查。未列出的客户端文件、`src/`、测试、配置与其余仓库源码仍为 404。
 
-配置加载器保守保留整个 `client/` 和 `vendor/` 目录，拒绝其中配置文件及指向这些目录的符号链接，避免以后增加前端资源时暴露真实配置。YAML 版本、字段、默认值、加载优先级保持不变。
+配置加载器保守保留整个 `client/`、`vendor/` 和 `admin/` 目录，拒绝其中配置文件及指向这些目录的符号链接，避免以后增加前端资源时暴露真实配置。YAML 版本、字段、默认值、加载优先级保持不变。
 
 ## 验证与后续范围
 

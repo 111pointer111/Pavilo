@@ -39,6 +39,7 @@ GET /healthz
 | `clients` | number | 当前 WebSocket 连接数 |
 | `ephemeral` | boolean | `true` 表示 memory（重启即空）；`false` 表示 sqlite 留存 |
 | `storage` | object | 仅 sqlite：`{ driver, path, bytes, messages }`。`messages` 为全库条数；顶层 `roomBytes` 仍是工作集字节 |
+| `gateway` | object | 仅 sqlite 且已配置 operator.token：`{ enabled: true, channels, degraded }`。不含 key、不含 baseUrl。网关故障**不**把本端点改成非 200 |
 
 ### 失败响应
 

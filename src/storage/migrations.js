@@ -4,7 +4,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const MIGRATIONS = [
-  { id: 1, file: '001-initial.sql' }
+  { id: 1, file: '001-initial.sql' },
+  { id: 2, file: '002-gateway.sql' }
 ];
 
 function applyMigrations(engine) {

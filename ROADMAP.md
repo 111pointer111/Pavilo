@@ -744,26 +744,26 @@ src/storage/migrations/
 
 ### 网关
 
-- 新模块（如 `src/gateway/`）：渠道 preset、OpenAI 兼容调用、超时/重试、usage。
-- `src/core` 不 import 任何厂商 SDK。
-- 第一阶段官方渠道：**DeepSeek**。选择 preset 后自动填充 base URL，管理员只填 key。
-- 协议按 OpenAI compatible 走，后续加渠道主要是加 preset，而不是新造一套调用层。
-- 密钥不进日志、不进公开 `/room-info`。
-- 网关故障或未启用时，普通聊天必须不受影响。
+- ✅ 新模块 `src/gateway/`：渠道 preset、OpenAI 兼容调用、超时/重试、usage。
+- ✅ `src/core` 不 import 任何厂商 SDK。
+- ✅ 第一阶段官方渠道：**DeepSeek**。选择 preset 后自动填充 base URL，管理员只填 key。
+- ✅ 协议按 OpenAI compatible 走；自定义渠道用同一调用层（`preset: openai-compatible`）。
+- ✅ 密钥不进日志、不进公开 `/room-info`。SQLite 中的渠道 key 为 AES-256-GCM 密文。
+- ✅ 网关故障或未启用时，普通聊天必须不受影响。
 
 ### 管理页
 
-- 启用后提供管理页（路径如 `/admin`，实现时再定）。
-- 能力：查看与编辑网关渠道、填 key（只写 / 掩码回显）、按网关渠道查看用量、综合 dashboard。
-- 保护：`operator.token` 或管理密码。本期不做账号系统。
-- 默认关闭；未启用时不增加 ephemeral 用户的启动成本。
+- ✅ 启用后提供 `/admin`。
+- ✅ 查看与编辑网关渠道、填 key（只写 / 掩码回显）、探测连通、按网关渠道查看用量、综合状态。
+- ✅ 保护：`operator.token`（推荐 `openssl rand -hex 32`）。本期不做账号系统。
+- ✅ 默认关闭；未启用时 `/admin` 为 404。
 
 ### 配置双源
 
-- YAML / 环境变量可以引导启动（选**网关渠道**、填 key）。这里的渠道是模型供应商，不是聊天频道。
-- 管理页保存某个网关渠道后，以 SQLite 为准。
-- 未开 SQLite：YAML 配的网关仍可调用模型，但不记用量，管理页不可编辑。
-- 必须写清优先级，避免部署者改了 yaml 却不生效。
+- ✅ YAML 只写 `operator.token`（或 `PAVILO_OPERATOR_TOKEN`）。模型渠道与 API key 只在 `/admin` 配置。
+- ✅ 管理页保存的渠道以 SQLite 密文为准。
+- ✅ sqlite 但未填 token：进程仍启动，并提示无法打开 `/admin`。
+- ✅ 说明见 [docs/gateway.md](docs/gateway.md) 与 ADR-0004。
 
 ### 非目标
 

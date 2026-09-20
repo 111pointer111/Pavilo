@@ -26,7 +26,8 @@ function createSqliteStore(config, runtime = {}) {
   if (!sqlite?.path) throw new Error('sqlite store requires storage.sqlite.path');
   const now = runtime.now || Date.now;
   const randomId = runtime.randomId || ((prefix) => `${prefix}_${crypto.randomBytes(8).toString('hex')}`);
-  const engine = openSqliteEngine(sqlite);
+  const ownsEngine = !runtime.engine;
+  const engine = runtime.engine || openSqliteEngine(sqlite);
   applyMigrations(engine);
 
   const selectChannel = engine.prepare('SELECT id, epoch, started_at, latest_seq FROM channels WHERE id = ?');
@@ -245,7 +246,7 @@ function createSqliteStore(config, runtime = {}) {
   function clear() {}
 
   function close() {
-    engine.close();
+    if (ownsEngine) engine.close();
   }
 
   return {

@@ -6,6 +6,25 @@ Pavilo 的重要变更都记在这份文件里。
 
 ## [Unreleased]
 
+Config Schema v3、进程内 AI 网关、SQLite 密文渠道，以及 `/admin` 值班台。默认关闭。聊天核心不依赖 AI。
+
+### Added
+- Config Schema v3：可选 `operator` 与 `gateway`（默认关闭）。v1 / v2 文件继续合法
+- sqlite 示例增加 `operator.token`（`openssl rand -hex 32`）；模型渠道只在 `/admin` 配置，不另提供网关 YAML
+- ADR-0004（配置双源；SQLite 中的渠道 key 为 AES-256-GCM 密文）与 ADR-0005（进程内网关）
+- `src/gateway/`：OpenAI 兼容 `complete()`、DeepSeek / openai-compatible preset、超时重试并发闸
+- SQLite migration 002：`gateway_channels` / `gateway_usage`；管理页写入的 API key 为 AES-256-GCM 密文
+- 网关 hang 时聊天 message 仍 ACK；`/healthz` 在网关启用时附加 `{ enabled, channels, degraded }`，不含密钥
+- `/admin`：operator token 登录、渠道编辑、密钥只写/掩码、连通性探测、近 7 日用量
+- [`docs/gateway.md`](docs/gateway.md)：双源优先级、密钥红线、`complete()` 给 v1.4/v1.5 的调用口
+
+### Changed
+- `version: 1` / `2` 出现 `operator` 会被拒绝；任何版本出现 `gateway:` 都会被拒绝。模型渠道只在 `/admin` 写入 SQLite
+- sqlite 引擎由 composition 打开一次，聊天 store 与网关 store 共享连接
+
+### Tests
+- 总测试数：348 个（346 通过，2 跳过）
+
 ## [1.2.0] - 2026-09-20
 
 SQLite 运维：历史分页、备份/恢复、完整性检查与 healthz 库存字段。默认 memory 行为不变。不做全文搜索。
