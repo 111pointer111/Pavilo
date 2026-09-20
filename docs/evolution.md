@@ -768,7 +768,7 @@ docs/adr/
 建议：
 
 - README：用户入口、Quick Start、产品边界；
-- `pavilo.example.yaml`：可运行的配置例子；
+- `pavilo.example.yaml` / `pavilo.sqlite.example.yaml`：内存与 SQLite 两份可运行配置例子；
 - `docs/configuration.md`：配置语义唯一详细说明；
 - `chat-protocol.md`：线上协议真源；
 - `docs/architecture/overview.md`：当前实现；

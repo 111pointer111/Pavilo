@@ -2,7 +2,7 @@
 
 本文档逐项说明 Pavilo 的全部配置项。
 
-> **事实来源**：本文的字段名、默认值与语义均取自 [`pavilo.example.yaml`](../pavilo.example.yaml) 与配置加载器实现。Pavilo 使用**严格 schema**：未知配置项、重复键、未知 tag、锚点/别名和非对象根节点都会被拒绝并导致启动失败。因此**不要使用本文档之外的字段名**。
+> **事实来源**：本文的字段名、默认值与语义均取自 [`pavilo.example.yaml`](../pavilo.example.yaml)、[`pavilo.sqlite.example.yaml`](../pavilo.sqlite.example.yaml) 与配置加载器实现。Pavilo 使用**严格 schema**：未知配置项、重复键、未知 tag、锚点/别名和非对象根节点都会被拒绝并导致启动失败。因此**不要使用本文档之外的字段名**。
 
 ## 配置文件位置与优先级
 
@@ -17,8 +17,16 @@ Pavilo 按以下顺序加载配置（越靠后优先级越高）：
 
 `PORT` 只接受 `1` 至 `65535` 的严格十进制字符串（例如 `4173`）；`4173.0`、`0x105d`、带空格或正负号的形式均无效。
 
+仓库提供两份可直接复制的示例：
+
 ```bash
+# 内存模式（默认，重启即空）
 cp pavilo.example.yaml pavilo.yaml
+
+# 或 SQLite 留存（默认最近 30 天）
+cp pavilo.sqlite.example.yaml pavilo.yaml
+mkdir -p data
+
 npm run config:check    # 只校验并显示实际配置来源，不启动服务
 npm start
 ```
@@ -110,7 +118,7 @@ version: 1
 
 ### `storage` —— 可选持久化（仅 `version: 2`）
 
-默认安装不需要这一节。未写 `storage`、或 `driver: memory` 时，行为与 v1.0 完全一致：重启即空。
+默认安装不需要这一节。未写 `storage`、或 `driver: memory` 时，行为与 v1.0 完全一致：重启即空。完整可运行示例见 [`pavilo.sqlite.example.yaml`](../pavilo.sqlite.example.yaml)（`cp pavilo.sqlite.example.yaml pavilo.yaml`）。
 
 ```yaml
 version: 2
@@ -719,7 +727,7 @@ PAVILO_CONFIG=/etc/pavilo/config.yaml npm run config:check
 
 ## 配置文件安全
 
-Pavilo 的 HTTP 服务采用静态白名单，`pavilo.yaml` 和 `pavilo.example.yaml` **不会**被应用提供；配置加载器也拒绝把 `index.html`、`chat.css` 或 `vendor/`、`client/` 内文件（包括通过符号链接指向它们的文件）用作配置。
+Pavilo 的 HTTP 服务采用静态白名单，`pavilo.yaml`、`pavilo.example.yaml` 和 `pavilo.sqlite.example.yaml` **不会**被应用提供；配置加载器也拒绝把 `index.html`、`chat.css` 或 `vendor/`、`client/` 内文件（包括通过符号链接指向它们的文件）用作配置。
 
 但这不是认证机制：聊天页面、房间元数据和前端资源对任何能访问监听端口的人开放。
 
@@ -731,7 +739,8 @@ Pavilo 的 HTTP 服务采用静态白名单，`pavilo.yaml` 和 `pavilo.example.
 
 ## 参考资源
 
-- [`pavilo.example.yaml`](../pavilo.example.yaml) —— 带注释的完整示例
+- [`pavilo.example.yaml`](../pavilo.example.yaml) —— 内存模式完整示例（`cp` 为 `pavilo.yaml`）
+- [`pavilo.sqlite.example.yaml`](../pavilo.sqlite.example.yaml) —— SQLite 留存完整示例（`cp` 为 `pavilo.yaml`）
 - [故障排查指南](troubleshooting.md)
 - [部署文档](deployment/)
 - [HTTP API 文档](api/http-api.md)

@@ -147,7 +147,7 @@ test('public metadata is allowlisted and private files or vendor symlinks cannot
   assert.equal(metadata.defaultLanguage, 'zh-CN');
   assert.deepEqual(metadata.supportedLanguages, ['zh-CN', 'en']);
   assert.ok(!JSON.stringify(metadata).includes('private.example'));
-  for (const file of ['/pavilo.yaml', '/pavilo.example.yaml', '/config.js', '/server.js', '/.env', '/package.json', '/vendor/../config.js', '/vendor/%2e%2e/config.js', '/client/unknown.js', '/client/../config.js']) {
+  for (const file of ['/pavilo.yaml', '/pavilo.example.yaml', '/pavilo.sqlite.example.yaml', '/config.js', '/server.js', '/.env', '/package.json', '/vendor/../config.js', '/vendor/%2e%2e/config.js', '/client/unknown.js', '/client/../config.js']) {
     for (const method of ['GET', 'HEAD']) assert.notEqual((await fetch(`${url}${file}`, { method })).status, 200, `${method} ${file}`);
   }
   for (const file of ['/client/pending.js', '/client/images.js']) {

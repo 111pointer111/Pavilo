@@ -257,7 +257,8 @@ Pavilo v1.x 默认场景是：
 ### 文档单一真源
 
 - **README**：用户入口、Quick Start、产品边界
-- **`pavilo.example.yaml`**：可运行的配置示例
+- **`pavilo.example.yaml`**：内存模式可运行配置示例
+- **`pavilo.sqlite.example.yaml`**：SQLite 留存可运行配置示例
 - **`docs/configuration.md`**：配置语义唯一详细说明
 - **`docs/architecture/chat-protocol.md`**：协议真源
 - **`docs/architecture/overview.md`**：当前实现
@@ -268,7 +269,7 @@ Pavilo v1.x 默认场景是：
 
 ### 避免文档漂移
 
-- CI 验证 `pavilo.example.yaml` 可解析
+- CI 验证两份 example YAML 可解析
 - 默认频道 ID 与测试一致
 - Protocol version 与代码常量一致
 - 文档引用的脚本存在

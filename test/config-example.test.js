@@ -1,7 +1,7 @@
 // 测试示例配置可被当前配置加载器正确解析
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { loadConfig } = require('../config');
+const { parseConfig } = require('../config');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -9,11 +9,21 @@ test('pavilo.example.yaml can be parsed by current config loader', () => {
   const examplePath = path.join(__dirname, '../pavilo.example.yaml');
   assert.ok(fs.existsSync(examplePath), 'pavilo.example.yaml should exist');
 
-  // 加载示例配置（不进行完整校验，因为示例中可能有占位值）
   const yaml = fs.readFileSync(examplePath, 'utf-8');
-  assert.ok(yaml.includes('version: 1'), 'Example config should declare version: 1');
+  assert.ok(yaml.includes('version: 1'), 'Memory example should declare version: 1');
   assert.ok(yaml.includes('id: general'), 'Example config should have general channel');
   assert.ok(yaml.includes('id: project'), 'Example config should have project channel');
+  assert.ok(!/^storage:/m.test(yaml), 'Memory example must not declare storage');
+});
+
+test('pavilo.sqlite.example.yaml can be parsed as sqlite storage', () => {
+  const examplePath = path.join(__dirname, '../pavilo.sqlite.example.yaml');
+  assert.ok(fs.existsSync(examplePath), 'pavilo.sqlite.example.yaml should exist');
+  const config = parseConfig(fs.readFileSync(examplePath, 'utf8'), examplePath);
+  assert.equal(config.storage.driver, 'sqlite');
+  assert.equal(config.storage.sqlite.engine, 'auto');
+  assert.equal(config.storage.sqlite.retentionDays, 30);
+  assert.match(config.storage.sqlite.path, /pavilo\.db$/);
 });
 
 test('default channels match README documentation', () => {

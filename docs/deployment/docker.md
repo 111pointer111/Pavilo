@@ -26,7 +26,7 @@ open http://localhost:4173
 ### 使用自定义配置
 
 ```bash
-# 复制示例配置
+# 复制示例配置（内存，或改用 pavilo.sqlite.example.yaml）
 cp pavilo.example.yaml pavilo.yaml
 
 # 编辑配置
@@ -269,20 +269,11 @@ services:
 
 默认镜像仍是零编译、纯内存：不挂卷，容器一停记录就没了。
 
-若启用 SQLite，把数据目录挂出来，并使用 Config Schema v2：
-
-```yaml
-# pavilo.yaml
-version: 2
-storage:
-  driver: sqlite
-  sqlite:
-    path: ./data/pavilo.db
-    engine: auto
-    retentionDays: 30
-```
+若启用 SQLite，复制留存示例并把数据目录挂出来：
 
 ```bash
+cp pavilo.sqlite.example.yaml pavilo.yaml
+mkdir -p data
 docker run -d \
   --name pavilo \
   -p 4173:4173 \

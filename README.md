@@ -146,10 +146,16 @@ Pavilo 按以下优先级加载配置（越靠后优先级越高）：
 
 `PAVILO_CONFIG` 一旦显式设置，目标缺失、不可读、过大、不是普通文件或校验失败都会使启动失败，不会回退。`PORT` 只接受 `1` 至 `65535` 的严格十进制字符串，例如 `4173`；`4173.0`、`0x105d`、空格和正负号均无效。
 
-创建配置：
+创建配置。仓库提供两份可直接复制的示例：
 
 ```bash
+# 内存模式（默认，重启即空）
 cp pavilo.example.yaml pavilo.yaml
+
+# 或 SQLite 留存（默认最近 30 天）
+cp pavilo.sqlite.example.yaml pavilo.yaml
+mkdir -p data
+
 npm run config:check
 npm start
 ```
@@ -163,7 +169,7 @@ PAVILO_CONFIG=/etc/pavilo/config.yaml npm start
 
 修改配置后必须**重启进程**，运行中的服务不会热加载。`npm run config:check` 只校验并显示实际配置来源，不启动服务。
 
-配置必须声明 `version: 1` 或 `version: 2`。`version: 1` 禁止出现 `storage`，行为与 v1.0 相同；`version: 2` 可配置可选 SQLite。YAML 使用严格类型：布尔值写作 `true` / `false`，数字写作整数；未知配置项、重复键、未知 tag、锚点/别名和非对象根节点都会被拒绝。完整字段及推荐值见 [`pavilo.example.yaml`](./pavilo.example.yaml)。
+配置必须声明 `version: 1` 或 `version: 2`。`version: 1` 禁止出现 `storage`，行为与 v1.0 相同；`version: 2` 可配置可选 SQLite。YAML 使用严格类型：布尔值写作 `true` / `false`，数字写作整数；未知配置项、重复键、未知 tag、锚点/别名和非对象根节点都会被拒绝。内存示例见 [`pavilo.example.yaml`](./pavilo.example.yaml)，留存示例见 [`pavilo.sqlite.example.yaml`](./pavilo.sqlite.example.yaml)。
 
 ### 频道和人数语义
 
@@ -190,7 +196,7 @@ _注：内置默认频道为 `general` 和 `project`（单数）。_
 
 ### 配置文件安全
 
-Pavilo 的 HTTP 服务采用静态白名单，`pavilo.yaml` 和 `pavilo.example.yaml` 不会被应用直接提供；配置加载器也拒绝把 `index.html`、`chat.css` 或 `vendor/`、`client/` 内文件（包括通过符号链接指向它们的文件）用作配置。但这不是认证机制：聊天页面、房间元数据和前端资源对任何能访问监听端口的人开放。
+Pavilo 的 HTTP 服务采用静态白名单，`pavilo.yaml`、`pavilo.example.yaml` 和 `pavilo.sqlite.example.yaml` 不会被应用直接提供；配置加载器也拒绝把 `index.html`、`chat.css` 或 `vendor/`、`client/` 内文件（包括通过符号链接指向它们的文件）用作配置。但这不是认证机制：聊天页面、房间元数据和前端资源对任何能访问监听端口的人开放。
 
 - 不要把真实配置放入 `vendor/`、`client/`、其他 Web 根目录、对象存储公开目录或反向代理的静态目录。
 - 反向代理只能转发 Pavilo 的应用端口，不得额外把整个仓库目录作为静态站点；否则代理可能绕过应用白名单，泄漏原始 YAML、源码或其他文件。
@@ -255,7 +261,8 @@ PAVILO_PLAYWRIGHT_PATH=/tmp/pavilo-browser-verify/node_modules/playwright npm ru
 ```text
 .
 ├── config.js           # YAML / 环境变量配置加载与校验
-├── pavilo.example.yaml # 完整配置示例
+├── pavilo.example.yaml        # 内存模式完整示例（cp 为 pavilo.yaml）
+├── pavilo.sqlite.example.yaml # SQLite 留存完整示例（cp 为 pavilo.yaml）
 ├── index.html          # 页面骨架、资源引用与启动入口
 ├── chat.css            # 页面样式（深色模式、玻璃态、微交互）
 ├── client/             # 协议、连接、状态、pending 与独立视图模块

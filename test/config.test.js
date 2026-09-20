@@ -402,10 +402,25 @@ test('the distributed example parses and explicitly documents every config secti
   assert.deepEqual(config.channels.map((channel) => channel.id), ['general', 'project', 'announcements']);
   assert.equal(config.channels.at(-1).enabled, true);
   assert.equal(config.channels.at(-1).readOnly, true);
+  assert.equal(config.storage.driver, 'memory');
   for (const section of ['server:', 'room:', 'channels:', 'limits:', 'timeouts:', 'rateLimits:']) {
     assert.match(source, new RegExp(`^${section}`, 'm'));
   }
   assert.doesNotMatch(source, /resumeLeaseMs/);
+});
+
+test('the sqlite example parses with durable storage and the same channels', () => {
+  const examplePath = path.join(ROOT, 'pavilo.sqlite.example.yaml');
+  const source = fs.readFileSync(examplePath, 'utf8');
+  const config = parseConfig(source, examplePath);
+  assert.equal(config.storage.driver, 'sqlite');
+  assert.equal(config.storage.sqlite.engine, 'auto');
+  assert.equal(config.storage.sqlite.retentionDays, 30);
+  assert.match(config.storage.sqlite.path, /pavilo\.db$/);
+  assert.deepEqual(config.channels.map((channel) => channel.id), ['general', 'project', 'announcements']);
+  for (const section of ['storage:', 'server:', 'room:', 'channels:', 'limits:', 'timeouts:', 'rateLimits:']) {
+    assert.match(source, new RegExp(`^${section}`, 'm'));
+  }
 });
 
 test('readOnly and welcome fields have correct defaults and round-trip multi-line text', () => {

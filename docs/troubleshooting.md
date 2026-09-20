@@ -669,7 +669,7 @@ pm2 logs pavilo
 
 **原因**：没有找到 `./pavilo.yaml`，也没有设置 `PAVILO_CONFIG`，因此回退到内置默认配置（`general` + `project` 两个频道）。
 
-**解决**：如需自定义，执行 `cp pavilo.example.yaml pavilo.yaml` 后修改并重启。
+**解决**：如需自定义，执行 `cp pavilo.example.yaml pavilo.yaml`（内存）或 `cp pavilo.sqlite.example.yaml pavilo.yaml`（留存）后修改并重启。
 
 #### ❌ 连接拒绝
 

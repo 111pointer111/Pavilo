@@ -1,27 +1,43 @@
-# Pavilo 配置示例（内存模式）
+# Pavilo 配置示例（SQLite 留存）
 #
-# 本文件展示所有可配置项及其**代码默认值**。
-# 每个配置项的注释中会标注"代码默认值"，这是未提供配置文件时的实际行为。
+# 与 pavilo.example.yaml 字段相同，另加 version: 2 与 storage。
+# 复制后即可启用可选持久化；默认仍建议先用内存示例。
 #
 # 使用方法：
-#   cp pavilo.example.yaml pavilo.yaml
+#   cp pavilo.sqlite.example.yaml pavilo.yaml
+#   mkdir -p data
 #   npm run config:check
 #   npm start
 #
-# 需要聊天记录留存时，改用：
-#   cp pavilo.sqlite.example.yaml pavilo.yaml
+# 只要当下、不留记录时，改用：
+#   cp pavilo.example.yaml pavilo.yaml
 #
 # 注意：
 #   - pavilo.yaml 已在 .gitignore 中，不会被 Git 追踪
 #   - 配置文件不在 HTTP 静态白名单内，不会被外部访问
 #   - 请勿将配置文件放入 vendor/ 或 client/ 目录
+#   - 单进程使用：不要让两个 Pavilo 实例共享同一个 db 文件
+#   - Docker 需要把 ./data 挂成卷，并关闭 read_only 根文件系统
 #   - 调优建议见文件底部的"配置调优建议"章节
 
-# 配置文件版本（必填，1 或 2）
-#   1：与 v1.0 相同，禁止出现 storage，内部归一为 memory
-#   2：允许可选 storage（省略则仍为 memory）
-# 代码默认值：无配置文件时等价于 version 1 + memory
-version: 1
+# 配置文件版本（必填）。SQLite 必须用 2，version 1 禁止出现 storage
+version: 2
+
+# ============================================================================
+# 存储（仅 version: 2）
+# ============================================================================
+storage:
+  # memory：重启即空，且禁止出现 sqlite 子块
+  # sqlite：记录留在数据库里，直到 retention 删除
+  driver: sqlite
+  sqlite:
+    # 相对路径相对本配置文件所在目录解析
+    path: ./data/pavilo.db
+    # auto：Node 22.5+ 用内置 node:sqlite，否则尝试 better-sqlite3
+    # node | better-sqlite3：强制指定引擎
+    engine: auto
+    # 1–3650；省略=30；永久用 null 或 forever。禁止 0
+    retentionDays: 30
 
 # ============================================================================
 # 服务器配置
@@ -279,6 +295,6 @@ rateLimits:
 #   - maxMessagesPerChannel: 500-1000
 #   - 可以降低 maxChannelBytes 节省内存
 #
-# 需要 SQLite 留存时，请复制 pavilo.sqlite.example.yaml，不要在本文件里加 storage。
+# 只要当下、不留记录时，请复制 pavilo.example.yaml。
 #
 # ============================================================================

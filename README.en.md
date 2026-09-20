@@ -140,8 +140,16 @@ Pavilo loads configuration in this order (later entries win):
 
 Once `PAVILO_CONFIG` is set explicitly, a missing, unreadable, oversized, non-regular, or invalid target fails startup instead of falling back. `PORT` accepts only a strict decimal string between `1` and `65535` — `4173.0`, `0x105d`, spaces, and signs are all invalid.
 
+There are two copy-ready examples:
+
 ```bash
+# Memory mode (default; gone after restart)
 cp pavilo.example.yaml pavilo.yaml
+
+# Or SQLite retention (last 30 days by default)
+cp pavilo.sqlite.example.yaml pavilo.yaml
+mkdir -p data
+
 npm run config:check
 npm start
 ```
@@ -155,7 +163,7 @@ PAVILO_CONFIG=/etc/pavilo/config.yaml npm start
 
 Configuration changes require a **process restart**; a running service never hot-reloads. `npm run config:check` validates and reports the actual configuration source without starting the service.
 
-Configuration must declare `version: 1` or `version: 2`. Version 1 forbids `storage` and matches v1.0; version 2 may enable optional SQLite. YAML uses strict types: write booleans as `true` / `false` and numbers as integers; unknown keys, duplicate keys, unknown tags, anchors/aliases, and non-object roots are rejected. See [`pavilo.example.yaml`](./pavilo.example.yaml) for every field and recommended value, and [docs/configuration.md](docs/configuration.md) (Chinese) for a full reference.
+Configuration must declare `version: 1` or `version: 2`. Version 1 forbids `storage` and matches v1.0; version 2 may enable optional SQLite. YAML uses strict types: write booleans as `true` / `false` and numbers as integers; unknown keys, duplicate keys, unknown tags, anchors/aliases, and non-object roots are rejected. Memory example: [`pavilo.example.yaml`](./pavilo.example.yaml). SQLite example: [`pavilo.sqlite.example.yaml`](./pavilo.sqlite.example.yaml). Field reference: [docs/configuration.md](docs/configuration.md) (Chinese).
 
 ### Channel and capacity semantics
 
@@ -180,7 +188,7 @@ _Note: the built-in default channels are `general` and `project` (singular)._
 
 ### Configuration file safety
 
-Pavilo's HTTP server uses a static allowlist, so `pavilo.yaml` and `pavilo.example.yaml` are never served by the app; the config loader also refuses to use `index.html`, `chat.css`, or any file inside `vendor/` or `client/` (including symlinks pointing at them) as configuration. This is not an authentication mechanism: the chat page, room metadata, and front-end assets are open to anyone who can reach the listening port.
+Pavilo's HTTP server uses a static allowlist, so `pavilo.yaml`, `pavilo.example.yaml`, and `pavilo.sqlite.example.yaml` are never served by the app; the config loader also refuses to use `index.html`, `chat.css`, or any file inside `vendor/` or `client/` (including symlinks pointing at them) as configuration. This is not an authentication mechanism: the chat page, room metadata, and front-end assets are open to anyone who can reach the listening port.
 
 - Never place real configuration in `vendor/`, `client/`, another web root, a public object-storage bucket, or a reverse proxy's static directory.
 - A reverse proxy must forward only Pavilo's application port; never expose the whole repository as a static site, which would bypass the app allowlist and leak raw YAML, source, or other files.
@@ -246,7 +254,8 @@ Architecture decisions and evolution strategy:
 ```text
 .
 ├── config.js           # YAML / environment configuration loading and validation
-├── pavilo.example.yaml # complete configuration example
+├── pavilo.example.yaml        # memory-mode example (cp to pavilo.yaml)
+├── pavilo.sqlite.example.yaml # SQLite retention example (cp to pavilo.yaml)
 ├── index.html          # page skeleton, asset references, and boot entry
 ├── chat.css            # page styles (dark mode, glassmorphism, micro-interactions)
 ├── client/             # protocol, connection, state, pending, and view modules

@@ -341,7 +341,7 @@ ADR 模板和示例见 [docs/adr/README.md](docs/adr/README.md)。
 
 如果你的 PR 涉及以下变更，**必须同步更新文档**：
 
-- 新配置字段 → `pavilo.example.yaml` + README
+- 新配置字段 → `pavilo.example.yaml` 与 `pavilo.sqlite.example.yaml` + README
 - Protocol 变更 → `docs/architecture/chat-protocol.md`
 - 新命令/事件 → Protocol 文档
 - 架构变更 → `docs/architecture/overview.md` 或新增 ADR
