@@ -83,7 +83,7 @@ const result = core.dispatch('peer-1', command);
 
 - `gateway/`：preset（DeepSeek / openai-compatible）、OpenAI 兼容 `complete()`、用量、SQLite 密文渠道。
 - `operator/`：`/admin` 静态白名单与 JSON API；进程内 session；与聊天 WebSocket 隔离。
-- 管理页在 `admin/`，不复用聊天 DOM。未启用时 `/admin` 为 404。
+- 管理页在 `admin/`：语亭后台为壳，AI 网关为其中模块。房间 / 聊天频道页仅预留。未启用时 `/admin` 为 404。规划见 [admin.md](../admin.md)。
 
 ### 传输层 `src/transport`
 

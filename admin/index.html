@@ -28,34 +28,77 @@
         <p class="error" id="loginError" role="alert"></p>
       </form>
       <div class="lang-row">
-        <button type="button" class="lang" data-lang="zh-CN" data-i18n="lang.zh">中文</button>
-        <button type="button" class="lang" data-lang="en" data-i18n="lang.en">English</button>
+        <button type="button" class="text-btn lang" data-lang="zh-CN" data-i18n="lang.zh">中文</button>
+        <button type="button" class="text-btn lang" data-lang="en" data-i18n="lang.en">English</button>
       </div>
     </div>
   </section>
 
-  <main class="desk" id="desk" hidden>
-    <header class="top">
-      <strong data-i18n="top.desk">语亭值班</strong>
-      <div class="top-actions">
-        <button type="button" class="lang" data-lang="zh-CN" data-i18n="lang.zh">中文</button>
-        <button type="button" class="lang" data-lang="en" data-i18n="lang.en">English</button>
-        <button type="button" id="logoutButton" data-i18n="top.logout">退出</button>
+  <div class="shell" id="desk" hidden>
+    <aside class="rail">
+      <a class="rail-brand" href="#/overview" data-i18n="brand.name">语亭值班</a>
+      <p class="rail-kicker" data-i18n="nav.groupPavilo">语亭</p>
+      <nav class="rail-nav" aria-label="pavilo">
+        <a href="#/overview" data-nav="overview" data-i18n="nav.overview">总览</a>
+        <a href="#/room" data-nav="room"><span data-i18n="nav.room">房间</span><span class="later-tag" data-i18n="nav.later">稍后</span></a>
+        <a href="#/chat" data-nav="chat"><span data-i18n="nav.chat">聊天频道</span><span class="later-tag" data-i18n="nav.later">稍后</span></a>
+      </nav>
+      <p class="rail-kicker" data-i18n="nav.groupGateway">AI 网关</p>
+      <nav class="rail-nav" aria-label="gateway">
+        <a href="#/gateway" data-nav="gateway" data-i18n="nav.gateway">网关</a>
+        <a href="#/gateway/channels" data-nav="gateway-channels" data-i18n="nav.channels">模型渠道</a>
+        <a href="#/gateway/usage" data-nav="gateway-usage" data-i18n="nav.usage">用量</a>
+      </nav>
+      <div class="rail-foot">
+        <button type="button" class="text-btn lang" data-lang="zh-CN" data-i18n="lang.zh">中文</button>
+        <button type="button" class="text-btn lang" data-lang="en" data-i18n="lang.en">English</button>
+        <button type="button" class="text-btn" id="logoutButton" data-i18n="top.logout">退出</button>
       </div>
-    </header>
-    <p class="status" id="statusBar"></p>
-    <div class="layout">
-      <section class="panel">
-        <h2 data-i18n="channels.title">渠道</h2>
+    </aside>
+    <div class="stage">
+      <header class="stage-head">
+        <p class="crumb" id="pageCrumb"></p>
+        <h1 id="pageTitle"></h1>
+        <p class="lead" id="pageLead"></p>
+      </header>
+
+      <section class="view" id="viewOverview" hidden>
+        <div class="cards" id="overviewCards"></div>
+        <div class="next" id="overviewNext"></div>
+      </section>
+
+      <section class="view" id="viewLater" hidden>
+        <article class="paper later-card">
+          <p class="later-flag" data-i18n="later.flag">稍后开放</p>
+          <p id="laterBody"></p>
+          <p class="lead" id="laterHint"></p>
+          <p><a class="button ghost" href="#/overview" data-i18n="later.back">回到总览</a></p>
+        </article>
+      </section>
+
+      <section class="view" id="viewGateway" hidden>
+        <div class="cards" id="gatewayCards"></div>
+        <div class="next" id="gatewayNext"></div>
+      </section>
+
+      <section class="view" id="viewChannels" hidden>
+        <div class="toolbar">
+          <a class="button" href="#/gateway/channels/new" data-i18n="channels.add">添加渠道</a>
+        </div>
         <div id="channelList"></div>
-        <form class="editor" id="channelForm">
+      </section>
+
+      <section class="view" id="viewChannelForm" hidden>
+        <p><a class="back" href="#/gateway/channels" data-i18n="channel.back">返回渠道列表</a></p>
+        <form class="editor paper" id="channelForm">
           <div class="grid">
             <label>
               <span data-i18n="channel.id">渠道 ID</span>
               <input name="id" required pattern="[a-z0-9][a-z0-9_-]{0,31}" maxlength="32">
+              <small data-i18n="channel.idHint">保存后不能改。</small>
             </label>
             <label>
-              <span data-i18n="channel.preset">Preset</span>
+              <span data-i18n="channel.preset">类型</span>
               <select name="preset">
                 <option value="deepseek">DeepSeek</option>
                 <option value="openai-compatible">OpenAI compatible</option>
@@ -70,7 +113,7 @@
               <input name="model" maxlength="128">
             </label>
             <label class="wide">
-              <span data-i18n="channel.baseUrl">Base URL</span>
+              <span data-i18n="channel.baseUrl">接口地址</span>
               <input name="baseUrl" maxlength="2048" placeholder="https://api.deepseek.com/v1">
             </label>
             <label class="wide">
@@ -81,22 +124,22 @@
           </div>
           <label class="check">
             <input type="checkbox" name="enabled" checked>
-            <span data-i18n="channel.enabled">启用</span>
+            <span data-i18n="channel.enabled">启用这条渠道</span>
           </label>
           <div class="actions">
             <button type="submit" id="saveButton" data-i18n="channel.save">保存</button>
-            <button type="button" id="probeButton" data-i18n="channel.probe">探测</button>
-            <button type="button" id="deleteButton" class="danger" data-i18n="channel.delete">放弃认领</button>
+            <button type="button" id="probeButton" data-i18n="channel.probe">探测连通</button>
+            <button type="button" id="deleteButton" class="danger" data-i18n="channel.delete">删除</button>
           </div>
-          <p class="note" id="formNote" role="status"></p>
         </form>
       </section>
-      <section class="panel">
-        <h2 data-i18n="usage.title">近 7 日用量</h2>
-        <div id="usageBox"></div>
+
+      <section class="view" id="viewUsage" hidden>
+        <div class="paper" id="usageBox"></div>
       </section>
     </div>
-  </main>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
   <script src="/admin/i18n.js"></script>
   <script src="/admin/app.js"></script>
 </body>

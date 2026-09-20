@@ -584,12 +584,14 @@ services:
 | GET | `/admin/api/session` | 可写性、存储驱动、网关开关 |
 | GET | `/admin/api/dashboard` | 房间 health 投影 + 网关摘要，无密钥 |
 | GET | `/admin/api/channels` | 渠道列表；只含 `keyPresent` / `keyHint` |
-| PUT | `/admin/api/channels/:id` | 认领或更新。空 `apiKey` 保持原值；`null` 清除 |
-| DELETE | `/admin/api/channels/:id` | 删除认领，回退 YAML |
+| PUT | `/admin/api/channels/:id` | 创建或更新。空 `apiKey` 保持原值；`null` 清除 |
+| DELETE | `/admin/api/channels/:id` | 删除该渠道（管理页是唯一来源，不会回到 YAML） |
 | POST | `/admin/api/channels/:id/probe` | 极短 `complete()` |
 | GET | `/admin/api/usage?days=7` | sqlite 用量；memory 为 `{ tracking: false, rows: [] }` |
 
-错误码：`OPERATOR_UNAUTHORIZED`（401）、`OPERATOR_FORBIDDEN`（403）、`OPERATOR_RATE_LIMITED`（429）、`OPERATOR_READONLY`（409）。部署说明见 [gateway.md](../gateway.md)。
+前端路由（hash）把语亭后台与 AI 网关分开，见 [admin.md](../admin.md)。`GET/PUT /admin/api/channels` 管的是**模型渠道**，不是聊天频道。
+
+错误码：`OPERATOR_UNAUTHORIZED`（401）、`OPERATOR_FORBIDDEN`（403）、`OPERATOR_RATE_LIMITED`（429）、`OPERATOR_READONLY`（409）。网关部署见 [gateway.md](../gateway.md)。
 
 ---
 
@@ -597,6 +599,7 @@ services:
 
 - [WebSocket 协议](websocket-protocol.md)
 - [配置指南](../configuration.md)
+- [语亭管理后台](../admin.md)
 - [AI 网关与管理页](../gateway.md)
 - [部署文档](../deployment/)
 - [故障排查](../troubleshooting.md)

@@ -71,7 +71,8 @@ app (composition)
                    Store     Gateway     Play 模块
                 memory/sqlite  presets   host.js + page/
 
-  `/admin` 管理页：另一条 HTTP 面，用 operator token，不走聊天会话。
+  `/admin` 语亭管理后台：另一条 HTTP 面，用 operator token，不走聊天会话。
+  壳是语亭（总览 / 预留的房间与聊天频道）；AI 网关是其中模块。
 ```
 
 聊天页和玩法页共用身份与协议，不共用 DOM。玩法 host 与 trusted script 同一加载模型。谁都不能直写 Store 或 socket。

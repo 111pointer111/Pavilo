@@ -1,8 +1,8 @@
 # AI 网关与管理页
 
-v1.3 提供进程内 AI 网关和可选的 `/admin` 值班台。聊天核心不依赖它们。
+v1.3 提供进程内 AI 网关。它是 **语亭管理后台里的一个模块**，不是另一套登录。后台壳子与预留页见 [admin.md](admin.md)。聊天核心不依赖网关。
 
-**模型渠道和 API key 只在管理页配置**，不写进 YAML。YAML 只负责怎么启动（监听、聊天频道、是否 sqlite、operator 口令）。
+**模型渠道和 API key 只在「AI 网关」模块配置**，不写进 YAML，也不是聊天频道（`general` / `project`）。YAML 只负责怎么启动。
 
 ## 打开
 
@@ -16,7 +16,7 @@ npm run config:check
 npm start
 ```
 
-浏览器打开 `http://localhost:4173/admin`。
+浏览器打开 `http://localhost:4173/admin`，登录后进语亭总览；模型渠道在 `#/gateway/channels`。
 
 `/admin` 只在 **sqlite 且 token 至少 16 字符** 时存在；否则与其它未知路径一样是 404。sqlite 但没填 token 时聊天仍可用，启动日志会提示：
 

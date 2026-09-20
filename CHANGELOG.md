@@ -16,7 +16,8 @@ Config Schema v3、进程内 AI 网关、SQLite 密文渠道，以及 `/admin` �
 - SQLite migration 002：`gateway_channels` / `gateway_usage`；管理页写入的 API key 为 AES-256-GCM 密文
 - 网关 hang 时聊天 message 仍 ACK；`/healthz` 在网关启用时附加 `{ enabled, channels, degraded }`，不含密钥
 - `/admin`：operator token 登录、渠道编辑、密钥只写/掩码、连通性探测、近 7 日用量
-- [`docs/gateway.md`](docs/gateway.md)：双源优先级、密钥红线、`complete()` 给 v1.4/v1.5 的调用口
+- [`docs/gateway.md`](docs/gateway.md)：密钥红线、`complete()` 给 v1.4/v1.5 的调用口
+- [`docs/admin.md`](docs/admin.md)：语亭管理后台为壳、AI 网关为模块；房间 / 聊天频道页仅预留
 
 ### Changed
 - `version: 1` / `2` 出现 `operator` 会被拒绝；任何版本出现 `gateway:` 都会被拒绝。模型渠道只在 `/admin` 写入 SQLite
