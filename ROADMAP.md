@@ -34,15 +34,15 @@ Pavilo 的核心不是“功能越来越多的聊天系统”，而是一个**�
 
 ---
 
-## 2. 当前基线：v1.0.0 Ephemeral Stable
+## 2. 当前基线：v1.1.0 Persistence Foundation
 
-当前版本 **v1.0.0**。无存储群聊作为默认产品已经稳定：Protocol v4 only、Config Schema v1 冻结、中英 UI、Docker / 反向代理 / CI / 文档齐备。
+当前版本 **v1.1.0**。默认仍是无数据库群聊；可在 Config Schema v2 中显式启用 SQLite（默认留存 30 天）。Protocol v4 only、中英 UI、Docker / 反向代理 / CI / 文档齐备。
 
 模块边界：
 
 - `server.js`：配置、core / transport 组合与 CLI 生命周期；
 - `src/core/`：房间、session、消息、命令、领域事件；
-- `src/storage/`：ConversationStore 端口（当前仅 memory 驱动）；
+- `src/storage/`：ConversationStore 端口（memory 默认，sqlite 可选）；
 - `src/transport/`：HTTP、WebSocket 生命周期与帧协议；
 - `client/`：protocol / connection / state / pending / images / messages / composer / overlays / notifications / i18n / app；
 - `test/`：Node 单元/集成测试和独立浏览器验收；
@@ -56,12 +56,13 @@ Pavilo 的核心不是“功能越来越多的聊天系统”，而是一个**�
 - ACK、`clientMessageId` 幂等、历史分块、房间 epoch；
 - 刷新/短暂断线恢复；
 - Origin、心跳、加入时限、频率、连接数、帧/缓冲/频道容量控制；
-- 版本化严格 YAML 配置；
+- 版本化严格 YAML 配置（Schema v1 与可选 v2）；
+- 可选 SQLite（`node:sqlite` / `better-sqlite3`）、按天留存、事务后 ACK；
 - 静态资源白名单和 gzip/ETag；
 - 静态 `readOnly` 频道；
 - 可注入时钟/ID/定时器的无网络 core 测试。
 
-v0.2–v1.0 的工程门槛均已完成，见下文各版本记录。v1.0 不包含 SQLite、网关、审核或玩法。
+v0.2–v1.1 的工程门槛均已完成，见下文各版本记录。v1.1 不包含历史分页、维护 CLI、网关、审核或玩法。
 
 ---
 
@@ -557,7 +558,7 @@ v1.x 主线按依赖推进，不把存储、网关、审核、玩法、访问控
 
 访问控制不挡局域网玩法，但挡「可以安全暴露公网」的宣传。
 
-## v1.1.0 — Persistence Foundation
+## v1.1.0 — Persistence Foundation（已完成）
 
 目标：让”聊天记录可保存”成为**可选能力**，不改变默认体验。
 
@@ -688,6 +689,18 @@ src/storage/migrations/
 ```
 
 启动时自动检查并执行未应用的 migration。
+
+### 发布门槛（✅ 全部满足）
+
+- ✅ Memory 与 SQLite 共用 ConversationStore 契约测试
+- ✅ Config Schema v1 继续合法；v2 校验 `storage`（含 `retentionDays: 0` 拒绝）
+- ✅ ACK 仅在 sqlite 事务 commit 之后发出
+- ✅ 启动 prune + 周期 prune；FIFO 不删 sqlite 行
+- ✅ 两份 example YAML 可复制为 `pavilo.yaml`
+- ✅ 默认 `npm start` 不加载 native SQLite 模块
+- ✅ 所有测试通过（316 通过，2 跳过）
+
+**v1.1.0 已完成所有目标，可以发布。**
 
 ---
 

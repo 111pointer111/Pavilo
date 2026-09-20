@@ -11,13 +11,13 @@
 Pavilo（**Pavilion + Local**）是一个浏览器即用、默认临时、可以自行托管的极简群聊。像一座随处可搭的小亭：启动 Node.js 进程，同一局域网里的人打开网页就能交谈，服务停止后一切回到空白。
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.0.0-0f7772">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.1.0-0f7772">
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-0f7772">
   <img alt="Node.js" src="https://img.shields.io/badge/node-%3E%3D22-0f7772">
   <img alt="Protocol v4" src="https://img.shields.io/badge/protocol-v4-0f7772">
 </p>
 
-当前版本 **v1.0.0**（Ephemeral Stable）：支持配置多个临时频道，仅内存存储，界面提供简体中文与英语，WebSocket 协议只接受 v4。适合可信局域网、私有网络或 VPN 环境。
+当前版本 **v1.1.0**：默认仍是无数据库的临时群聊；可用 Config Schema v2 可选启用 SQLite（默认留存 30 天）。界面提供简体中文与英语，WebSocket 协议只接受 v4。适合可信局域网、私有网络或 VPN 环境。
 
 <p align="center">
   <img src="docs/screenshots/overview.png" width="880" alt="Pavilo 界面预览：桌面聊天、登录页与移动端">

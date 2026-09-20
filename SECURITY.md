@@ -10,7 +10,7 @@ Pavilo v1.x 的安全更新针对最新稳定版本。
 | main | ✅ 支持（开发中） |
 | 0.x | ❌ 不支持，请升级到 1.x |
 
-v1.0 起，文档承诺的 Protocol v4 与 Config Schema v1 保持向后兼容。未承诺的内部实现仍可能在 minor 中调整。
+v1.0 起，文档承诺的 Protocol v4 与 Config Schema v1 保持向后兼容。v1.1 增加可选 Config Schema v2（`storage`）；未写 `storage` 的 v1 文件行为不变。未承诺的内部实现仍可能在 minor 中调整。
 
 ## 安全假设与边界
 

@@ -6,6 +6,27 @@ Pavilo 的重要变更都记在这份文件里。
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-20
+
+可选 SQLite 持久化：默认仍是 memory，旧的 `version: 1` 配置继续合法。Protocol v4 不变。
+
+### Added
+- 内部 `ConversationStore` 端口；默认 memory，显式 `storage.driver: sqlite` 后重启仍在
+- Config Schema v2：`storage.driver`、`sqlite.path` / `engine` / `retentionDays`（省略=30；永久用 `null` 或 `forever`；禁止 `0`）
+- SQLite 双引擎：Node 22.5+ 用 `node:sqlite`，否则 optional `better-sqlite3`
+- 启动时与每小时按 `retentionDays` 删除过期消息；ACK 只在事务提交后发出
+- 两份可复制示例：[`pavilo.example.yaml`](pavilo.example.yaml)（内存）、[`pavilo.sqlite.example.yaml`](pavilo.sqlite.example.yaml)（留存）
+- `/room-info.ephemeral` 随驱动变化；sqlite 另有 `retentionDays`；侧栏中英文案改为「记录会留下」
+- 启动 banner：`Storage mode: memory` 或 `sqlite (engine=…, path=…, retentionDays=…)`
+- 写入失败返回 `STORAGE_UNAVAILABLE`，不 ACK、不广播
+
+### Changed
+- `src/core` 经 store 端口读写会话数据，不 import SQLite 驱动
+- YAML 删除频道不会 DROP 库里的旧行；FIFO 只踢出工作集
+
+### Tests
+- 总测试数：318 个（316 通过，2 跳过：原有 `SYNC_IN_PROGRESS` 集成窗口；`better-sqlite3` 未安装）
+
 ## [1.0.0] - 2026-09-20
 
 第一个稳定版本（**Ephemeral Stable**）：默认无数据库、浏览器即用的自托管网页聊天。Protocol v4 与 Config Schema v1 在整个 v1.x 按文档承诺兼容。
