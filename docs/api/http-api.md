@@ -583,16 +583,23 @@ services:
 | POST | `/admin/api/login` | `{ token }`；成功 Set-Cookie |
 | POST | `/admin/api/logout` | 清 cookie |
 | GET | `/admin/api/session` | 可写性、存储驱动、网关开关 |
-| GET | `/admin/api/dashboard` | 房间 health 投影 + 网关摘要，无密钥 |
-| GET | `/admin/api/channels` | 渠道列表；只含 `keyPresent` / `keyHint` |
+| GET | `/admin/api/dashboard` | 房间 health 投影 + pavilion 真源摘要 + 网关摘要，无密钥 |
+| GET | `/admin/api/pavilion` | 有效房间/聊天频道、每段 `source`（`yaml` \| `operator`） |
+| PUT | `/admin/api/pavilion/room` | 保存并认领房间段，立即生效 |
+| DELETE | `/admin/api/pavilion/room` | 取消认领，套回 YAML 房间设置 |
+| PUT | `/admin/api/pavilion/channels` | 保存并认领整个聊天频道目录，立即生效 |
+| DELETE | `/admin/api/pavilion/channels` | 取消认领，套回 YAML 频道列表 |
+| GET | `/admin/api/channels` | 模型渠道列表；只含 `keyPresent` / `keyHint` |
 | PUT | `/admin/api/channels/:id` | 创建或更新。空 `apiKey` 保持原值；`null` 清除 |
-| DELETE | `/admin/api/channels/:id` | 删除该渠道（管理页是唯一来源，不会回到 YAML） |
+| DELETE | `/admin/api/channels/:id` | 删除该模型渠道（管理页是唯一来源，不会回到 YAML） |
 | POST | `/admin/api/channels/:id/probe` | 极短 `complete()` |
 | GET | `/admin/api/usage?days=7` | sqlite 用量；memory 为 `{ tracking: false, rows: [] }` |
 
-前端路由（hash）把语亭后台与 AI 网关分开，见 [admin.md](../admin.md)。`GET/PUT /admin/api/channels` 管的是**模型渠道**，不是聊天频道。
+前端路由（hash）把语亭后台与 AI 网关分开，见 [admin.md](../admin.md)。`GET/PUT /admin/api/channels` 管的是**模型渠道**，不是聊天频道。聊天频道走 `/admin/api/pavilion/channels`。
 
-错误码：`OPERATOR_UNAUTHORIZED`（401）、`OPERATOR_FORBIDDEN`（403）、`OPERATOR_RATE_LIMITED`（429）、`OPERATOR_READONLY`（409）。网关部署见 [gateway.md](../gateway.md)。
+`PUT /admin/api/pavilion/channels` 的 body 为 `{ channels: [...] }`，字段与 YAML `channels[]` 相同。频道内仍有成员时停用或删除返回 409 `CHANNEL_BUSY`；有进行中的玩法时改绑定返回 409 `PLAY_BOUND`。非法目录（没有可发言频道、默认频道只读等）返回 400。
+
+错误码：`OPERATOR_UNAUTHORIZED`（401）、`OPERATOR_FORBIDDEN`（403）、`OPERATOR_RATE_LIMITED`（429）、`OPERATOR_READONLY`（409）、`CHANNEL_BUSY` / `PLAY_BOUND`（409）。网关部署见 [gateway.md](../gateway.md)。覆盖层见 [ADR-0007](../adr/0007-pavilion-config-overlay.md)。
 
 ---
 

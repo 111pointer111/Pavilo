@@ -254,6 +254,7 @@ function createSqliteStore(config, runtime = {}) {
     engine: engine.name,
     ephemeral: false,
     getChannelState,
+    ensureChannel,
     loadWorkingSet,
     getMessage,
     findIdempotent,

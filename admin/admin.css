@@ -153,19 +153,30 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   color: var(--ink-faint);
 }
 .rail-nav { display: grid; gap: 4px; }
-.later-tag {
-  margin-left: auto;
+.source-line { margin: 0 0 12px; }
+.source-badge {
+  display: inline-block;
   font-size: 11px;
   letter-spacing: .06em;
-  color: var(--ink-faint);
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
 }
-.later-card h2 { margin: 8px 0 12px; font: 400 24px var(--display); }
-.later-flag {
-  margin: 0;
-  font-size: 11px;
-  letter-spacing: .14em;
-  text-transform: uppercase;
+.source-badge.operator {
+  border-color: var(--teal);
   color: var(--teal-deep);
+  background: var(--teal-pale);
+}
+textarea {
+  width: 100%;
+  font: inherit;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--ink);
+  resize: vertical;
 }
 .rail-nav a {
   display: flex;
@@ -233,7 +244,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 }
 .card p { margin: 0; color: var(--ink-soft); font-size: 13px; }
 .next { display: flex; flex-wrap: wrap; gap: 8px; }
-.toolbar { display: flex; justify-content: flex-end; }
+.toolbar { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .back {
   color: var(--teal-deep);
   text-decoration: none;

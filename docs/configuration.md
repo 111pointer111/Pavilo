@@ -40,7 +40,7 @@ PAVILO_CONFIG=/etc/pavilo/config.yaml npm run config:check
 PAVILO_CONFIG=/etc/pavilo/config.yaml npm start
 ```
 
-修改配置后必须**重启进程**，运行中的服务不会热加载。
+修改 YAML 后必须**重启进程**，运行中的服务不会热加载 YAML。sqlite 且打开了 `/admin` 时，房间和聊天频道可以在管理页保存；一旦保存，该段以数据库为准并立即生效，见 [admin.md](admin.md) 与 [ADR-0007](adr/0007-pavilion-config-overlay.md)。`npm run config:check` 会打印房间和聊天频道当前真源（`yaml` 或 `operator`）。
 
 ## 完整配置示例
 
@@ -217,7 +217,7 @@ operator:
 - **类型**：字符串，16–256 个可见 ASCII 字符，不能含空白
 - **说明**：管理页登录口令，不是账号系统。推荐 `openssl rand -hex 32`。也用于派生 SQLite 里渠道 API key 的加密密钥（AES-256-GCM）。**更换 token 后必须在管理页重新填写渠道 key。** YAML 里没有 `operator.enabled`：有 sqlite 且 token 足够长才会打开 `/admin`。
 
-渠道字段、preset、探测与 `complete()` 见 [gateway.md](gateway.md)。后台分层（语亭壳 / AI 网关模块 / 预留页）见 [admin.md](admin.md)。
+渠道字段、preset、探测与 `complete()` 见 [gateway.md](gateway.md)。后台分层（语亭壳 / 房间与聊天频道 / AI 网关模块）见 [admin.md](admin.md)。
 
 ---
 

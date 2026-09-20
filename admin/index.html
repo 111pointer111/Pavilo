@@ -40,8 +40,8 @@
       <p class="rail-kicker" data-i18n="nav.groupPavilo">语亭</p>
       <nav class="rail-nav" aria-label="pavilo">
         <a href="#/overview" data-nav="overview" data-i18n="nav.overview">总览</a>
-        <a href="#/room" data-nav="room"><span data-i18n="nav.room">房间</span><span class="later-tag" data-i18n="nav.later">稍后</span></a>
-        <a href="#/chat" data-nav="chat"><span data-i18n="nav.chat">聊天频道</span><span class="later-tag" data-i18n="nav.later">稍后</span></a>
+        <a href="#/room" data-nav="room" data-i18n="nav.room">房间</a>
+        <a href="#/chat" data-nav="chat" data-i18n="nav.chat">聊天频道</a>
       </nav>
       <p class="rail-kicker" data-i18n="nav.groupGateway">AI 网关</p>
       <nav class="rail-nav" aria-label="gateway">
@@ -67,13 +67,99 @@
         <div class="next" id="overviewNext"></div>
       </section>
 
-      <section class="view" id="viewLater" hidden>
-        <article class="paper later-card">
-          <p class="later-flag" data-i18n="later.flag">稍后开放</p>
-          <p id="laterBody"></p>
-          <p class="lead" id="laterHint"></p>
-          <p><a class="button ghost" href="#/overview" data-i18n="later.back">回到总览</a></p>
-        </article>
+      <section class="view" id="viewRoom" hidden>
+        <form class="editor paper" id="roomForm">
+          <p class="source-line"><span class="source-badge" id="roomSource"></span></p>
+          <div class="grid">
+            <label>
+              <span data-i18n="room.title">房间标题</span>
+              <input name="title" required maxlength="80">
+            </label>
+            <label>
+              <span data-i18n="room.defaultLanguage">默认语言</span>
+              <select name="defaultLanguage">
+                <option value="zh-CN">中文</option>
+                <option value="en">English</option>
+              </select>
+            </label>
+            <label>
+              <span data-i18n="room.defaultChannel">默认频道</span>
+              <select name="defaultChannel" id="roomDefaultChannel"></select>
+            </label>
+            <label>
+              <span data-i18n="room.maxUsers">全站人数上限</span>
+              <input name="maxUsers" type="number" min="1" required>
+              <small id="roomMaxUsersHint"></small>
+            </label>
+          </div>
+          <label class="check">
+            <input type="checkbox" name="exposeMemberIps">
+            <span data-i18n="room.exposeMemberIps">向成员显示彼此的 IP</span>
+          </label>
+          <label class="check">
+            <input type="checkbox" name="exposeLanUrls">
+            <span data-i18n="room.exposeLanUrls">在入口信息里列出局域网地址</span>
+          </label>
+          <div class="actions">
+            <button type="submit" id="roomSaveButton" data-i18n="room.save">保存</button>
+            <button type="button" id="roomRevertButton" class="danger" data-i18n="room.revert">恢复为配置文件</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="view" id="viewChat" hidden>
+        <p class="source-line"><span class="source-badge" id="chatSource"></span></p>
+        <div class="toolbar">
+          <a class="button" href="#/chat/new" data-i18n="chat.add">添加聊天频道</a>
+          <button type="button" class="button ghost" id="chatRevertButton" data-i18n="chat.revert">恢复为配置文件</button>
+        </div>
+        <div id="chatList"></div>
+      </section>
+
+      <section class="view" id="viewChatForm" hidden>
+        <p><a class="back" href="#/chat" data-i18n="chat.back">返回聊天频道</a></p>
+        <form class="editor paper" id="chatForm">
+          <div class="grid">
+            <label>
+              <span data-i18n="chat.id">频道 ID</span>
+              <input name="id" required pattern="[a-z0-9][a-z0-9_-]{0,31}" maxlength="32">
+              <small data-i18n="chat.idHint">保存后不能改。</small>
+            </label>
+            <label>
+              <span data-i18n="chat.name">显示名</span>
+              <input name="name" required maxlength="40">
+            </label>
+            <label class="wide">
+              <span data-i18n="chat.description">说明</span>
+              <input name="description" maxlength="160">
+            </label>
+            <label>
+              <span data-i18n="chat.maxUsers">人数上限</span>
+              <input name="maxUsers" type="number" min="1" required>
+            </label>
+            <label id="chatPlayRow">
+              <span data-i18n="chat.play">绑定玩法</span>
+              <select name="play" id="chatPlay"></select>
+            </label>
+            <label class="wide">
+              <span data-i18n="chat.welcome">欢迎语</span>
+              <textarea name="welcome" rows="5" maxlength="2000"></textarea>
+            </label>
+          </div>
+          <label class="check">
+            <input type="checkbox" name="enabled" checked>
+            <span data-i18n="chat.enabled">启用这个频道</span>
+          </label>
+          <label class="check">
+            <input type="checkbox" name="readOnly">
+            <span data-i18n="chat.readOnly">只读（所有人不能发言）</span>
+          </label>
+          <p class="lead" data-i18n="chat.deleteHint">删除只从目录拿掉，同名再建会接到旧记录。</p>
+          <div class="actions">
+            <button type="submit" id="chatSaveButton" data-i18n="chat.save">保存</button>
+            <button type="button" id="chatDeleteButton" class="danger" data-i18n="chat.delete">删除</button>
+          </div>
+        </form>
       </section>
 
       <section class="view" id="viewGateway" hidden>

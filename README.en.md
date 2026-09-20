@@ -161,7 +161,7 @@ PAVILO_CONFIG=/etc/pavilo/config.yaml npm run config:check
 PAVILO_CONFIG=/etc/pavilo/config.yaml npm start
 ```
 
-Configuration changes require a **process restart**; a running service never hot-reloads. `npm run config:check` validates and reports the actual configuration source without starting the service.
+YAML changes require a **process restart**; a running service never hot-reloads YAML. `npm run config:check` validates and reports the actual configuration source (including whether room / chat channels come from YAML or the admin overlay) without starting the service. Room and chat-channel edits saved in `/admin` are stored in SQLite, take effect immediately, and become the source of truth for that section.
 
 Configuration must declare `version: 1` or `2` (`3` is read as `2`). Version 1 is memory mode and forbids `storage` / `operator` / `plays`. Version 2 is the SQLite family: optional `storage`, `operator.token`, and `plays`; the admin console, gateway, and plays all require sqlite. Model channels are configured in `/admin`, not in YAML. SQLite without a token still starts, but the process warns that `/admin` is unavailable. YAML uses strict types: write booleans as `true` / `false` and numbers as integers; unknown keys, duplicate keys, unknown tags, anchors/aliases, and non-object roots are rejected. Memory example: [`pavilo.example.yaml`](./pavilo.example.yaml). SQLite example: [`pavilo.sqlite.example.yaml`](./pavilo.sqlite.example.yaml). Play example: [`pavilo.plays.example.yaml`](./pavilo.plays.example.yaml). Field reference: [docs/configuration.md](docs/configuration.md) (Chinese).
 

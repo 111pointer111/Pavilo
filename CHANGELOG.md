@@ -17,7 +17,10 @@ Pavilo 的重要变更都记在这份文件里。
 - 网关 hang 时聊天 message 仍 ACK；`/healthz` 在网关启用时附加 `{ enabled, channels, degraded }`，不含密钥
 - `/admin`：operator token 登录、渠道编辑、密钥只写/掩码、连通性探测、近 7 日用量
 - [`docs/gateway.md`](docs/gateway.md)：密钥红线、`complete()` 给 v1.4/v1.5 的调用口
-- [`docs/admin.md`](docs/admin.md)：语亭管理后台为壳、AI 网关为模块；房间 / 聊天频道页仅预留
+- [`docs/admin.md`](docs/admin.md)：语亭管理后台为壳、AI 网关为模块
+- ADR-0007：房间与聊天频道按段认领；默认跟 YAML，管理页保存后 SQLite 为准
+- SQLite migration 004：`operator_config`（`room` / `channels` JSON 覆盖层）
+- `/admin` 房间页与聊天频道页：保存后立即生效，可恢复为配置文件；已打开聊天页需刷新
 - 可选 `plays` 与 `channels[].play`（`version: 2` + sqlite）。内存配置写这些字段会拒绝
 - ADR-0006：Play 契约（独立玩法页、`playAction` / `playState`、Agent 基座）
 - `src/play/`：trusted loader、同步 host、异步 Agent 回合、局内记忆（memory 或 sqlite migration 003）
@@ -32,10 +35,11 @@ Pavilo 的重要变更都记在这份文件里。
 ### Changed
 - `version: 1` 出现 `storage` / `operator` / `plays` 会拒绝；memory 下的 v2 写 `operator`/`plays` 会拒绝。任何版本出现 `gateway:` 都会被拒绝。`version: 3` 当作 v2 读入。模型渠道只在 `/admin` 写入 SQLite
 - sqlite 引擎由 composition 打开一次，聊天 store 与网关 store 共享连接
+- `/admin` 房间 / 聊天频道不再是预留页；`config:check` 与启动横幅标明每段真源
 - v1.4 内容审核不挡 Play 宿主开工；玩法公开发言仍走现有 `message`
 
 ### Tests
-- 总测试数：360 个（358 通过，2 跳过）
+- 总测试数：369 个（367 通过，2 跳过；浏览器契约测试需要本机 Playwright）
 
 ## [1.2.0] - 2026-09-20
 

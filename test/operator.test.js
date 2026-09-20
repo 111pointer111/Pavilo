@@ -74,12 +74,15 @@ test('operator pages are served only when enabled, and traversal stays 404', asy
   assert.match(page.headers.get('content-type'), /text\/html/);
   const html = await page.text();
   assert.match(html, /channelForm/);
+  assert.match(html, /roomForm/);
+  assert.match(html, /chatForm/);
   assert.match(html, /#\/overview/);
   assert.match(html, /#\/room/);
   assert.match(html, /#\/chat/);
   assert.match(html, /#\/gateway/);
   assert.match(html, /#\/gateway\/channels/);
   assert.match(html, /#\/gateway\/usage/);
+  assert.doesNotMatch(html, /later-tag|稍后开放/);
   assert.doesNotMatch(html, /放弃认领|回退 YAML/);
   const css = await fetch(`${origin}/admin/admin.css`);
   assert.equal(css.status, 200);

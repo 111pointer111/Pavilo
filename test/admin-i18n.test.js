@@ -14,10 +14,11 @@ test('admin i18n interpolates and keeps catalogs aligned', () => {
   assert.equal(i18n.t('channel.deleted'), '已删除');
   assert.equal(i18n.t('nav.overview'), '总览');
   assert.equal(i18n.t('nav.groupGateway'), 'AI 网关');
-  assert.equal(i18n.t('later.flag'), '稍后开放');
+  assert.equal(i18n.t('room.pageTitle'), '房间');
+  assert.equal(i18n.t('chat.pageTitle'), '聊天频道');
 });
 
-test('admin copy no longer describes YAML as a channel source', () => {
-  const blob = `${JSON.stringify(catalogs['zh-CN'])}\n${JSON.stringify(catalogs.en)}`;
+test('gateway copy does not describe YAML as a model-channel source', () => {
+  const blob = `${catalogs['zh-CN']['channels.lead']}\n${catalogs.en['channels.lead']}\n${catalogs['zh-CN']['gateway.lead']}\n${catalogs.en['gateway.lead']}`;
   assert.doesNotMatch(blob, /认领|Fell back|Drop claim/i);
 });

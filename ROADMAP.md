@@ -755,13 +755,14 @@ src/storage/migrations/
 
 - ✅ 启用后提供 `/admin`：语亭后台为壳，AI 网关为模块。
 - ✅ 网关模块：模型渠道、只写密钥、探测、用量。
-- ✅ 预留语亭页：房间、聊天频道（不实现可视化改 YAML）。
+- ✅ 语亭页：房间、聊天频道可在 `/admin` 编辑；默认跟 YAML，保存后 SQLite 为准（ADR-0007）。
 - ✅ 保护：`operator.token`（推荐 `openssl rand -hex 32`）。本期不做账号系统。
 - ✅ 默认关闭；未启用时 `/admin` 为 404。规划见 [docs/admin.md](docs/admin.md)。
 
 ### 配置双源
 
 - ✅ YAML 只写 `operator.token`（或 `PAVILO_OPERATOR_TOKEN`）。模型渠道与 API key 只在 `/admin` 配置。
+- ✅ 房间与聊天频道默认跟 YAML；管理页按段认领后以 SQLite 为准，立即生效。
 - ✅ 管理页保存的渠道以 SQLite 密文为准。
 - ✅ sqlite 但未填 token：进程仍启动，并提示无法打开 `/admin`。
 - ✅ 说明见 [docs/gateway.md](docs/gateway.md) 与 ADR-0004。

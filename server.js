@@ -1,14 +1,17 @@
 'use strict';
 
 const http = require('node:http');
-const { DEFAULTS, loadConfig, sqliteOperatorNotice, operatorConsoleEnabled } = require('./config');
+const { DEFAULTS, loadConfig, sqliteOperatorNotice, operatorConsoleEnabled, snapshotRoomSection, snapshotChannelsSection, mergePavilionOverlay } = require('./config');
 const { createChatCore } = require('./src/core');
 const { PROTOCOL_VERSION, REACTION_EMOJIS } = require('./src/core/events');
 const { createHttpHandler } = require('./src/transport/http');
 const { createWebSocketTransport } = require('./src/transport/websocket');
 const { createGateway } = require('./src/gateway');
 const { openSqliteEngine } = require('./src/storage/sqlite-engine');
+const { applyMigrations } = require('./src/storage/migrations');
 const { createOperatorHttp, isAdminPath } = require('./src/operator/http');
+const { createOperatorConfigStore } = require('./src/operator/config-store');
+const { createPavilionController } = require('./src/operator/pavilion');
 
 function createChatServer(options = {}) {
   const config = { ...DEFAULTS, ...options };
@@ -20,6 +23,20 @@ function createChatServer(options = {}) {
   const sqliteEngine = config.storage?.driver === 'sqlite' && config.storage.sqlite?.path
     ? openSqliteEngine(config.storage.sqlite)
     : undefined;
+  const baseline = {
+    room: snapshotRoomSection(config),
+    channels: snapshotChannelsSection(config)
+  };
+  let pavilionSources = { room: 'yaml', channels: 'yaml' };
+  let pavilionWarnings = [];
+  let operatorConfigStore;
+  if (sqliteEngine) {
+    applyMigrations(sqliteEngine);
+    operatorConfigStore = createOperatorConfigStore(sqliteEngine, { now: options.now });
+    const merged = mergePavilionOverlay(config, operatorConfigStore.load());
+    pavilionSources = merged.sources;
+    pavilionWarnings = merged.warnings;
+  }
   let transport;
   const core = createChatCore(config, { onEffects: (effects) => transport.deliver(effects), engine: sqliteEngine });
   const gateway = createGateway(config, {
@@ -43,18 +60,21 @@ function createChatServer(options = {}) {
     roster: (channelId) => core.roster(channelId)
   });
   core.attachPlayRuntime(plays);
+  const pavilion = operatorConfigStore
+    ? createPavilionController({ config, baseline, store: operatorConfigStore, core })
+    : null;
   const publicHttp = createHttpHandler(config, core, () => server.address(), __dirname, {
     healthPatch: () => gateway.healthPatch()
   });
   const operatorHttp = config.operator.enabled
-    ? createOperatorHttp(config, { gateway, core, root: __dirname })
+    ? createOperatorHttp(config, { gateway, core, pavilion, root: __dirname })
     : null;
   const server = http.createServer((request, response) => {
     if (operatorHttp && isAdminPath(request)) operatorHttp(request, response);
     else publicHttp(request, response);
   });
   transport = createWebSocketTransport(server, config, core);
-  const { listen, stop, roomEpoch, localAddresses, state } = transport;
+  const { listen, stop, localAddresses, state } = transport;
   async function stopAll(signal) {
     const result = await stop(signal);
     gateway.close();
@@ -62,7 +82,12 @@ function createChatServer(options = {}) {
     sqliteEngine?.close();
     return result;
   }
-  return { server, listen, stop: stopAll, roomEpoch, localAddresses, config, state, storageInfo: core.storageInfo, gateway, plays };
+  const app = {
+    server, listen, stop: stopAll, localAddresses, config, state,
+    storageInfo: core.storageInfo, gateway, plays, pavilion, pavilionSources, pavilionWarnings
+  };
+  Object.defineProperty(app, 'roomEpoch', { enumerable: true, get: () => transport.roomEpoch });
+  return app;
 }
 
 module.exports = { createChatServer, DEFAULTS, PROTOCOL_VERSION, REACTION_EMOJIS: [...REACTION_EMOJIS] };
@@ -106,7 +131,13 @@ if (require.main === module) {
       process.stdout.write(`✓ Gateway channels: ${snapshot.channels} (configured in /admin)\n`);
     }
     process.stdout.write(`✓ Config source: ${loaded.configPath || 'built-in defaults'}\n`);
-    process.stdout.write(`  → Restart required to apply config changes\n\n`);
+    process.stdout.write(`  → Room: ${app.pavilionSources.room}\n`);
+    process.stdout.write(`  → Chat channels: ${app.pavilionSources.channels}\n`);
+    process.stdout.write(`  → Restart required to apply YAML changes; admin overlay applies immediately\n`);
+    for (const warning of app.pavilionWarnings || []) {
+      process.stdout.write(`  ⚠️  ${warning}\n`);
+    }
+    process.stdout.write('\n');
 
     // Network addresses
     process.stdout.write(`🌐 Listening on:\n`);

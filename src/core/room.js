@@ -46,9 +46,17 @@ function createRoomStore(config, store) {
     return chunks;
   }
 
+  function replaceCatalog(channels) {
+    catalog.clear();
+    for (const channel of channels) catalog.set(channel.id, channel);
+  }
+
   return {
     get,
-    epoch: get(config.defaultChannelId).epoch,
+    get epoch() {
+      return get(config.defaultChannelId)?.epoch;
+    },
+    replaceCatalog,
     snapshot: () => store.stats(),
     historyChunks,
     clear: () => store.clear()

@@ -56,7 +56,8 @@ function sendJson(response, status, payload, extraHeaders = {}) {
 
 function errorJson(response, error) {
   const status = error.code === 'OPERATOR_RATE_LIMITED' ? 429
-    : error.code === 'OPERATOR_READONLY' || error.code === 'OPERATOR_TOKEN_REQUIRED' ? 409
+    : error.code === 'OPERATOR_READONLY' || error.code === 'OPERATOR_TOKEN_REQUIRED'
+      || error.code === 'CHANNEL_BUSY' || error.code === 'PLAY_BOUND' ? 409
       : error.code === 'OPERATOR_UNAUTHORIZED' ? 401
         : error.code === 'OPERATOR_FORBIDDEN' ? 403
           : error.code === 'PAYLOAD_TOO_LARGE' ? 413
@@ -102,7 +103,7 @@ function requireOrigin(request, config) {
   }
 }
 
-function createOperatorHttp(config, { gateway, core, root }) {
+function createOperatorHttp(config, { gateway, core, pavilion, root }) {
   const auth = createOperatorAuth(config);
 
   async function serveAdminFile(request, response, filename, headOnly) {
@@ -170,14 +171,66 @@ function createOperatorHttp(config, { gateway, core, root }) {
     }
 
     if (request.method === 'GET' && pathname === '/admin/api/dashboard') {
+      const pavilionSnapshot = pavilion?.snapshot();
       sendJson(response, 200, {
         ok: true,
         session: sessionPayload(),
         room: core.health(),
+        pavilion: pavilionSnapshot ? {
+          roomTitle: pavilionSnapshot.room.title,
+          channelCount: pavilionSnapshot.channels.length,
+          sources: pavilionSnapshot.sources
+        } : null,
         gateway: gateway.status(),
         warnings: gateway.warnings
       });
       return;
+    }
+
+    if (pathname === '/admin/api/pavilion' && request.method === 'GET') {
+      if (!pavilion) {
+        const error = new Error('管理页编辑房间和聊天频道需要 sqlite');
+        error.code = 'OPERATOR_READONLY';
+        throw error;
+      }
+      sendJson(response, 200, { ok: true, ...pavilion.snapshot() });
+      return;
+    }
+
+    if (pathname === '/admin/api/pavilion/room') {
+      if (!pavilion) {
+        const error = new Error('管理页编辑房间和聊天频道需要 sqlite');
+        error.code = 'OPERATOR_READONLY';
+        throw error;
+      }
+      requireOrigin(request, config);
+      if (request.method === 'PUT') {
+        const body = await readJson(request);
+        sendJson(response, 200, { ok: true, ...pavilion.saveRoom(body) });
+        return;
+      }
+      if (request.method === 'DELETE') {
+        sendJson(response, 200, { ok: true, ...pavilion.revertRoom() });
+        return;
+      }
+    }
+
+    if (pathname === '/admin/api/pavilion/channels') {
+      if (!pavilion) {
+        const error = new Error('管理页编辑房间和聊天频道需要 sqlite');
+        error.code = 'OPERATOR_READONLY';
+        throw error;
+      }
+      requireOrigin(request, config);
+      if (request.method === 'PUT') {
+        const body = await readJson(request);
+        sendJson(response, 200, { ok: true, ...pavilion.saveChannels(body) });
+        return;
+      }
+      if (request.method === 'DELETE') {
+        sendJson(response, 200, { ok: true, ...pavilion.revertChannels() });
+        return;
+      }
     }
 
     if (request.method === 'GET' && pathname === '/admin/api/channels') {

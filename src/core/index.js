@@ -7,6 +7,30 @@ const { createSessionStore } = require('./session');
 const { createMessageStore } = require('./messages');
 const { createCommandHandler } = require('./commands');
 const events = require('./events');
+const { applyRoomOverlay, applyChannelsOverlay, validatePavilionConfig } = require('../../config');
+
+function pavilionError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function assertCatalogTransition(previous, next, { occupancy, playGame }) {
+  const nextById = new Map(next.map((channel) => [channel.id, channel]));
+  for (const prev of previous) {
+    const upcoming = nextById.get(prev.id);
+    const members = occupancy[prev.id] || 0;
+    if (members > 0 && !upcoming) throw pavilionError('CHANNEL_BUSY', `频道 ${prev.id} 仍有成员，不能删除。`);
+    if (members > 0 && prev.enabled && upcoming && !upcoming.enabled) {
+      throw pavilionError('CHANNEL_BUSY', `频道 ${prev.id} 仍有成员，不能停用。`);
+    }
+    const prevPlay = prev.play || '';
+    const nextPlay = upcoming?.play || '';
+    if (prevPlay !== nextPlay && typeof playGame === 'function' && playGame(prev.id)) {
+      throw pavilionError('PLAY_BOUND', `频道 ${prev.id} 有进行中的玩法，不能改绑定。`);
+    }
+  }
+}
 
 // Peers are domain identities, never sockets. The adapter consumes routed effects
 // and reports delivery completion/disconnection back through this interface.
@@ -226,6 +250,35 @@ function createChatCore(config, runtime = {}) {
     }
     return result;
   }
+  function occupancy() {
+    return occupancySnapshot();
+  }
+
+  function applyPavilionConfig({ room, channels } = {}) {
+    const trial = {
+      ...config,
+      channels: config.channels.map((channel) => ({ ...channel })),
+      plays: [...(config.plays || [])],
+      operator: config.operator ? { ...config.operator } : config.operator
+    };
+    if (room) applyRoomOverlay(trial, room);
+    if (channels) applyChannelsOverlay(trial, channels);
+    validatePavilionConfig(trial);
+    assertCatalogTransition(config.channels, trial.channels, {
+      occupancy: occupancySnapshot(),
+      playGame: (channelId) => playSlot.runtime?.store?.loadGame?.(channelId) || null
+    });
+    for (const channel of trial.channels) store.ensureChannel(channel.id);
+    config.roomTitle = trial.roomTitle;
+    config.defaultChannelId = trial.defaultChannelId;
+    config.defaultLanguage = trial.defaultLanguage;
+    config.exposeMemberIps = trial.exposeMemberIps;
+    config.exposeLanUrls = trial.exposeLanUrls;
+    config.maxUsers = trial.maxUsers;
+    config.channels = trial.channels;
+    rooms.replaceCatalog(trial.channels);
+  }
+
   function attachPlayRuntime(playRuntime) {
     playSlot.runtime = playRuntime || null;
   }
@@ -278,10 +331,13 @@ function createChatCore(config, runtime = {}) {
     }
     if (runtime.onEffects) runtime.onEffects(takeEffects());
   }
-  return {
+  const api = {
     connect, dispatch, disconnect, connectionStatus, completeSync, markClosing, shutdown,
-    state, health, roomInfo, storageInfo, roomEpoch: rooms.epoch, pruneDedupe: store.pruneDedupe,
-    drainEffects: takeEffects, attachPlayRuntime, roster, seatAgent, unseatAgent, deliverPlayEffects
+    state, health, roomInfo, storageInfo, pruneDedupe: store.pruneDedupe,
+    drainEffects: takeEffects, attachPlayRuntime, roster, seatAgent, unseatAgent, deliverPlayEffects,
+    occupancy, applyPavilionConfig
   };
+  Object.defineProperty(api, 'roomEpoch', { enumerable: true, get: () => rooms.epoch });
+  return api;
 }
 module.exports = { createChatCore };

@@ -19,7 +19,12 @@ function createMemoryStore(config, runtime = {}) {
     };
   }
 
-  for (const channel of config.channels) channels.set(channel.id, createChannel(channel.id));
+  function ensureChannel(channelId) {
+    if (!channels.has(channelId)) channels.set(channelId, createChannel(channelId));
+    return channels.get(channelId);
+  }
+
+  for (const channel of config.channels) ensureChannel(channel.id);
 
   function requireChannel(channelId) {
     const channel = channels.get(channelId);
@@ -143,6 +148,7 @@ function createMemoryStore(config, runtime = {}) {
     driver: 'memory',
     ephemeral: true,
     getChannelState,
+    ensureChannel,
     loadWorkingSet,
     getMessage,
     findIdempotent,

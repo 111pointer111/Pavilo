@@ -13,7 +13,6 @@ function createWebSocketTransport(server, config, core) {
   const clients = new Set();
   const connections = new Map();
   let peerSequence = 0;
-  const roomEpoch = core.roomEpoch;
   let shuttingDown = false;
   let lifecycle = 'created';
   let heartbeat;
@@ -353,16 +352,17 @@ function createWebSocketTransport(server, config, core) {
     if (signal) process.stdout.write(`\n${signal}: 语亭房间已清空，服务已停止。\n`);
   }
 
-  return {
+  const api = {
     server,
     deliver,
     listen,
     stop,
-    roomEpoch,
     localAddresses,
     config,
     state: core.state
   };
+  Object.defineProperty(api, 'roomEpoch', { enumerable: true, get: () => core.roomEpoch });
+  return api;
 }
 
 module.exports = { createWebSocketTransport };

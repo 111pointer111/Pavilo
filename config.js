@@ -96,6 +96,7 @@ const STORAGE_DRIVERS = new Set(['memory', 'sqlite']);
 const SQLITE_ENGINES = new Set(['auto', 'node', 'better-sqlite3']);
 const SERVER_KEYS = new Set(['host', 'port', 'maxUsers', 'maxConnections', 'maxConnectionsPerIp', 'allowNoOrigin', 'allowedOrigins']);
 const ROOM_KEYS = new Set(['title', 'defaultChannel', 'exposeMemberIps', 'exposeLanUrls', 'defaultLanguage']);
+const ROOM_OVERLAY_KEYS = new Set(['title', 'defaultChannel', 'defaultLanguage', 'exposeMemberIps', 'exposeLanUrls', 'maxUsers']);
 const CHANNEL_KEYS_V1 = new Set(['id', 'name', 'description', 'enabled', 'readOnly', 'maxUsers', 'welcome']);
 const CHANNEL_KEYS_V2 = new Set([...CHANNEL_KEYS_V1, 'play']);
 const MAX_PLAYS = 32;
@@ -203,7 +204,7 @@ function parsePlays(value) {
   return ids;
 }
 
-function normalizeChannels(value, maxUsers, { schemaVersion, plays } = {}) {
+function normalizeChannels(value, maxUsers, { schemaVersion, plays, clampMaxUsers = false } = {}) {
   if (!Array.isArray(value) || value.length < 1 || value.length > MAX_CHANNELS) fail('channels', `必须包含 1–${MAX_CHANNELS} 个频道`);
   const ids = new Set();
   const enabledPlays = plays || [];
@@ -216,23 +217,153 @@ function normalizeChannels(value, maxUsers, { schemaVersion, plays } = {}) {
     if (ids.has(id)) fail(`${field}.id`, `频道 ID “${id}” 重复`);
     ids.add(id);
     let play;
-    if (channel.play !== undefined) {
+    if (channel.play !== undefined && channel.play !== '') {
       play = text(channel.play, `${field}.play`, 1, 32);
       if (!enabledPlays.includes(play)) fail(`${field}.play`, `玩法 “${play}” 未在 plays 中启用`);
     }
+    let channelMaxUsers;
+    if (channel.maxUsers === undefined) channelMaxUsers = maxUsers;
+    else if (clampMaxUsers) channelMaxUsers = Math.min(maxUsers, integer(channel.maxUsers, `${field}.maxUsers`, 1, MAX_USERS));
+    else channelMaxUsers = integer(channel.maxUsers, `${field}.maxUsers`, 1, maxUsers);
     return {
       id,
       name: text(channel.name, `${field}.name`, 1, 40),
       description: channel.description === undefined ? '' : text(channel.description, `${field}.description`, 0, 160),
       enabled: channel.enabled === undefined ? true : boolean(channel.enabled, `${field}.enabled`),
       readOnly: channel.readOnly === undefined ? false : boolean(channel.readOnly, `${field}.readOnly`),
-      maxUsers: channel.maxUsers === undefined ? maxUsers : integer(channel.maxUsers, `${field}.maxUsers`, 1, maxUsers),
+      maxUsers: channelMaxUsers,
       welcome: channel.welcome === undefined ? '' : paragraph(channel.welcome, `${field}.welcome`, 0, MAX_WELCOME_LENGTH),
       ...(play ? { play } : {})
     };
   });
   if (!channels.some((channel) => channel.enabled && !channel.readOnly)) fail('channels', '至少要启用一个可发言的频道');
   return channels;
+}
+
+function snapshotRoomSection(config) {
+  return {
+    title: config.roomTitle,
+    defaultChannel: config.defaultChannelId,
+    defaultLanguage: config.defaultLanguage || 'zh-CN',
+    exposeMemberIps: config.exposeMemberIps !== false,
+    exposeLanUrls: config.exposeLanUrls !== false,
+    maxUsers: config.maxUsers
+  };
+}
+
+function snapshotChannelsSection(config) {
+  return (config.channels || []).map((channel) => {
+    const copy = {
+      id: channel.id,
+      name: channel.name,
+      description: channel.description || '',
+      enabled: channel.enabled !== false,
+      readOnly: Boolean(channel.readOnly),
+      maxUsers: channel.maxUsers,
+      welcome: channel.welcome || ''
+    };
+    if (channel.play) copy.play = channel.play;
+    return copy;
+  });
+}
+
+function parseRoomOverlay(input) {
+  const room = record(input, 'room');
+  knownKeys(room, ROOM_OVERLAY_KEYS, 'room');
+  for (const key of ROOM_OVERLAY_KEYS) {
+    if (room[key] === undefined) fail(`room.${key}`, '管理页覆盖层缺少字段');
+  }
+  const language = text(room.defaultLanguage, 'room.defaultLanguage', 2, 16);
+  if (language !== 'zh-CN' && language !== 'en') fail('room.defaultLanguage', '只能是 zh-CN 或 en');
+  return {
+    title: text(room.title, 'room.title', 1, 80),
+    defaultChannel: text(room.defaultChannel, 'room.defaultChannel', 1, 32),
+    defaultLanguage: language,
+    exposeMemberIps: boolean(room.exposeMemberIps, 'room.exposeMemberIps'),
+    exposeLanUrls: boolean(room.exposeLanUrls, 'room.exposeLanUrls'),
+    maxUsers: integer(room.maxUsers, 'room.maxUsers', 1, MAX_USERS)
+  };
+}
+
+function parseChannelsOverlay(value, maxUsers, { plays } = {}) {
+  return normalizeChannels(value, maxUsers, { schemaVersion: 2, plays, clampMaxUsers: true });
+}
+
+function applyRoomOverlay(config, room) {
+  const parsed = room.title !== undefined && room.maxUsers !== undefined ? parseRoomOverlay(room) : room;
+  if (parsed.maxUsers > config.maxClients) {
+    fail('room.maxUsers', `不能大于 server.maxConnections（当前 ${config.maxClients}）`);
+  }
+  config.roomTitle = parsed.title;
+  config.defaultChannelId = parsed.defaultChannel;
+  config.defaultLanguage = parsed.defaultLanguage;
+  config.exposeMemberIps = parsed.exposeMemberIps;
+  config.exposeLanUrls = parsed.exposeLanUrls;
+  config.maxUsers = parsed.maxUsers;
+  config.channels = config.channels.map((channel) => ({
+    ...channel,
+    description: channel.description || '',
+    enabled: channel.enabled !== false,
+    readOnly: Boolean(channel.readOnly),
+    welcome: channel.welcome || '',
+    maxUsers: Math.min(channel.maxUsers, config.maxUsers)
+  }));
+  return parsed;
+}
+
+function applyChannelsOverlay(config, channels) {
+  config.channels = parseChannelsOverlay(channels, config.maxUsers, { plays: config.plays });
+  return config.channels;
+}
+
+function validateDefaultChannel(config) {
+  const defaultChannel = config.channels.find((channel) => channel.id === config.defaultChannelId);
+  if (!defaultChannel) fail('room.defaultChannel', `找不到频道 “${config.defaultChannelId}”`);
+  if (!defaultChannel.enabled) fail('room.defaultChannel', '默认频道必须启用');
+  if (defaultChannel.readOnly) fail('room.defaultChannel', '默认频道不能是只读频道');
+}
+
+function validatePavilionConfig(config) {
+  validateDefaultChannel(config);
+  validateCrossConstraints(config);
+}
+
+function roomSectionsEqual(left, right) {
+  return left.title === right.title
+    && left.defaultChannel === right.defaultChannel
+    && left.defaultLanguage === right.defaultLanguage
+    && left.exposeMemberIps === right.exposeMemberIps
+    && left.exposeLanUrls === right.exposeLanUrls
+    && left.maxUsers === right.maxUsers;
+}
+
+function channelsEqual(left, right) {
+  return JSON.stringify(snapshotChannelsSection({ channels: left })) === JSON.stringify(snapshotChannelsSection({ channels: right }));
+}
+
+function mergePavilionOverlay(config, overlay = {}) {
+  const warnings = [];
+  const sources = { room: 'yaml', channels: 'yaml' };
+  const yamlRoom = snapshotRoomSection(config);
+  const yamlChannels = snapshotChannelsSection(config);
+  if (overlay.room) {
+    const room = parseRoomOverlay(overlay.room);
+    if (!roomSectionsEqual(yamlRoom, room)) {
+      warnings.push('房间设置已由管理页接管，忽略配置文件中的 room / server.maxUsers');
+    }
+    applyRoomOverlay(config, room);
+    sources.room = 'operator';
+  }
+  if (overlay.channels) {
+    const channels = parseChannelsOverlay(overlay.channels, config.maxUsers, { plays: config.plays });
+    if (!channelsEqual(yamlChannels, channels)) {
+      warnings.push('聊天频道已由管理页接管，忽略配置文件中的 channels');
+    }
+    applyChannelsOverlay(config, channels);
+    sources.channels = 'operator';
+  }
+  if (overlay.room || overlay.channels) validatePavilionConfig(config);
+  return { sources, warnings };
 }
 
 function rootKeysFor(schemaVersion) {
@@ -347,7 +478,7 @@ function validateCrossConstraints(config) {
   // both its own largest body and another maximum-length text value.
   const largestMessageBytes = Math.max(maxTextBytes, encodedImageBytes) + maxTextBytes + MAX_MESSAGE_OVERHEAD_BYTES;
   const rosterBytes = config.maxUsers * MAX_ROSTER_USER_BYTES + MAX_MESSAGE_OVERHEAD_BYTES;
-  const welcomeBytes = config.channels.reduce((total, channel) => total + Buffer.byteLength(channel.welcome, 'utf8'), 0);
+  const welcomeBytes = config.channels.reduce((total, channel) => total + Buffer.byteLength(channel.welcome || '', 'utf8'), 0);
   if (config.maxClients < config.maxUsers) fail('server.maxConnections', '不能小于 server.maxUsers');
   if (config.maxClientsPerIp > config.maxClients) fail('server.maxConnectionsPerIp', '不能大于 server.maxConnections');
   if (config.maxJsonBytes < largestMessageBytes) fail('limits.maxJsonBytes', '装不下最大图片的 base64 或最长文字消息及其 JSON 开销');
@@ -436,10 +567,7 @@ function normalizeConfig(document = {}, { requireVersion = false, baseDir = ROOT
   } else {
     config.channels = normalizeChannels(root.channels, config.maxUsers, { schemaVersion, plays: config.plays });
   }
-  const defaultChannel = config.channels.find((channel) => channel.id === config.defaultChannelId);
-  if (!defaultChannel) fail('room.defaultChannel', `找不到频道 “${config.defaultChannelId}”`);
-  if (!defaultChannel.enabled) fail('room.defaultChannel', '默认频道必须启用');
-  if (defaultChannel.readOnly) fail('room.defaultChannel', '默认频道不能是只读频道');
+  validateDefaultChannel(config);
   config.storage = schemaVersion >= 2 ? parseStorage(root.storage, baseDir) : { driver: 'memory' };
   if (schemaVersion >= 2) config.operator = parseOperator(root.operator);
   if (root.operator !== undefined) config._operatorDeclared = true;
@@ -530,11 +658,33 @@ function loadConfig({ env = process.env, configPath } = {}) {
   return { config, configPath: source === undefined ? null : resolvedPath };
 }
 
+function inspectPavilionSources(config) {
+  const sources = { room: 'yaml', channels: 'yaml' };
+  const filePath = config.storage?.sqlite?.path;
+  if (config.storage?.driver !== 'sqlite' || !filePath || !fs.existsSync(filePath)) return sources;
+  const { openSqliteEngine } = require('./src/storage/sqlite-engine');
+  const { applyMigrations } = require('./src/storage/migrations');
+  const { createOperatorConfigStore } = require('./src/operator/config-store');
+  const engine = openSqliteEngine(config.storage.sqlite);
+  try {
+    applyMigrations(engine);
+    const overlay = createOperatorConfigStore(engine).load();
+    if (overlay.room) sources.room = 'operator';
+    if (overlay.channels) sources.channels = 'operator';
+    return sources;
+  } finally {
+    engine.close();
+  }
+}
+
 function checkConfig() {
   try {
     const loaded = loadConfig();
     const source = loaded.configPath || '内置默认配置';
     process.stdout.write(`配置有效：${source}\n`);
+    const overlaySources = inspectPavilionSources(loaded.config);
+    process.stdout.write(`房间真源：${overlaySources.room}\n`);
+    process.stdout.write(`聊天频道真源：${overlaySources.channels}\n`);
     const notice = sqliteOperatorNotice(loaded.config);
     if (notice) process.stderr.write(`提示：${notice}\n`);
   } catch (error) {
@@ -553,7 +703,16 @@ module.exports = {
   normalizeConfig,
   parseConfig,
   operatorConsoleEnabled,
-  sqliteOperatorNotice
+  sqliteOperatorNotice,
+  inspectPavilionSources,
+  snapshotRoomSection,
+  snapshotChannelsSection,
+  parseRoomOverlay,
+  parseChannelsOverlay,
+  applyRoomOverlay,
+  applyChannelsOverlay,
+  validatePavilionConfig,
+  mergePavilionOverlay
 };
 
 if (require.main === module) checkConfig();

@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
 
-const { CONFIG_VERSION, SUPPORTED_CONFIG_VERSIONS, DEFAULTS, loadConfig, normalizeConfig, parseConfig, sqliteOperatorNotice, operatorConsoleEnabled } = require('../config');
+const { CONFIG_VERSION, SUPPORTED_CONFIG_VERSIONS, DEFAULTS, loadConfig, normalizeConfig, parseConfig, sqliteOperatorNotice, operatorConsoleEnabled, mergePavilionOverlay, snapshotRoomSection } = require('../config');
 
 const ROOT = path.resolve(__dirname, '..');
 
@@ -593,4 +593,34 @@ room:
 channels:
 ${manyChannels}
 `), /welcome.*合计不能超过.*65536/);
+});
+
+test('pavilion overlay replaces claimed sections and warns when YAML diverges', () => {
+  const config = parseConfig(`
+version: 1
+room:
+  title: YAML 标题
+  defaultChannel: general
+server:
+  maxUsers: 10
+  maxConnections: 20
+`);
+  const yamlTitle = config.roomTitle;
+  const merged = mergePavilionOverlay(config, {
+    room: {
+      title: '管理页标题',
+      defaultChannel: 'general',
+      defaultLanguage: 'en',
+      exposeMemberIps: true,
+      exposeLanUrls: true,
+      maxUsers: 8
+    }
+  });
+  assert.equal(merged.sources.room, 'operator');
+  assert.equal(merged.sources.channels, 'yaml');
+  assert.equal(config.roomTitle, '管理页标题');
+  assert.equal(config.maxUsers, 8);
+  assert.notEqual(yamlTitle, config.roomTitle);
+  assert.match(merged.warnings.join('\n'), /房间设置已由管理页接管/);
+  assert.equal(snapshotRoomSection(config).title, '管理页标题');
 });
