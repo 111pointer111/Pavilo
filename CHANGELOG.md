@@ -32,6 +32,9 @@ Pavilo 的重要变更都记在这份文件里。
 - [`plays/werewolf/README.md`](plays/werewolf/README.md) 官方样例目录约定（实现中）
 - 冻结后的 [`docs/play.md`](docs/play.md)
 
+### Fixed
+- `/admin` 房间和聊天频道打开时带出当前有效配置；`/admin/api/pavilion` 失败时不再显示空白表，也不再把 404 正文当成空目录
+
 ### Changed
 - `version: 1` 出现 `storage` / `operator` / `plays` 会拒绝；memory 下的 v2 写 `operator`/`plays` 会拒绝。任何版本出现 `gateway:` 都会被拒绝。`version: 3` 当作 v2 读入。模型渠道只在 `/admin` 写入 SQLite
 - sqlite 引擎由 composition 打开一次，聊天 store 与网关 store 共享连接

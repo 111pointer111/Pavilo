@@ -87,6 +87,12 @@ test('operator pages are served only when enabled, and traversal stays 404', asy
   const css = await fetch(`${origin}/admin/admin.css`);
   assert.equal(css.status, 200);
   assert.match(await css.text(), /\[hidden\]\s*\{\s*display:\s*none\s*!important/);
+  const appJs = await (await fetch(`${origin}/admin/app.js`)).text();
+  assert.match(appJs, /if \(!response\.ok\) \{/);
+  assert.doesNotMatch(appJs, /!response\.ok && payload\.ok === false/);
+  assert.match(appJs, /acceptPavilion/);
+  assert.match(html, /id="roomLoadError"/);
+  assert.match(html, /id="chatLoadError"/);
   const traversal = await fetch(`${origin}/admin/../pavilo.yaml`);
   assert.equal(traversal.status, 404);
   const missing = await fetch(`${origin}/admin/secret.js`);
@@ -153,7 +159,16 @@ test('session APIs hide the API key, persist ciphertext, and probe without expos
 
   const dashboard = await (await fetch(`${origin}/admin/api/dashboard`, { headers })).json();
   assert.equal(dashboard.room.ok, true);
+  assert.equal(dashboard.pavilion.roomTitle, '语亭 · 临时频道');
+  assert.equal(dashboard.pavilion.sources.room, 'yaml');
+  assert.equal(dashboard.pavilion.sources.channels, 'yaml');
+  assert.ok(dashboard.pavilion.channelCount >= 1);
   assert.equal(JSON.stringify(dashboard).includes('sk-admin-key-9999'), false);
+
+  const pavilion = await (await fetch(`${origin}/admin/api/pavilion`, { headers })).json();
+  assert.equal(pavilion.ok, true);
+  assert.equal(pavilion.room.title, '语亭 · 临时频道');
+  assert.ok(pavilion.channels.some((channel) => channel.id === 'general'));
 });
 
 test('memory mode does not serve /admin even with a token in options', async (t) => {

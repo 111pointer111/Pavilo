@@ -57,16 +57,35 @@
   let session = null;
   let dashboard = null;
   let channels = [];
-  let pavilion = {
-    sources: { room: 'yaml', channels: 'yaml' },
-    room: {},
-    channels: [],
-    plays: [],
-    occupancy: {},
-    maxUsersCap: 80
-  };
+  let pavilionError = null;
+  let pavilion = emptyPavilion();
   let usage = { tracking: true, rows: [] };
   let toastTimer = 0;
+
+  function emptyPavilion() {
+    return {
+      sources: { room: 'yaml', channels: 'yaml' },
+      updatedAt: { room: null, channels: null },
+      room: {},
+      channels: [],
+      plays: [],
+      occupancy: {},
+      maxUsersCap: 80
+    };
+  }
+
+  function acceptPavilion(payload) {
+    pavilion = {
+      sources: payload.sources || { room: 'yaml', channels: 'yaml' },
+      updatedAt: payload.updatedAt || { room: null, channels: null },
+      room: payload.room || {},
+      channels: Array.isArray(payload.channels) ? payload.channels : [],
+      plays: Array.isArray(payload.plays) ? payload.plays : [],
+      occupancy: payload.occupancy || {},
+      maxUsersCap: payload.maxUsersCap || payload.room?.maxUsers || 1
+    };
+    pavilionError = null;
+  }
 
   function t(key, vars) { return i18n.t(key, vars); }
 
@@ -95,8 +114,8 @@
       error.code = payload.code || 'OPERATOR_UNAUTHORIZED';
       throw error;
     }
-    if (!response.ok && payload.ok === false) {
-      const error = new Error(payload.message || payload.code || 'error');
+    if (!response.ok) {
+      const error = new Error(payload.message || payload.code || `HTTP ${response.status}`);
       error.code = payload.code;
       error.payload = payload;
       throw error;
@@ -176,9 +195,13 @@
     const room = dashboard?.room || {};
     const sources = pavilion.sources || {};
     overviewCards.replaceChildren();
+    const roomTitle = pavilion.room?.title || dashboard?.pavilion?.roomTitle || '—';
+    const chatValue = pavilionError
+      ? t('pavilion.loadError')
+      : t('overview.channelCount', { count: pavilion.channels.length });
     const cards = [
-      [t('overview.room'), pavilion.room?.title || String(room.users ?? 0), `${t('overview.users')} ${room.users ?? 0} · ${t(sources.room === 'operator' ? 'overview.sourceOperator' : 'overview.sourceYaml')}`],
-      [t('overview.chat'), t('overview.channelCount', { count: pavilion.channels.length }), `${t('overview.chatHint')} · ${t(sources.channels === 'operator' ? 'overview.sourceOperator' : 'overview.sourceYaml')}`],
+      [t('overview.room'), pavilionError ? t('pavilion.loadError') : roomTitle, `${t('overview.users')} ${room.users ?? 0} · ${t(sources.room === 'operator' ? 'overview.sourceOperator' : 'overview.sourceYaml')}`],
+      [t('overview.chat'), chatValue, `${t('overview.chatHint')} · ${t(sources.channels === 'operator' ? 'overview.sourceOperator' : 'overview.sourceYaml')}`],
       [t('gateway.title'), t('overview.channelCount', { count: channels.length }), t('gateway.lead')]
     ];
     for (const [kicker, value, detail] of cards) {
@@ -219,9 +242,21 @@
     gatewayNext.append(primary, secondary);
   }
 
+  function paintLoadError(node) {
+    if (!node) return;
+    if (pavilionError) {
+      node.hidden = false;
+      node.textContent = `${t('pavilion.loadError')} ${pavilionError}`;
+    } else {
+      node.hidden = true;
+      node.textContent = '';
+    }
+  }
+
   function fillRoomForm() {
     const room = pavilion.room || {};
     paintSource(roomSource, pavilion.sources?.room);
+    paintLoadError(document.getElementById('roomLoadError'));
     roomForm.title.value = room.title || '';
     roomForm.defaultLanguage.value = room.defaultLanguage || 'zh-CN';
     roomForm.maxUsers.value = room.maxUsers || 1;
@@ -230,14 +265,14 @@
     roomForm.exposeLanUrls.checked = room.exposeLanUrls !== false;
     roomMaxUsersHint.textContent = t('room.maxUsersHint', { cap: pavilion.maxUsersCap || room.maxUsers || 1 });
     roomDefaultChannel.replaceChildren();
-    for (const channel of pavilion.channels) {
+    for (const channel of pavilion.channels || []) {
       const option = document.createElement('option');
       option.value = channel.id;
       option.textContent = `${channel.name} (${channel.id})`;
       if (channel.id === room.defaultChannel) option.selected = true;
       roomDefaultChannel.append(option);
     }
-    const canWrite = writable();
+    const canWrite = writable() && !pavilionError;
     roomSaveButton.disabled = !canWrite;
     roomRevertButton.hidden = pavilion.sources?.room !== 'operator';
     roomRevertButton.disabled = !canWrite;
@@ -245,9 +280,18 @@
 
   function renderChatList() {
     paintSource(chatSource, pavilion.sources?.channels);
+    paintLoadError(document.getElementById('chatLoadError'));
+    const chatAddButton = document.getElementById('chatAddButton');
+    if (chatAddButton) chatAddButton.hidden = Boolean(pavilionError);
     chatRevertButton.hidden = pavilion.sources?.channels !== 'operator';
-    chatRevertButton.disabled = !writable();
+    chatRevertButton.disabled = !writable() || Boolean(pavilionError);
     chatList.replaceChildren();
+    if (pavilionError) {
+      const empty = el('div', 'empty paper');
+      empty.append(el('h2', '', t('pavilion.loadError')), el('p', '', t('pavilion.loadErrorHint')));
+      chatList.append(empty);
+      return;
+    }
     if (!pavilion.channels.length) {
       const empty = el('div', 'empty paper');
       empty.append(el('h2', '', t('chat.empty')), el('p', '', t('chat.emptyHint')));
@@ -297,7 +341,7 @@
       chatPlay.append(option);
     }
     chatDeleteButton.hidden = !editing;
-    const canWrite = writable();
+    const canWrite = writable() && !pavilionError;
     chatSaveButton.disabled = !canWrite;
     chatDeleteButton.disabled = !canWrite;
   }
@@ -415,6 +459,10 @@
     }
     if (route.view === 'chatForm') {
       markNav('chat');
+      if (pavilionError) {
+        location.hash = '#/chat';
+        return;
+      }
       const channel = route.id ? pavilion.channels.find((entry) => entry.id === route.id) : null;
       if (route.id && !channel) {
         location.hash = '#/chat';
@@ -470,7 +518,13 @@
     session = dashboard.session;
     channels = (await api('/admin/api/channels')).channels || [];
     usage = await api('/admin/api/usage?days=7');
-    pavilion = await api('/admin/api/pavilion');
+    try {
+      acceptPavilion(await api('/admin/api/pavilion'));
+    } catch (error) {
+      if (error.code === 'OPERATOR_UNAUTHORIZED') throw error;
+      pavilion = emptyPavilion();
+      pavilionError = error.message || t('pavilion.loadError');
+    }
   }
 
   loginForm.addEventListener('submit', async (event) => {
@@ -499,7 +553,7 @@
   roomForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     try {
-      pavilion = await api('/admin/api/pavilion/room', {
+      acceptPavilion(await api('/admin/api/pavilion/room', {
         method: 'PUT',
         body: JSON.stringify({
           title: roomForm.title.value.trim(),
@@ -509,7 +563,7 @@
           exposeMemberIps: roomForm.exposeMemberIps.checked,
           exposeLanUrls: roomForm.exposeLanUrls.checked
         })
-      });
+      }));
       dashboard = await api('/admin/api/dashboard');
       fillRoomForm();
       showToast(t('room.saved'));
@@ -521,7 +575,7 @@
   roomRevertButton.addEventListener('click', async () => {
     if (!window.confirm(t('room.revertConfirm'))) return;
     try {
-      pavilion = await api('/admin/api/pavilion/room', { method: 'DELETE' });
+      acceptPavilion(await api('/admin/api/pavilion/room', { method: 'DELETE' }));
       dashboard = await api('/admin/api/dashboard');
       fillRoomForm();
       showToast(t('room.reverted'));
@@ -537,10 +591,10 @@
       ? pavilion.channels.map((channel) => (channel.id === next.id ? next : channel))
       : pavilion.channels.concat(next);
     try {
-      pavilion = await api('/admin/api/pavilion/channels', {
+      acceptPavilion(await api('/admin/api/pavilion/channels', {
         method: 'PUT',
         body: JSON.stringify({ channels: list })
-      });
+      }));
       location.hash = `#/chat/${encodeURIComponent(next.id)}`;
       renderRoute();
       showToast(t('chat.saved'));
@@ -555,10 +609,10 @@
     if (!window.confirm(t('chat.deleteConfirm', { id }))) return;
     const list = pavilion.channels.filter((channel) => channel.id !== id);
     try {
-      pavilion = await api('/admin/api/pavilion/channels', {
+      acceptPavilion(await api('/admin/api/pavilion/channels', {
         method: 'PUT',
         body: JSON.stringify({ channels: list })
-      });
+      }));
       location.hash = '#/chat';
       renderRoute();
       showToast(t('chat.deleted'));
@@ -570,7 +624,7 @@
   chatRevertButton.addEventListener('click', async () => {
     if (!window.confirm(t('chat.revertConfirm'))) return;
     try {
-      pavilion = await api('/admin/api/pavilion/channels', { method: 'DELETE' });
+      acceptPavilion(await api('/admin/api/pavilion/channels', { method: 'DELETE' }));
       renderChatList();
       showToast(t('chat.reverted'));
     } catch (error) {

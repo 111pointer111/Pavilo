@@ -70,6 +70,7 @@
       <section class="view" id="viewRoom" hidden>
         <form class="editor paper" id="roomForm">
           <p class="source-line"><span class="source-badge" id="roomSource"></span></p>
+          <p class="error" id="roomLoadError" hidden></p>
           <div class="grid">
             <label>
               <span data-i18n="room.title">房间标题</span>
@@ -109,8 +110,9 @@
 
       <section class="view" id="viewChat" hidden>
         <p class="source-line"><span class="source-badge" id="chatSource"></span></p>
+        <p class="error" id="chatLoadError" hidden></p>
         <div class="toolbar">
-          <a class="button" href="#/chat/new" data-i18n="chat.add">添加聊天频道</a>
+          <a class="button" href="#/chat/new" id="chatAddButton" data-i18n="chat.add">添加聊天频道</a>
           <button type="button" class="button ghost" id="chatRevertButton" data-i18n="chat.revert">恢复为配置文件</button>
         </div>
         <div id="chatList"></div>
