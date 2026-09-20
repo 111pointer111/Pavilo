@@ -32,12 +32,25 @@
     }
     return result;
   }
+  function mergeOlderMessages(existing, older) {
+    const seen = new Set();
+    const merged = [];
+    for (const message of [...(older || []), ...(existing || [])]) {
+      if (!message || typeof message.id !== 'string' || seen.has(message.id)) continue;
+      seen.add(message.id);
+      merged.push(message);
+    }
+    return merged.sort((a, b) => (Number(a.seq) || 0) - (Number(b.seq) || 0)
+      || (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0));
+  }
+
   function createInitialState(options = {}) {
     return {
       connection: { status: 'idle', joined: false, attempt: 0, intentionalLeave: false },
-      room: { epoch: null, startedAt: null, latestSeq: 0, resumeToken: null },
+      room: { epoch: null, startedAt: null, latestSeq: 0, resumeToken: null, capabilities: [] },
       self: null, channelId: null, channel: { switching: false, requestedId: null }, channels: [], channelOccupancy: {},
       users: [], messages: [], pending: {}, sync: emptySync(), typing: {}, unread: 0,
+      historyPage: { loading: false, exhausted: true, hasPaged: false },
       error: null, maxMessages: cap(options.maxMessages),
     };
   }
@@ -76,8 +89,10 @@
     const nextEpoch = epoch || state.room.epoch || 'legacy';
     const authoritative = sortAndDedupeMessages(messages, Number.MAX_SAFE_INTEGER);
     const sorted = sortAndDedupeMessages(authoritative, state.maxMessages);
+    const canPage = Array.isArray(state.room.capabilities) && state.room.capabilities.includes('historyPage');
     return { ...state,
       room: { ...state.room, epoch: nextEpoch, latestSeq }, messages: sorted,
+      historyPage: { loading: false, exhausted: !canPage, hasPaged: false },
       pending: reconcilePending(state.pending, authoritative, nextEpoch, state.self?.id), typing: {}, sync: emptySync(),
       unread: state.room.epoch && state.room.epoch !== nextEpoch ? 0 : state.unread,
       connection: { ...state.connection, status: 'joined', joined: true, attempt: 0, intentionalLeave: false },
@@ -93,7 +108,8 @@
         && message.author?.id === appended.author?.id)) {
       messages = [...messages, appended];
     }
-    return messages === state.messages ? messages : sortAndDedupeMessages(messages, state.maxMessages);
+    if (messages === state.messages) return messages;
+    return sortAndDedupeMessages(messages, state.historyPage?.hasPaged ? Number.MAX_SAFE_INTEGER : state.maxMessages);
   }
 
   // Local events use slash-separated names; wire events retain their exact names.
@@ -111,16 +127,33 @@
           unread: switched ? 0 : state.unread,
           room: { ...state.room, epoch: switched ? null : state.room.epoch,
             startedAt: event.roomStartedAt ?? state.room.startedAt, latestSeq: Number(event.latestSeq) || 0,
-            resumeToken: typeof event.resumeToken === 'string' && event.resumeToken ? event.resumeToken : state.room.resumeToken },
+            resumeToken: typeof event.resumeToken === 'string' && event.resumeToken ? event.resumeToken : state.room.resumeToken,
+            capabilities: Array.isArray(event.capabilities) ? event.capabilities : state.room.capabilities || [] },
           connection: { ...state.connection, joined: false, status: 'syncing' },
           sync: makeSync({ active: true, epoch: event.roomEpoch || (switched ? null : state.room.epoch),
             messages: [], deferred: [], latestSeq: Number(event.latestSeq) || 0 }) };
       }
       case 'history':
-        if (!state.sync.active || event.roomEpoch && event.roomEpoch !== state.sync.epoch) return state;
-        return { ...state, sync: copySync(state.sync, {
-          messages: [...state.sync.messages, ...(event.messages || [])],
-        }) };
+        if (state.sync.active) {
+          if (event.roomEpoch && event.roomEpoch !== state.sync.epoch) return state;
+          return { ...state, sync: copySync(state.sync, {
+            messages: [...state.sync.messages, ...(event.messages || [])],
+          }) };
+        }
+        if (event.roomEpoch && event.roomEpoch !== state.room.epoch) return state;
+        return { ...state, messages: mergeOlderMessages(state.messages, event.messages || []),
+          historyPage: { ...state.historyPage, hasPaged: true } };
+      case 'historyPageEnd': {
+        if (state.sync.active || event.roomEpoch && event.roomEpoch !== state.room.epoch) return state;
+        return { ...state, historyPage: {
+          loading: false,
+          exhausted: Boolean(event.exhausted),
+          hasPaged: state.historyPage.hasPaged
+        } };
+      }
+      case 'historyPage/request':
+        if (state.historyPage.loading || state.historyPage.exhausted) return state;
+        return { ...state, historyPage: { ...state.historyPage, loading: true } };
       case 'historyEnd': {
         if (!state.sync.active || event.roomEpoch && event.roomEpoch !== state.sync.epoch) return state;
         const prunedIds = getPrunedIds(state.sync);

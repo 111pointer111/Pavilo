@@ -76,7 +76,7 @@ function createChatCore(config, runtime = {}) {
     const payloads = [{
       type: 'stateStart',
       protocolVersion: events.PROTOCOL_VERSION,
-      capabilities: ['ack', 'historyChunks', 'roomEpoch', 'reconnect', 'reactions', 'typingLease', 'mentions', 'channelOccupancy'],
+      capabilities: ['ack', 'historyChunks', 'roomEpoch', 'reconnect', 'reactions', 'typingLease', 'mentions', 'channelOccupancy', 'historyPage'],
       roomEpoch: channel.epoch, roomStartedAt: channel.startedAt, latestSeq, resumeToken: resumeToken || null,
       self: publicUser(session), users: sessionStore.rosterUsers(session.channelId), channelId: channel.config.id,
       occupancy: occupancySnapshot()
@@ -115,8 +115,9 @@ function createChatCore(config, runtime = {}) {
   const log = runtime.log || ((line) => { process.stdout.write(`${line}\n`); });
   const PRUNE_INTERVAL_MS = 60 * 60 * 1000;
   function runPrune() {
-    const { deleted } = store.pruneExpired();
+    const { deleted } = store.pruneExpired(now(), { limit: 500 });
     if (deleted) log(`Storage prune: deleted ${deleted} expired messages`);
+    if (deleted === 500) schedule(() => timerTask(runPrune), 0);
   }
   runPrune();
   const pruneTimer = schedule(() => timerTask(runPrune), PRUNE_INTERVAL_MS);
@@ -193,7 +194,21 @@ function createChatCore(config, runtime = {}) {
     if (store.driver === 'sqlite') info.retentionDays = config.storage.sqlite.retentionDays;
     return info;
   }
-  function health() { const value = state(); return { ok: true, users: value.sessions, messages: value.messages, roomBytes: value.roomBytes, clients: value.clients, ephemeral: store.ephemeral }; }
+  function health() {
+    const value = state();
+    const result = { ok: true, users: value.sessions, messages: value.messages, roomBytes: value.roomBytes, clients: value.clients, ephemeral: store.ephemeral };
+    if (typeof store.inventory === 'function') {
+      const inventory = store.inventory();
+      result.messages = inventory.messages;
+      result.storage = {
+        driver: store.driver,
+        path: config.storage.sqlite.path,
+        bytes: inventory.bytes,
+        messages: inventory.messages
+      };
+    }
+    return result;
+  }
   return { connect, dispatch, disconnect, connectionStatus, completeSync, markClosing, shutdown, state, health, roomInfo, storageInfo, roomEpoch: rooms.epoch, pruneDedupe: store.pruneDedupe, drainEffects: takeEffects };
 }
 module.exports = { createChatCore };

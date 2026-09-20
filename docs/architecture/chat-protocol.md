@@ -25,7 +25,7 @@ v0.2–v0.8 曾同时接受 v1–v4。下表只作历史记录，**当前实现�
 | v3 | 在 v2 之上支持 `switchChannel` |
 | **v4（当前唯一）** | v3 + `stateStart.occupancy` 与实时 `channelOccupancy` |
 
-v4 的 `stateStart.protocolVersion` 为 `4`；其 `capabilities` 为 `ack`、`historyChunks`、`roomEpoch`、`reconnect`、`reactions`、`typingLease`、`mentions`、`channelOccupancy`。
+v4 的 `stateStart.protocolVersion` 为 `4`；其 `capabilities` 为 `ack`、`historyChunks`、`roomEpoch`、`reconnect`、`reactions`、`typingLease`、`mentions`、`channelOccupancy`、`historyPage`。不懂 `historyPage` 的客户端只看到工作集，仍是合法 v4。
 
 v4 的 `channelOccupancy` 事件会向所有已加入的 v4 客户端广播完整摘要；摘要只包含频道 ID 与在线人数，不包含成员身份。
 
@@ -83,6 +83,13 @@ v2/v3/v4 的同步顺序：
 4. 快照期间发生的频道广播按到达顺序排在 `historyEnd` 后发送。
 
 同步是一个不可交错的快照边界。同步期间，除 `leave` 外的客户端命令均返回可重试的 `SYNC_IN_PROGRESS`；若命令带 `clientMessageId`，错误会原样携带它。同步队列超出写缓冲或同步超时会关闭连接。当前浏览器在同步时暂存 `presence`、`message`、`reaction`、`typing`、`ack`、`error`，在 `historyEnd` 后处理。
+
+可选历史分页（`historyPage` capability）：
+
+- 命令：`{ type: "historyPage", beforeSeq, limit? }`，只允许当前频道；`limit` 默认 50、上限 100。
+- 回复：零个或多个已有 `history` 分块，然后 `{ type: "historyPageEnd", beforeSeq, exhausted, roomEpoch }`。
+- Memory：工作集之外 `exhausted: true`。SQLite 可返回工作集之前的行。
+- 客户端滚到顶且 capability 存在时请求更早消息，插到列表前并保住阅读锚点。
 
 客户端只应用当前 epoch 的 `history`/`historyEnd` 和带 epoch 的消息状态事件；epoch 改变时，旧 pending 消息不得自动重发，因为服务端去重表也属于旧房间生命周期。
 

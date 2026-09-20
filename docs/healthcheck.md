@@ -38,6 +38,7 @@ GET /healthz
 | `roomBytes` | number | 当前消息占用的字节数 |
 | `clients` | number | 当前 WebSocket 连接数 |
 | `ephemeral` | boolean | `true` 表示 memory（重启即空）；`false` 表示 sqlite 留存 |
+| `storage` | object | 仅 sqlite：`{ driver, path, bytes, messages }`。`messages` 为全库条数；顶层 `roomBytes` 仍是工作集字节 |
 
 ### 失败响应
 

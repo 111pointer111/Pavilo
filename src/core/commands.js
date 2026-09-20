@@ -210,6 +210,35 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     broadcast(channelId, { type: 'reaction', roomEpoch: channel.epoch, messageId: command.messageId, reactions: result.message.reactions, removedIds: result.removedIds });
   }
 
+  function handleHistoryPage(client, command) {
+    const channel = rooms.get(client.session.channelId);
+    if (!Number.isSafeInteger(command.beforeSeq) || command.beforeSeq < 1) {
+      sendError(client, 'BAD_REQUEST', '历史分页参数无效。');
+      return;
+    }
+    const limit = command.limit === undefined ? 50 : command.limit;
+    if (!Number.isSafeInteger(limit) || limit < 1) {
+      sendError(client, 'BAD_REQUEST', '历史分页参数无效。');
+      return;
+    }
+    if (!rateAllows(client, 'history', 8, 5000)) {
+      sendError(client, 'RATE_LIMITED', '请求太快了，请稍后再试。');
+      return;
+    }
+    const page = store.loadHistoryPage(channel.config.id, { beforeSeq: command.beforeSeq, limit });
+    if (page.messages.length) {
+      for (const chunk of rooms.historyChunks(channel, page.messages)) {
+        sendJson(client, { type: 'history', roomEpoch: channel.epoch, messages: chunk });
+      }
+    }
+    sendJson(client, {
+      type: 'historyPageEnd',
+      roomEpoch: channel.epoch,
+      beforeSeq: command.beforeSeq,
+      exhausted: page.exhausted
+    });
+  }
+
   function handleSwitchChannel(client, command) {
     const session = client.session;
     const target = rooms.get(command.channelId);
@@ -253,6 +282,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       return;
     }
     if (command.type === 'switchChannel') return handleSwitchChannel(client, command);
+    if (command.type === 'historyPage') return handleHistoryPage(client, command);
     if (command.type === 'message') return handleMessage(client, command);
     if (command.type === 'reaction') return handleReaction(client, command);
     if (command.type === 'leave') {

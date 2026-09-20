@@ -11,13 +11,13 @@
 Pavilo（**Pavilion + Local**）是一个浏览器即用、默认临时、可以自行托管的极简群聊。像一座随处可搭的小亭：启动 Node.js 进程，同一局域网里的人打开网页就能交谈，服务停止后一切回到空白。
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.1.0-0f7772">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.2.0-0f7772">
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-0f7772">
   <img alt="Node.js" src="https://img.shields.io/badge/node-%3E%3D22-0f7772">
   <img alt="Protocol v4" src="https://img.shields.io/badge/protocol-v4-0f7772">
 </p>
 
-当前版本 **v1.1.0**：默认仍是无数据库的临时群聊；可用 Config Schema v2 可选启用 SQLite（默认留存 30 天）。界面提供简体中文与英语，WebSocket 协议只接受 v4。适合可信局域网、私有网络或 VPN 环境。
+当前版本 **v1.2.0**：默认仍是无数据库的临时群聊；可用 Config Schema v2 可选启用 SQLite（默认留存 30 天，支持历史分页与备份）。界面提供简体中文与英语，WebSocket 协议只接受 v4。适合可信局域网、私有网络或 VPN 环境。
 
 <p align="center">
   <img src="docs/screenshots/overview.png" width="880" alt="Pavilo 界面预览：桌面聊天、登录页与移动端">
@@ -268,7 +268,7 @@ PAVILO_PLAYWRIGHT_PATH=/tmp/pavilo-browser-verify/node_modules/playwright npm ru
 ├── client/             # 协议、连接、状态、pending 与独立视图模块
 ├── server.js           # 配置、core/transport 组合与兼容启动入口
 ├── src/core/           # 不依赖网络的房间、会话、命令与领域事件
-├── src/storage/        # ConversationStore 端口；默认 memory 驱动
+├── src/storage/        # ConversationStore；npm run storage 维护 CLI
 ├── src/transport/      # HTTP 静态白名单、WebSocket 连接与帧协议
 ├── vendor/             # 自托管的第三方前端资源
 ├── scripts/            # Lucide 资源构建脚本

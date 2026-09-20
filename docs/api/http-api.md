@@ -227,6 +227,7 @@ Referrer-Policy: strict-origin-when-cross-origin
 | `roomBytes` | number | 所有频道消息占用的总字节数 |
 | `clients` | number | 当前 WebSocket 连接数（未 join 的连接也计入） |
 | `ephemeral` | boolean | 与 `/room-info` 相同：memory 为 `true`，sqlite 为 `false` |
+| `storage` | object | 仅 sqlite：`driver`、`path`、`bytes`（库文件大小）、`messages`（全库消息数）。此时顶层 `messages` 也是全库条数，`roomBytes` 仍为工作集 |
 
 服务端只要还能处理 HTTP 请求就返回 200；当前实现没有返回非 200 的分支，健康检查失败只能体现为连接失败或超时。
 

@@ -387,6 +387,34 @@ test('memory roomInfo stays ephemeral without retentionDays', () => {
   assert.deepEqual(core.storageInfo(), { driver: 'memory', ephemeral: true });
 });
 
+test('historyPage is advertised and memory exhausts at the working-set start', () => {
+  const { core } = createHarness({ maxMessages: 2 });
+  const start = join(core, 'alice-peer', 'Alice', 'session-alice-0001');
+  assert.ok(start.capabilities.includes('historyPage'));
+  for (const text of ['one', 'two', 'three']) {
+    core.dispatch('alice-peer', {
+      type: 'message', clientMessageId: `message-page-${text}xxxx`, kind: 'text', text
+    });
+  }
+  const page = core.dispatch('alice-peer', { type: 'historyPage', beforeSeq: 2, limit: 10 });
+  const end = page.effects.find((effect) => effect.payload?.type === 'historyPageEnd');
+  assert.equal(end.payload.exhausted, true);
+  assert.equal(end.payload.beforeSeq, 2);
+  const chunks = page.effects.filter((effect) => effect.payload?.type === 'history');
+  assert.deepEqual(chunks.flatMap((effect) => effect.payload.messages).map((message) => message.text), []);
+});
+
+test('historyPage is refused while the snapshot is still syncing', () => {
+  const { core } = createHarness();
+  assert.equal(core.connect('alice-peer'), true);
+  const joined = core.dispatch('alice-peer', {
+    type: 'join', protocolVersion: 4, username: 'Alice', clientSessionId: 'session-alice-0001'
+  });
+  assert.ok(joined.effects.find((effect) => effect.kind === 'initial'));
+  const refused = core.dispatch('alice-peer', { type: 'historyPage', beforeSeq: 1 });
+  assert.equal(refused.error.code, 'SYNC_IN_PROGRESS');
+});
+
 if (isNodeSqliteAvailable()) {
   test('sqlite core keeps history across process restart', (t) => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'pavilo-core-sqlite-'));
@@ -418,5 +446,51 @@ if (isNodeSqliteAvailable()) {
       .flatMap((payload) => payload.messages);
     assert.equal(second.core.roomInfo().roomEpoch, epoch);
     assert.equal(messages.some((message) => message.text === 'still here'), true);
+  });
+
+  test('sqlite historyPage returns rows outside the working set', (t) => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'pavilo-core-sqlite-'));
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+    const { core } = createHarness({
+      maxMessages: 2,
+      storage: {
+        driver: 'sqlite',
+        sqlite: { path: path.join(directory, 'pavilo.db'), engine: 'node', retentionDays: 30 }
+      }
+    });
+    t.after(() => core.shutdown());
+    join(core, 'alice-peer', 'Alice', 'session-alice-0001');
+    for (const text of ['one', 'two', 'three']) {
+      assert.equal(core.dispatch('alice-peer', {
+        type: 'message', clientMessageId: `message-hist-${text}xxxx`, kind: 'text', text
+      }).accepted, true);
+    }
+    assert.equal(core.state().messages, 2);
+    const page = core.dispatch('alice-peer', { type: 'historyPage', beforeSeq: 2, limit: 10 });
+    const texts = page.effects.filter((effect) => effect.payload?.type === 'history')
+      .flatMap((effect) => effect.payload.messages).map((message) => message.text);
+    assert.deepEqual(texts, ['one']);
+    assert.equal(page.effects.find((effect) => effect.payload?.type === 'historyPageEnd').payload.exhausted, true);
+  });
+
+  test('sqlite healthz keeps 200 and appends storage inventory', (t) => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'pavilo-core-sqlite-'));
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+    const { core } = createHarness({
+      storage: {
+        driver: 'sqlite',
+        sqlite: { path: path.join(directory, 'pavilo.db'), engine: 'node', retentionDays: 30 }
+      }
+    });
+    t.after(() => core.shutdown());
+    join(core, 'alice-peer', 'Alice', 'session-alice-0001');
+    core.dispatch('alice-peer', { type: 'message', clientMessageId: 'message-health-0001', kind: 'text', text: 'hi' });
+    const health = core.health();
+    assert.equal(health.ok, true);
+    assert.equal(health.ephemeral, false);
+    assert.equal(health.storage.driver, 'sqlite');
+    assert.equal(health.storage.messages, 1);
+    assert.ok(health.storage.bytes > 0);
+    assert.equal(health.messages, 1);
   });
 }

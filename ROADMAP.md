@@ -34,9 +34,9 @@ Pavilo 的核心不是“功能越来越多的聊天系统”，而是一个**�
 
 ---
 
-## 2. 当前基线：v1.1.0 Persistence Foundation
+## 2. 当前基线：v1.2.0 Persistence Operations
 
-当前版本 **v1.1.0**。默认仍是无数据库群聊；可在 Config Schema v2 中显式启用 SQLite（默认留存 30 天）。Protocol v4 only、中英 UI、Docker / 反向代理 / CI / 文档齐备。
+当前版本 **v1.2.0**。默认仍是无数据库群聊；可在 Config Schema v2 中显式启用 SQLite（默认留存 30 天，历史分页、备份/恢复）。Protocol v4 only、中英 UI、Docker / 反向代理 / CI / 文档齐备。
 
 模块边界：
 
@@ -62,7 +62,7 @@ Pavilo 的核心不是“功能越来越多的聊天系统”，而是一个**�
 - 静态 `readOnly` 频道；
 - 可注入时钟/ID/定时器的无网络 core 测试。
 
-v0.2–v1.1 的工程门槛均已完成，见下文各版本记录。v1.1 不包含历史分页、维护 CLI、网关、审核或玩法。
+v0.2–v1.2 的工程门槛均已完成，见下文各版本记录。v1.2 不包含全文搜索、网关、审核或玩法。
 
 ---
 
@@ -704,23 +704,18 @@ src/storage/migrations/
 
 ---
 
-## v1.2.0 — Persistence Operations
+## v1.2.0 — Persistence Operations（已完成）
 
-目标：让 SQLite 从“能按天留存”变成“可长期运行”。网关用量、管理页编辑和玩法对局都依赖这一层运维能力。v1.1 已按 `retentionDays` 删除过期消息；本期补分页、备份、完整性与统计。
+目标：让 SQLite 从“能按天留存”变成“可长期运行”。网关用量、管理页编辑和玩法对局都依赖这一层运维能力。v1.1 已按 `retentionDays` 删除过期消息；本期补分页、备份、完整性与统计。全文搜索推迟。
 
-### 功能
+### 功能（✅ 已完成）
 
-- 可运维的 retention / prune（进度、日志、不长时间阻塞聊天）；
-- 历史分页；
-- 文本历史搜索（优先 SQLite FTS，是否启用由实现评估）；
-- backup；
-- restore；
-- DB integrity check；
-- 数据库大小 / 消息数量统计；
-- storage health；
-- maintenance 命令；
-- 迁移回归测试；
-- 大数据库启动和历史加载性能测试。
+- ✅ 可运维的 retention / prune（分批删除、进度日志、不长时间阻塞聊天）
+- ✅ 历史分页（`historyPage` capability）
+- 文本历史搜索（FTS）→ **推迟**，不在 v1.2 发版
+- ✅ backup / restore / integrity / stats（`npm run storage`）
+- ✅ storage health（`/healthz.storage`）
+- ✅ 迁移回归（001 fixture 再打开仍可用）
 
 ### 原则
 
@@ -728,6 +723,14 @@ src/storage/migrations/
 - SQLite 是历史真源，内存只保留实时工作集；
 - 删除历史后 seq 不复用；
 - VACUUM/维护不能阻塞实时聊天太久。
+
+### 发布门槛（✅ 全部满足）
+
+- ✅ historyPage 跨工作集、exhausted、syncing 拒绝
+- ✅ backup/restore 往返、integrity 干净库
+- ✅ 所有测试通过（322 通过，2 跳过）
+
+**v1.2.0 已完成所有目标，可以发布。**
 
 ---
 

@@ -6,8 +6,9 @@
 
   const PROTOCOL_VERSION = 4;
   const COMMANDS = Object.freeze({ JOIN: 'join', MESSAGE: 'message', REACTION: 'reaction',
-    TYPING: 'typing', SWITCH_CHANNEL: 'switchChannel', LEAVE: 'leave' });
+    TYPING: 'typing', SWITCH_CHANNEL: 'switchChannel', HISTORY_PAGE: 'historyPage', LEAVE: 'leave' });
   const EVENTS = Object.freeze({ STATE_START: 'stateStart', HISTORY: 'history', HISTORY_END: 'historyEnd',
+    HISTORY_PAGE_END: 'historyPageEnd',
     STATE: 'state', PRESENCE: 'presence', MESSAGE: 'message', REACTION: 'reaction', PRUNE: 'prune',
     TYPING: 'typing', CHANNEL_OCCUPANCY: 'channelOccupancy', ACK: 'ack', ERROR: 'error' });
   const ACK_FIELDS = Object.freeze(['clientMessageId', 'messageId', 'seq', 'createdAt']);
@@ -83,6 +84,9 @@
         break;
       case EVENTS.HISTORY: valid = isMessages(event.messages); break;
       case EVENTS.HISTORY_END: valid = isSequence(event.latestSeq); break;
+      case EVENTS.HISTORY_PAGE_END:
+        valid = isSequence(event.beforeSeq) && typeof event.exhausted === 'boolean';
+        break;
       case EVENTS.STATE:
         valid = isUser(event.self) && isUsers(event.users) && isMessages(event.messages)
           && optional(event.roomStartedAt, Number.isFinite);

@@ -32,7 +32,7 @@ test('initial state is complete, isolated per call, and honors a positive messag
   const first = createInitialState({ maxMessages: 2 });
   const second = createInitialState({ maxMessages: -1 });
   assert.deepEqual(first.connection, { status: 'idle', joined: false, attempt: 0, intentionalLeave: false });
-  assert.deepEqual(first.room, { epoch: null, startedAt: null, latestSeq: 0, resumeToken: null });
+  assert.deepEqual(first.room, { epoch: null, startedAt: null, latestSeq: 0, resumeToken: null, capabilities: [] });
   assert.deepEqual(first.channel, { switching: false, requestedId: null });
   assert.deepEqual(first.channelOccupancy, {});
   const occupancy = reduce(first, { type: 'channelOccupancy', occupancy: { general: 2, games: 0 } });
@@ -94,6 +94,25 @@ test('history accepts matching and epoch-less chunks, ignores mismatches, then a
   assert.equal(state.connection.joined, true);
   assert.equal(state.channel.switching, false);
   assert.equal(state.sync.active, false);
+});
+
+test('historyPage prepends older messages without dropping the live working set', () => {
+  let state = reduce(joined({ maxMessages: 2 }), {
+    type: 'stateStart', roomEpoch: 'epoch-one', latestSeq: 3, self: alice, users: [alice],
+    channelId: 'general', capabilities: ['historyPage']
+  });
+  state = reduce(state, { type: 'history', roomEpoch: 'epoch-one', messages: [message('two', 2), message('three', 3)] });
+  state = reduce(state, { type: 'historyEnd', roomEpoch: 'epoch-one', latestSeq: 3 });
+  assert.deepEqual(state.messages.map((item) => item.id), ['two', 'three']);
+  assert.equal(state.historyPage.exhausted, false);
+  state = reduce(state, { type: 'historyPage/request' });
+  assert.equal(state.historyPage.loading, true);
+  state = reduce(state, { type: 'history', roomEpoch: 'epoch-one', messages: [message('one', 1)] });
+  state = reduce(state, { type: 'historyPageEnd', roomEpoch: 'epoch-one', beforeSeq: 2, exhausted: true });
+  assert.deepEqual(state.messages.map((item) => item.id), ['one', 'two', 'three']);
+  assert.equal(state.historyPage.loading, false);
+  assert.equal(state.historyPage.exhausted, true);
+  assert.equal(state.historyPage.hasPaged, true);
 });
 
 test('legacy state performs immediate authoritative replacement and uses legacy epoch fallback', () => {

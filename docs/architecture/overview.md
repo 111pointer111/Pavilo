@@ -46,6 +46,7 @@ await app.stop();
 
 - `index.js`：`createConversationStore(config, runtime)`，按 `config.storage.driver` 选择实现；省略则 memory。
 - `memory-store.js`：每频道 epoch / 工作集 / seq / 字节数 / FIFO / 幂等窗口；FIFO 淘汰是真删除。
+- `sqlite-store.js` / `sqlite-engine.js`：可选持久化；`cli.js` 提供 backup / restore / integrity / stats。
 
 ### 领域内核 `src/core`
 

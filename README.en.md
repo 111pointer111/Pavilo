@@ -11,13 +11,13 @@
 Pavilo (**Pavilion + Local**) is a minimal, self-hosted group chat that runs in the browser and is ephemeral by default. Like a small pavilion you can put up anywhere: start a Node.js process, and anyone on the same local network can open a web page and talk. When the service stops, everything returns to blank.
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.1.0-0f7772">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.2.0-0f7772">
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-0f7772">
   <img alt="Node.js" src="https://img.shields.io/badge/node-%3E%3D22-0f7772">
   <img alt="Protocol v4" src="https://img.shields.io/badge/protocol-v4-0f7772">
 </p>
 
-Current version: **v1.1.0** — ephemeral group chat by default; optional SQLite via Config Schema v2 (30-day retention). Simplified Chinese and English UI, WebSocket Protocol v4 only. Built for trusted LANs, private networks, and VPNs.
+Current version: **v1.2.0** — ephemeral group chat by default; optional SQLite via Config Schema v2 (30-day retention, history paging, backup). Simplified Chinese and English UI, WebSocket Protocol v4 only. Built for trusted LANs, private networks, and VPNs.
 
 <p align="center">
   <img src="docs/screenshots/overview.png" width="880" alt="Pavilo preview: desktop chat, login, and mobile">
@@ -261,7 +261,7 @@ Architecture decisions and evolution strategy:
 ├── client/             # protocol, connection, state, pending, and view modules
 ├── server.js           # configuration, core/transport composition, compatible entry
 ├── src/core/           # network-free rooms, sessions, commands, and domain events
-├── src/storage/        # ConversationStore port; memory driver by default
+├── src/storage/        # ConversationStore; npm run storage maintenance CLI
 ├── src/transport/      # HTTP static allowlist, WebSocket connections, frame protocol
 ├── vendor/             # self-hosted third-party front-end assets
 ├── scripts/            # Lucide asset build script

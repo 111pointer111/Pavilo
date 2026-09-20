@@ -114,7 +114,8 @@ test('current protocol sends stateStart, history, and historyEnd in order', asyn
     'reactions',
     'typingLease',
     'mentions',
-    'channelOccupancy'
+    'channelOccupancy',
+    'historyPage'
   ]);
   assert.equal(initial.stateStart.self.username, 'Alice');
   assert.deepEqual(initial.stateStart.users, [initial.stateStart.self]);

@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const fs = require('node:fs');
 const { openSqliteEngine } = require('./sqlite-engine');
 const { applyMigrations } = require('./migrations');
 
@@ -33,13 +34,17 @@ function createSqliteStore(config, runtime = {}) {
   const updateSeq = engine.prepare('UPDATE channels SET latest_seq = ? WHERE id = ?');
   const insertMessage = engine.prepare('INSERT INTO messages (channel_id, id, seq, created_at, payload) VALUES (?, ?, ?, ?, ?)');
   const updateMessage = engine.prepare('UPDATE messages SET payload = ? WHERE channel_id = ? AND id = ?');
+  const selectMessageById = engine.prepare('SELECT payload FROM messages WHERE channel_id = ? AND id = ?');
   const selectMessagePayloads = engine.prepare('SELECT payload FROM messages WHERE channel_id = ? ORDER BY seq DESC');
   const selectHistory = engine.prepare('SELECT payload FROM messages WHERE channel_id = ? AND seq < ? ORDER BY seq DESC LIMIT ?');
   const selectIdempotent = engine.prepare('SELECT fingerprint, result, created_at FROM idempotency WHERE scope = ? AND client_message_id = ?');
   const insertIdempotent = engine.prepare('INSERT INTO idempotency (scope, client_message_id, fingerprint, result, created_at) VALUES (?, ?, ?, ?, ?)');
   const deleteExpiredMessages = engine.prepare('DELETE FROM messages WHERE created_at < ?');
+  const deleteExpiredBatch = engine.prepare('DELETE FROM messages WHERE rowid IN (SELECT rowid FROM messages WHERE created_at < ? LIMIT ?)');
   const deleteExpiredIdempotency = engine.prepare('DELETE FROM idempotency WHERE created_at < ?');
+  const deleteExpiredIdempotencyBatch = engine.prepare('DELETE FROM idempotency WHERE rowid IN (SELECT rowid FROM idempotency WHERE created_at < ? LIMIT ?)');
   const countMessages = engine.prepare('SELECT COUNT(*) AS count FROM messages WHERE channel_id = ?');
+  const inventoryQuery = engine.prepare('SELECT channel_id AS id, COUNT(*) AS messages, MIN(created_at) AS earliest, MAX(created_at) AS latest FROM messages GROUP BY channel_id');
 
   const channels = new Map();
 
@@ -113,7 +118,10 @@ function createSqliteStore(config, runtime = {}) {
 
   function getMessage(channelId, messageId) {
     if (typeof messageId !== 'string') return null;
-    return requireChannel(channelId).messages.find((message) => message.id === messageId) || null;
+    const working = requireChannel(channelId).messages.find((message) => message.id === messageId);
+    if (working) return working;
+    const row = selectMessageById.get(channelId, messageId);
+    return row ? deserializeMessage(row.payload) : null;
   }
 
   function findIdempotent(scope, clientMessageId) {
@@ -144,13 +152,19 @@ function createSqliteStore(config, runtime = {}) {
 
   function updateReactions(channelId, messageId, apply) {
     const channel = requireChannel(channelId);
-    const message = channel.messages.find((item) => item.id === messageId);
-    if (!message) return null;
+    let message = channel.messages.find((item) => item.id === messageId);
+    const inWorkingSet = Boolean(message);
+    if (!message) {
+      const row = selectMessageById.get(channelId, messageId);
+      if (!row) return null;
+      message = deserializeMessage(row.payload);
+    }
     const oldSize = message.byteSize;
     apply(message);
     engine.transaction(() => {
       updateMessage.run(serializeMessage(message), channelId, messageId);
     });
+    if (!inWorkingSet) return { message, removedIds: [] };
     channel.roomBytes += message.byteSize - oldSize;
     const removedIds = evictWorkingSet(channel);
     return { message: removedIds.includes(message.id) ? null : message, removedIds };
@@ -169,13 +183,18 @@ function createSqliteStore(config, runtime = {}) {
 
   function pruneDedupe() {}
 
-  function pruneExpired(clock = now()) {
+  function pruneExpired(clock = now(), { limit } = {}) {
     if (sqlite.retentionDays == null) return { deleted: 0 };
     const cutoff = clock - sqlite.retentionDays * MS_PER_DAY;
     let deleted = 0;
     engine.transaction(() => {
-      deleted = deleteExpiredMessages.run(cutoff).changes;
-      deleteExpiredIdempotency.run(cutoff);
+      if (Number.isSafeInteger(limit) && limit > 0) {
+        deleted = deleteExpiredBatch.run(cutoff, limit).changes;
+        deleteExpiredIdempotencyBatch.run(cutoff, limit);
+      } else {
+        deleted = deleteExpiredMessages.run(cutoff).changes;
+        deleteExpiredIdempotency.run(cutoff);
+      }
     });
     for (const channel of channels.values()) {
       const kept = channel.messages.filter((message) => message.createdAt >= cutoff);
@@ -194,6 +213,22 @@ function createSqliteStore(config, runtime = {}) {
       roomBytes: channel.roomBytes,
       latestSeq: channel.latestSeq
     }));
+  }
+
+  function inventory() {
+    const rows = inventoryQuery.all();
+    let bytes = 0;
+    try { bytes = fs.statSync(sqlite.path).size; } catch { /* new file */ }
+    return {
+      bytes,
+      messages: rows.reduce((total, row) => total + row.messages, 0),
+      channels: rows.map((row) => ({
+        id: row.id,
+        messages: row.messages,
+        earliest: row.earliest,
+        latest: row.latest
+      }))
+    };
   }
 
   function integrity() {
@@ -228,6 +263,7 @@ function createSqliteStore(config, runtime = {}) {
     pruneDedupe,
     pruneExpired,
     stats,
+    inventory,
     integrity,
     backup,
     clear,

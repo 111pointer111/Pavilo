@@ -1032,10 +1032,27 @@
     else if (!$('#reactionPopover').hidden) messagesController.closeReactionPopover();
     else if (composerPopoverOpen) closeComposerPopover(true);
   });
+  function maybeLoadHistory() {
+    const state = store.getState();
+    if (!connection.isReady() || state.sync?.active || state.channel?.switching) return;
+    if (state.historyPage?.loading || state.historyPage?.exhausted) return;
+    if (!(state.room.capabilities || []).includes('historyPage')) return;
+    if (messageScroll.scrollTop > 48) return;
+    const oldest = state.messages[0];
+    if (!Number.isSafeInteger(oldest?.seq) || oldest.seq < 1) {
+      store.dispatch({ type: 'historyPage/request' });
+      store.dispatch({ type: 'historyPageEnd', exhausted: true, beforeSeq: 0, roomEpoch: state.room.epoch });
+      return;
+    }
+    store.dispatch({ type: 'historyPage/request' });
+    connection.send({ type: 'historyPage', beforeSeq: oldest.seq, limit: 50 });
+  }
+
   messageScroll.addEventListener('scroll', () => {
     mentionController.close();
     messagesController.closeReactionPopover();
     closeComposerPopover();
+    maybeLoadHistory();
   }, { passive: true });
   window.addEventListener('online', () => {
     errorController.clearError();

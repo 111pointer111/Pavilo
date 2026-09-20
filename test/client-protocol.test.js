@@ -20,6 +20,7 @@ function frames() {
       occupancy: { general: 1, quiet: 0 } },
     { type: 'history', roomEpoch: epoch, messages: [message()] },
     { type: 'historyEnd', roomEpoch: epoch, latestSeq: 1 },
+    { type: 'historyPageEnd', roomEpoch: epoch, beforeSeq: 1, exhausted: true },
     { type: 'state', self: user, users: [user], messages: [message()], roomEpoch: epoch, channelId: 'general' },
     { type: 'presence', action: 'join', user, users: [user] },
     { type: 'presence', action: 'reconnect', user, users: [user] },
@@ -45,8 +46,8 @@ test('UMD exposes matching browser/Node API without accessing DOM', () => {
 
 test('protocol version and frozen command/event names match wire contract', () => {
   assert.equal(PROTOCOL_VERSION, 4);
-  assert.deepEqual(Object.values(COMMANDS), ['join', 'message', 'reaction', 'typing', 'switchChannel', 'leave']);
-  assert.deepEqual(Object.values(EVENTS), ['stateStart', 'history', 'historyEnd', 'state', 'presence', 'message', 'reaction', 'prune', 'typing', 'channelOccupancy', 'ack', 'error']);
+  assert.deepEqual(Object.values(COMMANDS), ['join', 'message', 'reaction', 'typing', 'switchChannel', 'historyPage', 'leave']);
+  assert.deepEqual(Object.values(EVENTS), ['stateStart', 'history', 'historyEnd', 'historyPageEnd', 'state', 'presence', 'message', 'reaction', 'prune', 'typing', 'channelOccupancy', 'ack', 'error']);
   assert.deepEqual(protocol.ACK_FIELDS, ['clientMessageId', 'messageId', 'seq', 'createdAt']);
   assert.deepEqual(protocol.ERROR_FIELDS, ['code', 'message', 'clientMessageId']);
   assert.deepEqual(protocol.SYNC_EVENTS, ['stateStart', 'history', 'historyEnd']);
@@ -72,6 +73,7 @@ test('malformed JSON, non-object frames, unsupported types and missing event fie
   }
   for (const frame of frames()) {
     for (const field of ({ stateStart: ['self', 'users', 'latestSeq'], history: ['messages'], historyEnd: ['latestSeq'],
+      historyPageEnd: ['beforeSeq', 'exhausted'],
       state: ['self', 'users', 'messages'], presence: ['users', 'action'], channelOccupancy: ['occupancy'], message: ['message'], reaction: ['messageId', 'reactions'],
       prune: ['removedIds'], typing: ['userId', 'username', 'active'], ack: ['clientMessageId', 'messageId', 'seq', 'createdAt'],
       error: ['code', 'message'] })[frame.type]) {

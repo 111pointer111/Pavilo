@@ -156,6 +156,16 @@ storage:
 
 单进程使用：不要让两个 Pavilo 实例共享同一个 db 文件。YAML 删除频道不会 DROP 库里的旧行。
 
+维护命令（**先停服**再 restore）：
+
+```bash
+npm run storage -- backup --out ./data/backup.db
+npm run storage -- integrity
+npm run storage -- stats
+npm run storage -- restore --from ./data/backup.db   # 目标已存在则拒绝
+npm run storage -- restore --from ./data/backup.db --force
+```
+
 ---
 
 ### `server` —— 服务器配置

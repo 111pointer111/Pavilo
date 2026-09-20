@@ -101,7 +101,8 @@ function runContract(label, createStore) {
     }
     assert.deepEqual(removed, [[], [], ['m1_msg']]);
     assert.deepEqual(store.loadWorkingSet('general').map((message) => message.text), ['n2', 'n3']);
-    assert.equal(store.getMessage('general', 'm1_msg'), null);
+    if (store.driver === 'memory') assert.equal(store.getMessage('general', 'm1_msg'), null);
+    else assert.equal(store.getMessage('general', 'm1_msg').text, 'n1');
     assert.equal(store.getChannelState('general').latestSeq, 3);
     if (store.driver === 'sqlite') {
       const page = store.loadHistoryPage('general', { beforeSeq: 2, limit: 10 });
@@ -147,7 +148,8 @@ function runContract(label, createStore) {
     assert.deepEqual(grown.removedIds, [message.id]);
     assert.equal(grown.message, null);
     assert.equal(store.loadWorkingSet('general').length, 0);
-    assert.equal(store.updateReactions('general', message.id, () => {}), null);
+    if (store.driver === 'memory') assert.equal(store.updateReactions('general', message.id, () => {}), null);
+    else assert.equal(store.updateReactions('general', message.id, () => {}).message.id, message.id);
     store.close();
   });
 

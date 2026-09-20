@@ -1,6 +1,6 @@
 {
   "name": "pavilo",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "A minimal, self-hosted chat room that is ephemeral by default.",
   "license": "MIT",
@@ -11,6 +11,7 @@
     "start": "node server.js",
     "dev": "node server.js",
     "config:check": "node config.js",
+    "storage": "node src/storage/cli.js",
     "test": "node --test test/*.test.js",
     "test:browser": "node --test test/browser/*.test.cjs"
   },

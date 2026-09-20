@@ -6,6 +6,20 @@ Pavilo 的重要变更都记在这份文件里。
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-20
+
+SQLite 运维：历史分页、备份/恢复、完整性检查与 healthz 库存字段。默认 memory 行为不变。不做全文搜索。
+
+### Added
+- 可选协议能力 `historyPage`：`historyPage` 命令 + `history` 分块 + `historyPageEnd`；滚到顶加载更早消息并保住阅读锚点
+- 对已分页出工作集的消息，回复/回应走 `getMessage`，不再只因不在工作集而 `MESSAGE_GONE`
+- `npm run storage -- backup|restore|integrity|stats`（restore 默认拒绝覆盖，需 `--force`；请先停服）
+- sqlite 时 `/healthz` 追加 `storage: { driver, path, bytes, messages }`（全库条数）；顶层 `messages` 对 sqlite 也是全库条数，`roomBytes` 仍为工作集
+- 过期删除分批（每批 500 行），批次之间让出事件循环
+
+### Tests
+- 总测试数：324 个（322 通过，2 跳过）
+
 ## [1.1.0] - 2026-09-20
 
 可选 SQLite 持久化：默认仍是 memory，旧的 `version: 1` 配置继续合法。Protocol v4 不变。
