@@ -155,7 +155,8 @@ function createChatCore(config, runtime = {}) {
   function shutdown() {
     shuttingDown = true;
     sessionStore.clear();
-    rooms.clear();
+    if (store.ephemeral) rooms.clear();
+    store.close();
     for (const peer of peers.values()) {
       if (peer.joinTimer) cancel(peer.joinTimer);
       if (peer.typingTimer) cancel(peer.typingTimer);
