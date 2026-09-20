@@ -2,7 +2,9 @@
 
 Pavilo 的官方样例玩法。主线已经冻结 [Play 契约](../../docs/play.md) 与 [ADR-0006](../../docs/adr/0006-play-contract.md)。对照夹具：[`plays/echo/`](../echo/)。
 
-本目录目前只有清单。请在这里填实，**不要改** `src/core`、网关或聊天页气泡。契约不够用先开 Issue。
+本目录目前只有清单。请在这里填实玩法本身。聊天页气泡和网关密钥路径不要动。
+
+官方合作开发者实现本玩法时，如果信封、host API 或 Agent 基座不够用，可以改主线契约（`src/play/`、`docs/play.md`、相关测试），但请先在跟踪 Issue 里写清缺口。不要为了「以后所有游戏」扩端口。
 
 ## 目录
 
@@ -35,6 +37,7 @@ plays/werewolf/
 
 - 语音/视频、通用游戏引擎、规则 DSL、iframe、直连模型 API。
 - 往 `chat.css` / `client/messages.js` 塞选人器。
+- 社区贡献者不要在本目录的 PR 里改 `src/core`；官方合作开发者改契约时走 Issue 说明 + 测试。
 
 ## 验收时对照
 

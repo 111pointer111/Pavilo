@@ -276,7 +276,9 @@ Pavilo 主线负责 **AI 网关**、**Play 宿主** 和一层薄契约。官方�
 
 请先读 [docs/play.md](docs/play.md)、[ADR-0006](docs/adr/0006-play-contract.md)、对照夹具 [`plays/echo/`](plays/echo/)。不要提交「通用游戏平台」或往 `chat.css` 里塞玩法按钮。
 
-官方狼人杀只改 `plays/werewolf/`。契约不够用先开 Issue，不要在玩法 PR 里改信封。Agent 用 `createPlayAgent(spec)`，不要直连模型。
+社区玩法默认只改 `plays/<id>/`。契约不够用先开 Issue，不要在玩法 PR 里默默改信封。
+
+官方合作开发者（实现官方狼人杀时包括 111pointer111）可以在真实缺口上优化 Play 宿主、`playAction` / `playState` 信封和 Agent 基座；请在 Issue 里写清为什么现有契约不够，并补测试与 `docs/play.md`。不要为了玩法去改聊天气泡或网关密钥路径。Agent 用 `createPlayAgent(spec)`，不要直连模型。
 
 ## 架构原则
 
