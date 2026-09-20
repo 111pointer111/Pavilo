@@ -38,7 +38,7 @@ Config Schema **不再为每个可选模块 bump 版本**。对外只保留：
 
 ### 谁拥有哪一类字段
 
-YAML（及 `PAVILO_OPERATOR_TOKEN`）负责**怎么启动**：监听、聊天频道、是否 sqlite、管理页口令。
+YAML（及 `PAVILO_OPERATOR_TOKEN`）负责**怎么启动**：监听、是否 sqlite、管理页口令。聊天频道目录与房间身份默认也在 YAML；管理页按段认领之后以 SQLite 为准，见 ADR-0007。
 
 管理页负责**全部网关渠道**（preset、baseUrl、model、API key）。sqlite 是渠道真源。YAML 出现 `gateway:` 为配置错误。
 
@@ -102,3 +102,4 @@ YAML / env 里的 key 仍以明文存在配置源（与今天把秘密放进 yam
 
 - 若要轮换 token 而不重填 key，再引入独立 dataSecret，另开 ADR。
 - 用量表与渠道表的具体 DDL 见实现与 ADR-0005。
+- 房间与聊天频道的管理页覆盖层见 ADR-0007。

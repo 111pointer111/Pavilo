@@ -28,6 +28,7 @@ ADR 不是"所有技术选择的流水账"，而是**会影响未来 1-3 年架�
 | [0004](0004-operator-config-dual-source.md) | Operator 配置双源（YAML 启动 + SQLite 管理页） | 已接受 | 2026-09-20 |
 | [0005](0005-in-process-ai-gateway.md) | 进程内 AI 网关（preset、用量、非微服务） | 已接受 | 2026-09-20 |
 | [0006](0006-play-contract.md) | Play 契约（频道绑定、独立玩法页、Agent 基座） | 已接受 | 2026-09-20 |
+| [0007](0007-pavilion-config-overlay.md) | 房间与聊天频道的管理页覆盖层 | 已接受 | 2026-09-20 |
 
 ADR-0003 仍是加载模型：trusted script，不是沙箱。官方维护基础设施（网关、Play 契约）和参考实现（狼人杀）；其他玩法按 0006 的契约贡献，不另开商店。
 
