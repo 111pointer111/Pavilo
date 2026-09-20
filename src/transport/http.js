@@ -13,7 +13,13 @@ const MIME_TYPES = {
   '.mjs': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon'
+  '.ico': 'image/x-icon',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.woff2': 'font/woff2'
 };
 // The interface, the icon set and the emoji data are large text assets that are
 // fetched on every reload, and Pavilo is usually reached over Wi-Fi — where the
@@ -54,7 +60,9 @@ async function encodedBodyFor(request, etag, type, data) {
 }
 
 
-const CLIENT_FILES = new Set(['protocol', 'state', 'performance', 'connection', 'pending', 'images', 'messages', 'overlays', 'mentions', 'composer', 'notifications', 'error-states', 'i18n', 'app'].map((name) => `/client/${name}.js`));
+const CHAT_CLIENT_FILES = new Set(['protocol', 'state', 'performance', 'connection', 'pending', 'images', 'messages', 'overlays', 'mentions', 'composer', 'notifications', 'error-states', 'i18n', 'app'].map((name) => `/client/${name}.js`));
+const PLAY_CLIENT_FILES = new Set(['/client/play.js']);
+const CLIENT_FILES = new Set([...CHAT_CLIENT_FILES, ...PLAY_CLIENT_FILES]);
 function localAddresses() {
   const addresses = [];
   for (const entries of Object.values(os.networkInterfaces())) for (const entry of entries || []) if (entry.family === 'IPv4' && !entry.internal) addresses.push(entry.address);
@@ -218,9 +226,75 @@ function createHttpHandler(config, core, address, ROOT, extras = {}) {
       response.end();
       return;
     }
+    if ((request.method === 'GET' || isHead) && requestUrl.pathname.startsWith('/plays/')) {
+      servePlayFile(request, response, requestUrl.pathname, isHead);
+      return;
+    }
     response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
     response.end(isHead ? undefined : 'Not found');
   };
 
+  async function servePlayFile(request, response, pathname, headOnly = false) {
+    const enabled = new Set(config.plays || extras.plays || []);
+    const parts = pathname.slice('/plays/'.length).split('/').filter(Boolean);
+    const playId = parts[0];
+    if (!playId || parts.some((part) => part === '.' || part === '..' || part.includes('\0'))) {
+      response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+      response.end(headOnly ? undefined : 'Not found');
+      return;
+    }
+    if (!enabled.has(playId)) {
+      response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+      response.end(headOnly ? undefined : 'Not found');
+      return;
+    }
+    if (parts.length === 1 && !pathname.endsWith('/')) {
+      response.writeHead(302, { Location: `/plays/${playId}/`, 'Cache-Control': 'no-store' });
+      response.end();
+      return;
+    }
+    const rest = parts.slice(1);
+    const underAssets = rest[0] === 'assets';
+    const relative = underAssets ? rest.slice(1).join('/') : rest.join('/');
+    const filename = relative || 'index.html';
+    const extension = path.extname(filename).toLowerCase();
+    if ((underAssets && !relative) || (!MIME_TYPES[extension] && path.basename(filename) !== 'LICENSE')) {
+      response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+      response.end(headOnly ? undefined : 'Not found');
+      return;
+    }
+    try {
+      const publicRoot = await fs.promises.realpath(ROOT);
+      const playRoot = await fs.promises.realpath(path.join(publicRoot, 'plays', playId));
+      if (!playRoot.startsWith(`${publicRoot}${path.sep}plays${path.sep}`)) throw new Error('Not public');
+      const areaRoot = path.join(playRoot, underAssets ? 'assets' : 'page');
+      const areaReal = await fs.promises.realpath(areaRoot);
+      if (!areaReal.startsWith(`${playRoot}${path.sep}`) && areaReal !== playRoot) throw new Error('Not public');
+      const target = await fs.promises.realpath(path.join(areaRoot, filename));
+      if (!target.startsWith(`${areaReal}${path.sep}`) && target !== areaReal) throw new Error('Not public');
+      const data = await fs.promises.readFile(target);
+      const type = MIME_TYPES[extension] || 'application/octet-stream';
+      const etag = `"play-${data.length.toString(16)}-${crypto.createHash('sha1').update(data).digest('hex').slice(0, 16)}"`;
+      const encoded = await encodedBodyFor(request, etag, type, data);
+      const headers = {
+        'Content-Type': type,
+        'Content-Length': encoded.contentLength,
+        'Cache-Control': 'no-cache',
+        ETag: etag,
+        Vary: 'Accept-Encoding',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'Referrer-Policy': 'strict-origin-when-cross-origin',
+        'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:;"
+      };
+      if (encoded.encoding) headers['Content-Encoding'] = encoded.encoding;
+      response.writeHead(200, headers);
+      response.end(headOnly ? undefined : encoded.body);
+    } catch {
+      response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+      response.end(headOnly ? undefined : 'Not found');
+    }
+  }
+
 }
-module.exports = { createHttpHandler, localAddresses, CLIENT_FILES };
+module.exports = { createHttpHandler, localAddresses, CLIENT_FILES, CHAT_CLIENT_FILES, PLAY_CLIENT_FILES };

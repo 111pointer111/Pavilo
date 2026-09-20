@@ -111,15 +111,35 @@ version: 1
 
 - **必填**（配置文件）
 - **类型**：整数
-- **说明**：配置文件结构版本。支持 `1`、`2` 和 `3`。
-  - `1`：与 v1.0 相同；**禁止**出现 `storage` / `operator`，内部归一为 `storage.driver: memory`
-  - `2`：允许可选 `storage`；省略则仍为 memory；**禁止** `operator`
-  - `3`：允许 `operator.token`（sqlite 管理页）。**禁止**在 YAML 里写网关渠道
-  - 其它 version 一律拒绝
+- **说明**：配置文件结构版本。对外只有 **1（内存）** 和 **2（SQLite 家族）**。
+  - `1`：内存模式；**禁止** `storage` / `operator` / `plays`，内部归一为 `storage.driver: memory`
+  - `2`：可写 `storage`、`operator.token`、`plays`。管理页、网关渠道、玩法都要求 `storage.driver: sqlite`
+  - `3`：视为 2 的别名（未发版示例曾用过），新文件请写 `2`
+  - 其它 version 一律拒绝。YAML 里出现 `gateway:` 一律拒绝
 
 ---
 
-### `storage` —— 可选持久化（`version: 2` 或 `3`）
+### `plays` —— 可选玩法模块（`version: 2` + sqlite）
+
+默认不启用。playId 必须对应仓库内 `plays/<id>/`（含 `play.json`、`host.js`、`page/index.html`）。**必须** `storage.driver: sqlite`。可复制示例：[`pavilo.plays.example.yaml`](../pavilo.plays.example.yaml)。
+
+```yaml
+version: 2
+storage:
+  driver: sqlite
+  sqlite:
+    path: ./data/pavilo.db
+plays:
+  - echo
+channels:
+  - id: echo
+    name: 回声桌
+    play: echo
+```
+
+`echo` 是契约夹具，不是给最终用户的游戏。官方狼人杀实现后把 playId 换成 `werewolf`。Agent 调用模型仍走 `/admin` 配置的网关。
+
+### `storage` —— 可选持久化（`version: 2`）
 
 默认安装不需要这一节。未写 `storage`、或 `driver: memory` 时，行为与 v1.0 完全一致：重启即空。完整可运行示例见 [`pavilo.sqlite.example.yaml`](../pavilo.sqlite.example.yaml)（`cp pavilo.sqlite.example.yaml pavilo.yaml`）。
 
@@ -171,7 +191,7 @@ npm run storage -- restore --from ./data/backup.db --force
 
 ---
 
-### `operator` —— 管理页口令（仅 `version: 3`）
+### `operator` —— 管理页口令（`version: 2` + sqlite）
 
 模型渠道和 API key **只在 `/admin` 配置**，不要写进 YAML。管理页在「sqlite + 有效 token」时打开；否则 `/admin` 为 404。
 
@@ -182,7 +202,7 @@ openssl rand -hex 32
 ```
 
 ```yaml
-version: 3
+version: 2
 storage:
   driver: sqlite
   sqlite:
@@ -419,6 +439,13 @@ channels:
 - **类型**：字符串（支持多行）
 - **说明**：频道顶部显示的导言卡，介绍频道用途、规则或玩法
 - **约束**：所有频道的 `welcome` 总字节数有上限，超出会被拒绝
+
+#### `channels[].play`（`version: 2` + sqlite）
+
+- **类型**：字符串（playId）
+- **说明**：把该频道绑到已启用的玩法。进入频道会打开 `/plays/<playId>/?channel=<id>`，而不是聊天页
+- **约束**：必须出现在根键 `plays` 里，且 `storage.driver: sqlite`。`version: 1` 出现此字段会启动失败
+- **完整约定**：[`docs/play.md`](play.md)
 
 #### 频道最低要求
 

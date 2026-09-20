@@ -25,7 +25,7 @@ v0.2–v0.8 曾同时接受 v1–v4。下表只作历史记录，**当前实现�
 | v3 | 在 v2 之上支持 `switchChannel` |
 | **v4（当前唯一）** | v3 + `stateStart.occupancy` 与实时 `channelOccupancy` |
 
-v4 的 `stateStart.protocolVersion` 为 `4`；其 `capabilities` 为 `ack`、`historyChunks`、`roomEpoch`、`reconnect`、`reactions`、`typingLease`、`mentions`、`channelOccupancy`、`historyPage`。不懂 `historyPage` 的客户端只看到工作集，仍是合法 v4。
+v4 的 `stateStart.protocolVersion` 为 `4`；其 `capabilities` 为 `ack`、`historyChunks`、`roomEpoch`、`reconnect`、`reactions`、`typingLease`、`mentions`、`channelOccupancy`、`historyPage`，以及**仅当当前频道绑定了玩法时**的 `play`。不懂 `historyPage` 或 `play` 的客户端仍是合法 v4。绑了玩法时 `stateStart.play` 为 `{ id, page }`。信封见 [play.md](../play.md)。
 
 v4 的 `channelOccupancy` 事件会向所有已加入的 v4 客户端广播完整摘要；摘要只包含频道 ID 与在线人数，不包含成员身份。
 

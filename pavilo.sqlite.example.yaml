@@ -1,6 +1,6 @@
 # Pavilo 配置示例（SQLite 留存）
 #
-# 与 pavilo.example.yaml 字段相同，另加 version: 3、storage 与 operator.token。
+# 与 pavilo.example.yaml 字段相同，另加 version: 2、storage 与 operator.token。
 # 复制后即可启用可选持久化；模型渠道只在 /admin 里配置，不要写进本文件。
 # 默认仍建议先用内存示例。
 #
@@ -26,9 +26,9 @@
 #   - Docker 需要把 ./data 挂成卷，并关闭 read_only 根文件系统
 #   - 调优建议见文件底部的"配置调优建议"章节
 
-# 配置文件版本（必填）。SQLite 用 2 或 3；要写 operator.token 必须用 3
-# version 1 禁止出现 storage / operator
-version: 3
+# 配置文件版本（必填）。SQLite 用 version: 2（3 视为 2 的别名）
+# version 1 禁止出现 storage / operator / plays
+version: 2
 
 # ============================================================================
 # 存储（version: 2+）
@@ -47,7 +47,7 @@ storage:
     retentionDays: 30
 
 # ============================================================================
-# 管理页（仅 version: 3）
+# 管理页（version: 2 + sqlite）
 # ============================================================================
 # 模型渠道、API key 只在 /admin 配置，不写在 YAML 里。
 # sqlite 而未填 token 时服务仍会启动，但会提示无法打开管理页。

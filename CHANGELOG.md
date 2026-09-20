@@ -6,10 +6,10 @@ Pavilo 的重要变更都记在这份文件里。
 
 ## [Unreleased]
 
-Config Schema v3、进程内 AI 网关、SQLite 密文渠道，以及 `/admin` 值班台。默认关闭。聊天核心不依赖 AI。
+进程内 AI 网关、Play 宿主与 Agent 基座。配置对外仍是两种部署：`version: 1` 内存、`version: 2` SQLite 家族。默认关闭。聊天核心不依赖 AI 或玩法。v1.4 内容审核不阻塞本期。官方狼人杀尚未实现。
 
 ### Added
-- Config Schema v3：可选 `operator` 与 `gateway`（默认关闭）。v1 / v2 文件继续合法
+- Config Schema v2 放宽：sqlite 家族可写 `operator` 与 `plays`（不另开 v3/v4）。v1 继续合法
 - sqlite 示例增加 `operator.token`（`openssl rand -hex 32`）；模型渠道只在 `/admin` 配置，不另提供网关 YAML
 - ADR-0004（配置双源；SQLite 中的渠道 key 为 AES-256-GCM 密文）与 ADR-0005（进程内网关）
 - `src/gateway/`：OpenAI 兼容 `complete()`、DeepSeek / openai-compatible preset、超时重试并发闸
@@ -18,13 +18,24 @@ Config Schema v3、进程内 AI 网关、SQLite 密文渠道，以及 `/admin` �
 - `/admin`：operator token 登录、渠道编辑、密钥只写/掩码、连通性探测、近 7 日用量
 - [`docs/gateway.md`](docs/gateway.md)：密钥红线、`complete()` 给 v1.4/v1.5 的调用口
 - [`docs/admin.md`](docs/admin.md)：语亭管理后台为壳、AI 网关为模块；房间 / 聊天频道页仅预留
+- 可选 `plays` 与 `channels[].play`（`version: 2` + sqlite）。内存配置写这些字段会拒绝
+- ADR-0006：Play 契约（独立玩法页、`playAction` / `playState`、Agent 基座）
+- `src/play/`：trusted loader、同步 host、异步 Agent 回合、局内记忆（memory 或 sqlite migration 003）
+- Protocol v4 可选能力 `play`：命令 `playAction`、事件 `playState`；仅当前频道绑了玩法时出现
+- `/plays/<id>/` 只服务该玩法的 `page/` 与 `assets/`；`host.js` 与 `agents/` 为 404
+- `client/play.js` 玩法页宿主（不进聊天页）；聊天页点玩法频道会整页跳转
+- `createPlayAgent(spec)`：合法动作硬约束，模型不能越权
+- [`plays/echo/`](plays/echo/) 契约夹具（默认不启用）；[`pavilo.plays.example.yaml`](pavilo.plays.example.yaml)
+- [`plays/werewolf/README.md`](plays/werewolf/README.md) 官方样例目录约定（实现中）
+- 冻结后的 [`docs/play.md`](docs/play.md)
 
 ### Changed
-- `version: 1` / `2` 出现 `operator` 会被拒绝；任何版本出现 `gateway:` 都会被拒绝。模型渠道只在 `/admin` 写入 SQLite
+- `version: 1` 出现 `storage` / `operator` / `plays` 会拒绝；memory 下的 v2 写 `operator`/`plays` 会拒绝。任何版本出现 `gateway:` 都会被拒绝。`version: 3` 当作 v2 读入。模型渠道只在 `/admin` 写入 SQLite
 - sqlite 引擎由 composition 打开一次，聊天 store 与网关 store 共享连接
+- v1.4 内容审核不挡 Play 宿主开工；玩法公开发言仍走现有 `message`
 
 ### Tests
-- 总测试数：348 个（346 通过，2 跳过）
+- 总测试数：360 个（358 通过，2 跳过）
 
 ## [1.2.0] - 2026-09-20
 

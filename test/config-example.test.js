@@ -29,12 +29,23 @@ test('pavilo.sqlite.example.yaml can be parsed as sqlite storage', () => {
 test('pavilo.sqlite.example.yaml documents operator.token instead of gateway channels', () => {
   const examplePath = path.join(__dirname, '../pavilo.sqlite.example.yaml');
   const yaml = fs.readFileSync(examplePath, 'utf-8');
-  assert.ok(yaml.includes('version: 3'));
+  assert.ok(yaml.includes('version: 2'));
   assert.ok(yaml.includes('openssl rand -hex 32'));
   assert.ok(!/^gateway:/m.test(yaml));
   const config = parseConfig(yaml, examplePath);
   assert.equal(config.operator.token, '');
   assert.equal(config.operator.enabled, false);
+});
+
+test('pavilo.plays.example.yaml enables echo and binds a play channel', () => {
+  const examplePath = path.join(__dirname, '../pavilo.plays.example.yaml');
+  const yaml = fs.readFileSync(examplePath, 'utf8');
+  assert.ok(yaml.includes('version: 2'));
+  assert.ok(!/^gateway:/m.test(yaml));
+  const config = parseConfig(yaml, examplePath);
+  assert.deepEqual(config.plays, ['echo']);
+  assert.equal(config.channels.find((channel) => channel.id === 'echo').play, 'echo');
+  assert.equal(config.channels.find((channel) => channel.id === 'general').play, undefined);
 });
 
 test('default channels match README documentation', () => {

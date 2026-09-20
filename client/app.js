@@ -725,6 +725,8 @@
   });
 
   function finishJoined(epoch, authoritativeMessages, reconnect) {
+    const joinedId = store.getState().channelId;
+    if (redirectIfPlayChannel(joinedId) || consumePlayNext()) return;
     connection.markJoined(true);
     // 重连成功后收起任何阻塞性错误覆盖层。
     errorController.clearError();
@@ -913,10 +915,37 @@
     }
   });
 
+  function playPageUrl(channel) {
+    return `/plays/${channel.play}/?channel=${encodeURIComponent(channel.id)}`;
+  }
+
+  function redirectIfPlayChannel(channelId) {
+    const channel = channelById(channelId);
+    if (!channel?.play) return false;
+    window.location.replace(playPageUrl(channel));
+    return true;
+  }
+
+  function consumePlayNext() {
+    try {
+      const next = sessionStorage.getItem('pavilo.next');
+      if (next && next.startsWith('/plays/')) {
+        sessionStorage.removeItem('pavilo.next');
+        window.location.replace(next);
+        return true;
+      }
+    } catch { /* ignore */ }
+    return false;
+  }
+
   function switchChannel(channelId) {
     const channel = channelById(channelId);
     const state = store.getState();
     if (!channel || channel.id === state.channelId) { renderChannels(state); return; }
+    if (channel.play) {
+      window.location.assign(playPageUrl(channel));
+      return;
+    }
     if (!channel.enabled) {
       notificationsController.toast(t('toast.channelDisabled'), 'error');
       renderChannels(state);

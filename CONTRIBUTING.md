@@ -274,11 +274,9 @@ npm run test:browser
 
 Pavilo 主线负责 **AI 网关**、**Play 宿主** 和一层薄契约。官方样例是文字狼人杀（状态机 + **自己的页面**）。启用一套玩法模块，再把频道的 `play` 指过去；进入该频道即加载玩法页，不要改聊天气泡流。
 
-请先读 [docs/play.md](docs/play.md)、[ROADMAP v1.5](ROADMAP.md)、[evolution.md §11](docs/evolution.md)。v1.5 之前还没有运行时，不要提交「通用游戏平台」或往 `chat.css` 里塞玩法按钮。
+请先读 [docs/play.md](docs/play.md)、[ADR-0006](docs/adr/0006-play-contract.md)、对照夹具 [`plays/echo/`](plays/echo/)。不要提交「通用游戏平台」或往 `chat.css` 里塞玩法按钮。
 
-在此之前用 Issue 对齐：规则、页面交互、人数、Agent 怎么参与。必须能回答：主持人是否为状态机？浏览器是否不调网关？失败时普通聊天是否仍可用？页面是否独立于聊天页？
-
-v1.5 之后：按 `plays/<id>/host.js` + `page/` 提交；想进主仓库就提 PR，也可以只在自己的实例加载。
+官方狼人杀只改 `plays/werewolf/`。契约不够用先开 Issue，不要在玩法 PR 里改信封。Agent 用 `createPlayAgent(spec)`，不要直连模型。
 
 ## 架构原则
 

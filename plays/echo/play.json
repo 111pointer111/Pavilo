@@ -1,0 +1,10 @@
+{
+  "id": "echo",
+  "version": "0.1.0",
+  "name": { "zh-CN": "回声", "en": "Echo" },
+  "description": {
+    "zh-CN": "Play 契约夹具，不是产品玩法。默认不要启用。",
+    "en": "Play contract fixture, not a product. Do not enable by default."
+  },
+  "fixture": true
+}

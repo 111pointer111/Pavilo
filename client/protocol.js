@@ -6,15 +6,15 @@
 
   const PROTOCOL_VERSION = 4;
   const COMMANDS = Object.freeze({ JOIN: 'join', MESSAGE: 'message', REACTION: 'reaction',
-    TYPING: 'typing', SWITCH_CHANNEL: 'switchChannel', HISTORY_PAGE: 'historyPage', LEAVE: 'leave' });
+    TYPING: 'typing', SWITCH_CHANNEL: 'switchChannel', HISTORY_PAGE: 'historyPage', PLAY_ACTION: 'playAction', LEAVE: 'leave' });
   const EVENTS = Object.freeze({ STATE_START: 'stateStart', HISTORY: 'history', HISTORY_END: 'historyEnd',
     HISTORY_PAGE_END: 'historyPageEnd',
     STATE: 'state', PRESENCE: 'presence', MESSAGE: 'message', REACTION: 'reaction', PRUNE: 'prune',
-    TYPING: 'typing', CHANNEL_OCCUPANCY: 'channelOccupancy', ACK: 'ack', ERROR: 'error' });
+    TYPING: 'typing', CHANNEL_OCCUPANCY: 'channelOccupancy', PLAY_STATE: 'playState', ACK: 'ack', ERROR: 'error' });
   const ACK_FIELDS = Object.freeze(['clientMessageId', 'messageId', 'seq', 'createdAt']);
   const ERROR_FIELDS = Object.freeze(['code', 'message', 'clientMessageId']);
   const SYNC_EVENTS = Object.freeze(['stateStart', 'history', 'historyEnd']);
-  const DEFERRED_EVENTS = Object.freeze(['presence', 'message', 'reaction', 'typing', 'channelOccupancy', 'ack', 'error']);
+  const DEFERRED_EVENTS = Object.freeze(['presence', 'message', 'reaction', 'typing', 'channelOccupancy', 'playState', 'ack', 'error']);
   const REACTION_EMOJIS = Object.freeze(['👍', '❤️', '😂', '🎉', '👀', '🔥']);
 
   function isRecord(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
@@ -80,7 +80,8 @@
           && optional(event.roomStartedAt, Number.isFinite)
           && optional(event.capabilities, (value) => Array.isArray(value) && value.every((item) => typeof item === 'string'))
           && optional(event.resumeToken, (value) => value === null || isClientMessageId(value))
-          && optional(event.occupancy, isOccupancy);
+          && optional(event.occupancy, isOccupancy)
+          && optional(event.play, (value) => isRecord(value) && typeof value.id === 'string' && typeof value.page === 'string');
         break;
       case EVENTS.HISTORY: valid = isMessages(event.messages); break;
       case EVENTS.HISTORY_END: valid = isSequence(event.latestSeq); break;
@@ -104,6 +105,11 @@
       case EVENTS.TYPING:
         valid = isId(event.userId) && typeof event.username === 'string' && typeof event.active === 'boolean'; break;
       case EVENTS.CHANNEL_OCCUPANCY: valid = isOccupancy(event.occupancy); break;
+      case EVENTS.PLAY_STATE:
+        valid = typeof event.playId === 'string' && isChannelId(event.channelId) && isId(event.gameId)
+          && isSequence(event.seq) && (event.visibility === 'private' || event.visibility === 'channel')
+          && isRecord(event.state) && optional(event.clientActionId, isClientMessageId);
+        break;
       case EVENTS.ACK:
         valid = isClientMessageId(event.clientMessageId) && isId(event.messageId)
           && isSequence(event.seq) && Number.isFinite(event.createdAt); break;

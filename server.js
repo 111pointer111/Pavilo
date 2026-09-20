@@ -15,6 +15,7 @@ function createChatServer(options = {}) {
   config.channels = (options.channels || DEFAULTS.channels).map((channel) => ({ ...channel }));
   config.operator = { ...DEFAULTS.operator, ...(options.operator || {}) };
   config.gateway = { ...structuredClone(DEFAULTS.gateway), ...(options.gateway || {}) };
+  config.plays = [...(options.plays || DEFAULTS.plays || [])];
   config.operator.enabled = operatorConsoleEnabled(config);
   const sqliteEngine = config.storage?.driver === 'sqlite' && config.storage.sqlite?.path
     ? openSqliteEngine(config.storage.sqlite)
@@ -28,6 +29,20 @@ function createChatServer(options = {}) {
     schedule: options.schedule,
     cancel: options.cancel
   });
+  const { createPlayRuntime } = require('./src/play');
+  const plays = createPlayRuntime(config, {
+    root: __dirname,
+    engine: sqliteEngine,
+    now: options.now,
+    schedule: options.schedule,
+    cancel: options.cancel,
+    randomId: options.randomId,
+    complete: (request) => gateway.complete(request),
+    onEffects: (effects) => core.deliverPlayEffects(effects),
+    seatAgent: (input) => core.seatAgent(input),
+    roster: (channelId) => core.roster(channelId)
+  });
+  core.attachPlayRuntime(plays);
   const publicHttp = createHttpHandler(config, core, () => server.address(), __dirname, {
     healthPatch: () => gateway.healthPatch()
   });
@@ -43,10 +58,11 @@ function createChatServer(options = {}) {
   async function stopAll(signal) {
     const result = await stop(signal);
     gateway.close();
+    plays.close();
     sqliteEngine?.close();
     return result;
   }
-  return { server, listen, stop: stopAll, roomEpoch, localAddresses, config, state, storageInfo: core.storageInfo, gateway };
+  return { server, listen, stop: stopAll, roomEpoch, localAddresses, config, state, storageInfo: core.storageInfo, gateway, plays };
 }
 
 module.exports = { createChatServer, DEFAULTS, PROTOCOL_VERSION, REACTION_EMOJIS: [...REACTION_EMOJIS] };

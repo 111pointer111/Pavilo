@@ -221,9 +221,10 @@ test('a v1.2 001 database gains gateway tables on reopen and keeps chat rows', (
   t.after(() => upgraded.close());
   applyMigrations(upgraded);
   const ids = upgraded.prepare('SELECT id FROM schema_migrations ORDER BY id').all().map((row) => row.id);
-  assert.deepEqual(ids, [1, 2]);
+  assert.deepEqual(ids, [1, 2, 3]);
   assert.equal(upgraded.prepare('SELECT id FROM messages').all().length, 1);
   assert.deepEqual(upgraded.prepare('SELECT id FROM gateway_channels').all(), []);
+  assert.deepEqual(upgraded.prepare('SELECT channel_id FROM play_games').all(), []);
 });
 
 test('public channel views never include the API key', (t) => {

@@ -1,0 +1,55 @@
+# Pavilo 配置示例（启用玩法页）
+#
+# 在 sqlite 留存之上打开 Play 宿主。默认不要用这份做日常闲聊；
+# echo 是契约夹具，不是给玩家的游戏。官方狼人杀实现后把 echo 换成 werewolf。
+#
+#   cp pavilo.plays.example.yaml pavilo.yaml
+#   mkdir -p data
+#   openssl rand -hex 32    # 写入 operator.token，Agent 才调得了网关
+#   npm run config:check
+#   npm start
+#   打开 http://localhost:4173/ 登录后点「回声桌」
+
+version: 2
+
+storage:
+  driver: sqlite
+  sqlite:
+    path: ./data/pavilo.db
+    engine: auto
+    retentionDays: 30
+
+operator:
+  token: ""
+
+plays:
+  - echo
+
+server:
+  host: 0.0.0.0
+  port: 4173
+  maxUsers: 64
+  maxConnections: 80
+  maxConnectionsPerIp: 12
+  allowNoOrigin: true
+  allowedOrigins: []
+
+room:
+  title: 语亭 · 玩法
+  defaultChannel: general
+  exposeMemberIps: true
+  exposeLanUrls: true
+  defaultLanguage: zh-CN
+
+channels:
+  - id: general
+    name: 闲聊
+    description: 没有玩法的默认聊天页。
+    enabled: true
+    maxUsers: 64
+  - id: echo
+    name: 回声桌
+    description: Play 契约夹具。
+    enabled: true
+    maxUsers: 12
+    play: echo

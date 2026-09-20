@@ -3,14 +3,17 @@
 const PROTOCOL_VERSION = 4;
 const REACTION_EMOJIS = new Set(['👍', '❤️', '😂', '🎉', '👀', '🔥']);
 function publicChannel(channel) {
-  return { id: channel.id, name: channel.name, description: channel.description, enabled: channel.enabled, readOnly: channel.readOnly, maxUsers: channel.maxUsers, welcome: channel.welcome };
+  const result = { id: channel.id, name: channel.name, description: channel.description, enabled: channel.enabled, readOnly: channel.readOnly, maxUsers: channel.maxUsers, welcome: channel.welcome };
+  if (channel.play) result.play = channel.play;
+  return result;
 }
 function publicLimits(config) {
   return { maxTextLength: config.maxTextLength, maxImageBytes: config.maxImageBytes, maxImageDimension: config.maxImageDimension, maxImagePixels: config.maxImagePixels, maxMessages: config.maxMessages };
 }
 function publicUser(session, exposeMemberIps = false) {
   const user = { id: session.id, username: session.username, avatarSeed: session.avatarSeed, joinedAt: session.joinedAt };
-  if (exposeMemberIps) user.ip = session.ip;
+  if (session.kind === 'agent') user.kind = 'agent';
+  if (exposeMemberIps && session.ip && session.kind !== 'agent') user.ip = session.ip;
   return user;
 }
 function publicMessage(message) {

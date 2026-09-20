@@ -9,7 +9,8 @@ Pavilo 提供以下 HTTP 端点。默认 memory 模式下数据只在进程内�
 | `/`、`/index.html`、`/chat` | GET, HEAD | 返回主页面（HTML） |
 | `/room-info` | GET, HEAD | 返回房间和频道信息（JSON） |
 | `/healthz` | GET, HEAD | 健康检查端点（JSON） |
-| `/client/{file}` | GET, HEAD | 客户端 JavaScript 文件（按白名单精确匹配） |
+| `/client/{file}` | GET, HEAD | 客户端 JavaScript 文件（按白名单精确匹配；`play.js` 供玩法页，不进聊天页） |
+| `/plays/{id}/`、`/plays/{id}/{file}` | GET, HEAD | 已启用玩法的 `page/`；`/plays/{id}/assets/` 映射 `assets/`。未启用或 `host.js` 为 404 |
 | `/vendor/{path}` | GET, HEAD | 第三方依赖文件（目录挂载） |
 | `/chat.css` | GET, HEAD | 样式表 |
 | `/favicon.ico` | GET, HEAD | 返回 `204 No Content`，无响应体 |

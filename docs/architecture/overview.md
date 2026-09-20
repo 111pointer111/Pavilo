@@ -85,6 +85,17 @@ const result = core.dispatch('peer-1', command);
 - `operator/`：`/admin` 静态白名单与 JSON API；进程内 session；与聊天 WebSocket 隔离。
 - 管理页在 `admin/`：语亭后台为壳，AI 网关为其中模块。房间 / 聊天频道页仅预留。未启用时 `/admin` 为 404。规划见 [admin.md](../admin.md)。
 
+### 玩法 `src/play`
+
+可选。`server.js` 加载 `plays/<id>/host.js` 并注入 core。`src/core` 只认识 `playAction` 信封，不 import 具体玩法。
+
+- loader：trusted `require`，校验 `play.json` / `host.js` / `page/index.html`
+- runtime：同步状态机 + 异步 Agent 回合（`onEffects`）
+- `createPlayAgent(spec)`：`legalActions` 硬约束
+- 记忆：memory 或 sqlite `play_games` / `play_agent_memory`
+- HTTP：`/plays/<id>/` 只挂 `page/` 与 `assets/`
+- 契约：[`docs/play.md`](../play.md)、ADR-0006
+
 ### 传输层 `src/transport`
 
 - `http.js`：静态资源、`/room-info`、`/healthz`、MIME、gzip/ETag 和路径边界。只读取 core 的公开元数据/统计，不了解内部 Map。可选把网关公开摘要 merge 进 `/healthz`。
@@ -97,7 +108,7 @@ const result = core.dispatch('peer-1', command);
 
 `/client/` 不是目录挂载：只服务 `http.js` 显式列出的文件，GET/HEAD 共享 gzip、ETag 和 realpath 边界检查。未列出的客户端文件、`src/`、测试、配置与其余仓库源码仍为 404。
 
-配置加载器保守保留整个 `client/`、`vendor/` 和 `admin/` 目录，拒绝其中配置文件及指向这些目录的符号链接，避免以后增加前端资源时暴露真实配置。YAML 版本、字段、默认值、加载优先级保持不变。
+配置加载器保守保留整个 `client/`、`vendor/`、`admin/` 和 `plays/` 目录，拒绝其中配置文件及指向这些目录的符号链接，避免以后增加前端资源时暴露真实配置。YAML 版本、字段、默认值、加载优先级保持不变。
 
 ## 验证与后续范围
 

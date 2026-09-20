@@ -4,7 +4,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const DEFERRED_EVENTS = new Set(['presence', 'message', 'reaction', 'typing', 'channelOccupancy', 'ack', 'error']);
+  const DEFERRED_EVENTS = new Set(['presence', 'message', 'reaction', 'typing', 'channelOccupancy', 'playState', 'ack', 'error']);
   const EPOCH_ERROR = 'pending.epochRestarted';
   const TYPING_EXPIRY = 4_500;
   // Tombstones stay non-enumerable so the public sync shape remains backwards

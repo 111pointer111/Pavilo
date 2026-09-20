@@ -169,7 +169,7 @@ PAVILO_CONFIG=/etc/pavilo/config.yaml npm start
 
 修改配置后必须**重启进程**，运行中的服务不会热加载。`npm run config:check` 只校验并显示实际配置来源，不启动服务。
 
-配置必须声明 `version: 1`、`2` 或 `3`。`version: 1` 禁止出现 `storage` / `operator`，行为与 v1.0 相同；`version: 2` 可配置可选 SQLite；`version: 3` 可写 `operator.token` 以打开 `/admin`（模型渠道只在管理页配置，不写进 YAML）。sqlite 而未填 token 时服务仍启动，但会提示无法打开管理页。YAML 使用严格类型：布尔值写作 `true` / `false`，数字写作整数；未知配置项、重复键、未知 tag、锚点/别名和非对象根节点都会被拒绝。内存示例见 [`pavilo.example.yaml`](./pavilo.example.yaml)，留存示例见 [`pavilo.sqlite.example.yaml`](./pavilo.sqlite.example.yaml)。
+配置必须声明 `version: 1` 或 `2`（`3` 视为 `2`）。`version: 1` 是内存模式，禁止 `storage` / `operator` / `plays`。`version: 2` 是 SQLite 家族：可写 `storage`、`operator.token`、`plays`；管理页、网关和玩法都要求 sqlite。模型渠道只在 `/admin` 配置，不写进 YAML。sqlite 而未填 token 时服务仍启动，但会提示无法打开管理页。YAML 使用严格类型：布尔值写作 `true` / `false`，数字写作整数；未知配置项、重复键、未知 tag、锚点/别名和非对象根节点都会被拒绝。内存示例见 [`pavilo.example.yaml`](./pavilo.example.yaml)，留存示例见 [`pavilo.sqlite.example.yaml`](./pavilo.sqlite.example.yaml)，玩法示例见 [`pavilo.plays.example.yaml`](./pavilo.plays.example.yaml)。
 
 ### 频道和人数语义
 

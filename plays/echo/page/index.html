@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Echo · Pavilo</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <header class="bar">
+    <a class="mark" href="/">语亭</a>
+    <strong id="title">Echo</strong>
+    <span id="status" class="status">connecting</span>
+    <nav id="channels" class="channels"></nav>
+    <button type="button" id="leave">离开</button>
+  </header>
+  <main>
+    <p class="note">这是 Play 契约夹具，不是给玩家的游戏。动作走 <code>playAction</code>，私密结果只回给你。</p>
+    <pre id="state" class="state">{}</pre>
+    <form id="echoForm">
+      <input id="echoText" maxlength="200" placeholder="回声内容" autocomplete="off">
+      <button type="submit">echo</button>
+    </form>
+    <form id="shoutForm">
+      <input id="shoutText" maxlength="200" placeholder="公开喊话" autocomplete="off">
+      <button type="submit">shout</button>
+    </form>
+    <p>
+      <button type="button" id="summon">召唤 EchoBot</button>
+    </p>
+    <ol id="log"></ol>
+  </main>
+  <script src="/client/protocol.js"></script>
+  <script src="/client/connection.js"></script>
+  <script src="/client/play.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

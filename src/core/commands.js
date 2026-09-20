@@ -4,8 +4,8 @@ const { cleanUsername, validateClientId } = require('./session');
 const { cleanText } = require('./messages');
 const { PROTOCOL_VERSION, REACTION_EMOJIS, publicMessage } = require('./events');
 const serialize = (payload) => Buffer.from(JSON.stringify(payload));
-function createCommandHandler(config, rooms, sessionStore, messageStore, peerEffects, { now, randomId, randomAvatarSeed, cancel, store }) {
-  const { resolveJoin, rosterUsers, nameIsFree, activeMembers } = sessionStore;
+function createCommandHandler(config, rooms, sessionStore, messageStore, peerEffects, { now, randomId, randomAvatarSeed, cancel, store, playSlot }) {
+  const { resolveJoin, rosterUsers, nameIsFree, activeMembers, findById } = sessionStore;
   const { parseImage, normalizeMentions, payloadFingerprint, findReply, messageByteSize, messageAck, reactionSummary } = messageStore;
   const { publicUser, sendError, sendJson, broadcast, broadcastOccupancy, sendInitialState, activateTyping, deactivateTyping, closeClient, handOffSession } = peerEffects;
   function rateAllows(client, bucket = 'message', maximum = 8, windowMs = 5000) {
@@ -239,6 +239,60 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     });
   }
 
+  function emitPlaySnapshots(snapshots, fallbackPeer) {
+    for (const snap of snapshots || []) {
+      const payload = { ...snap };
+      const actorId = payload.actorId;
+      delete payload.actorId;
+      if (Buffer.byteLength(JSON.stringify(payload)) > config.maxJsonBytes) continue;
+      if (payload.visibility === 'channel') broadcast(payload.channelId, payload);
+      else {
+        const session = actorId ? findById(actorId) : null;
+        const peer = session?.client || fallbackPeer;
+        if (peer) sendJson(peer, payload);
+      }
+    }
+  }
+
+  function handlePlayAction(client, command) {
+    const clientActionId = command.clientActionId;
+    const actionExtra = { clientActionId };
+    if (!validateClientId(clientActionId)) {
+      sendError(client, 'INVALID_MESSAGE_ID', '动作标识无效，请重试。', typeof clientActionId === 'string' ? clientActionId : undefined, actionExtra);
+      return;
+    }
+    if (!rateAllows(client, 'playAction', config.messageRateLimit, config.rateLimitWindowMs)) {
+      sendError(client, 'RATE_LIMITED', '操作太快了，请稍等几秒。', clientActionId, actionExtra);
+      return;
+    }
+    const plays = playSlot?.runtime;
+    if (!plays) {
+      sendError(client, 'PLAY_NOT_BOUND', '这个频道没有绑定玩法。', clientActionId, actionExtra);
+      return;
+    }
+    const channel = rooms.get(client.session.channelId);
+    const result = plays.handleAction({
+      session: client.session,
+      name: command.name,
+      payload: command.payload,
+      clientActionId,
+      roomEpoch: channel?.epoch
+    });
+    if (!result?.ok) {
+      sendError(client, result?.code || 'PLAY_ACTION_REJECTED', result?.message || '这个动作不被允许。', clientActionId, actionExtra);
+      return;
+    }
+    emitPlaySnapshots(result.snapshots, client);
+    if (result.post?.text) {
+      handleMessage(client, {
+        type: 'message',
+        kind: 'text',
+        text: result.post.text,
+        clientMessageId: randomId('pm')
+      });
+    }
+  }
+
   function handleSwitchChannel(client, command) {
     const session = client.session;
     const target = rooms.get(command.channelId);
@@ -249,6 +303,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     if (activeMembers(command.channelId).size >= target.config.maxUsers) return sendError(client, 'CHANNEL_FULL', '这个频道已达到管理员设置的人数上限。');
     const previousChannelId = session.channelId;
     deactivateTyping(client);
+    playSlot?.runtime?.onLeave(session);
     session.channelId = command.channelId;
     broadcast(previousChannelId, { type: 'presence', action: 'leave', userId: session.id, username: session.username, users: rosterUsers(previousChannelId) });
     sendInitialState(client, session, session.token);
@@ -271,7 +326,9 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       // The correlation ID is what lets the sender turn this into a retryable
       // failure instead of leaving the message stuck as "unconfirmed".
       sendError(client, 'SYNC_IN_PROGRESS', '历史同步中，请稍候。',
-        typeof command.clientMessageId === 'string' ? command.clientMessageId : undefined);
+        typeof command.clientMessageId === 'string' ? command.clientMessageId
+          : typeof command.clientActionId === 'string' ? command.clientActionId : undefined,
+        command.clientActionId ? { clientActionId: command.clientActionId } : {});
       return;
     }
     if (command.type === 'typing') {
@@ -283,6 +340,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     }
     if (command.type === 'switchChannel') return handleSwitchChannel(client, command);
     if (command.type === 'historyPage') return handleHistoryPage(client, command);
+    if (command.type === 'playAction') return handlePlayAction(client, command);
     if (command.type === 'message') return handleMessage(client, command);
     if (command.type === 'reaction') return handleReaction(client, command);
     if (command.type === 'leave') {

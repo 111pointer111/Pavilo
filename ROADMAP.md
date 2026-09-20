@@ -799,7 +799,9 @@ src/storage/migrations/
 
 目标：用狼人杀这一个真实需求，抽出**最薄**的 Play 契约（服务端 host + 独立玩法页）；狼人杀既是产品功能，也是贡献者的参考实现。
 
-实现前补 ADR-0006。契约只写狼人杀用到的东西。页面约束先见 [docs/play.md](docs/play.md)。
+**宿主与契约已落地**（ADR-0006、Config Schema v2 的 `plays`、`src/play/`、`plays/echo/` 夹具）。v1.4 内容审核不阻塞。官方文字狼人杀仍待在 `plays/werewolf/` 实现。
+
+页面约束见 [docs/play.md](docs/play.md)。
 
 ### 频道即玩法
 

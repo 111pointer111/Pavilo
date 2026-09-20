@@ -9,7 +9,7 @@ const test = require('node:test');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { CLIENT_FILES } = require('../src/transport/http');
+const { CLIENT_FILES, CHAT_CLIENT_FILES, PLAY_CLIENT_FILES } = require('../src/transport/http');
 
 const ROOT = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -19,10 +19,17 @@ function scriptSources() {
 }
 
 test('client asset wiring', async (t) => {
-  await t.test('every whitelisted client module is loaded by index.html', () => {
+  await t.test('every chat client module is loaded by index.html', () => {
     const loaded = new Set(scriptSources());
-    const missing = [...CLIENT_FILES].filter((file) => !loaded.has(file));
+    const missing = [...CHAT_CLIENT_FILES].filter((file) => !loaded.has(file));
     assert.deepEqual(missing, [], `index.html 未加载：${missing.join(', ')}`);
+  });
+
+  await t.test('play host is served but not loaded by the chat page', () => {
+    assert.ok(PLAY_CLIENT_FILES.has('/client/play.js'));
+    assert.ok(CLIENT_FILES.has('/client/play.js'));
+    assert.ok(!scriptSources().includes('/client/play.js'));
+    assert.ok(fs.existsSync(path.join(ROOT, 'client/play.js')));
   });
 
   await t.test('every /client/ script in index.html is served by the whitelist', () => {

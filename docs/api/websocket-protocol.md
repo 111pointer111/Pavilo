@@ -32,12 +32,15 @@ Pavilo 使用 WebSocket 进行实时通信。当前协议版本：**v4**（`PROT
 
 ## 客户端命令
 
-客户端向服务器发送的 JSON 命令。命令名以 `client/protocol.js` 的 `COMMANDS` 为准，共 6 个：
+客户端向服务器发送的 JSON 命令。命令名以 `client/protocol.js` 的 `COMMANDS` 为准：
 
 ```javascript
 COMMANDS = { JOIN: 'join', MESSAGE: 'message', REACTION: 'reaction',
-  TYPING: 'typing', SWITCH_CHANNEL: 'switchChannel', LEAVE: 'leave' }
+  TYPING: 'typing', SWITCH_CHANNEL: 'switchChannel', HISTORY_PAGE: 'historyPage',
+  PLAY_ACTION: 'playAction', LEAVE: 'leave' }
 ```
+
+`playAction` 仅在当前频道绑定玩法时有意义，否则 `PLAY_NOT_BOUND`。信封见 [play.md](../play.md)。
 
 无法识别或格式非法的命令返回 `BAD_REQUEST`（JSON 解析失败返回 `BAD_JSON`），已加入后发送未知 `type` 返回 `UNKNOWN_COMMAND`。
 

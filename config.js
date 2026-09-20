@@ -5,7 +5,7 @@ const path = require('node:path');
 const YAML = require('yaml');
 
 const ROOT = __dirname;
-const CONFIG_VERSION = 3;
+const CONFIG_VERSION = 2;
 const SUPPORTED_CONFIG_VERSIONS = Object.freeze([1, 2, 3]);
 const MAX_SQLITE_RETENTION_DAYS = 3650;
 const MIN_OPERATOR_TOKEN_LENGTH = 16;
@@ -25,7 +25,7 @@ const MAX_ROSTER_USER_BYTES = 512;
 // Files Pavilo serves from its own root. Anything else there (including the YAML
 // config) stays private, see assertPrivateConfigPath below.
 const HTTP_PUBLIC_FILES = new Set(['index.html', 'chat.css']);
-const HTTP_PUBLIC_DIRECTORIES = new Set(['vendor', 'client', 'admin']);
+const HTTP_PUBLIC_DIRECTORIES = new Set(['vendor', 'client', 'admin', 'plays']);
 
 const DEFAULTS = deepFreeze({
   port: 4173,
@@ -67,6 +67,7 @@ const DEFAULTS = deepFreeze({
     maxRetries: 2,
     maxInFlight: 4
   },
+  plays: [],
   channels: [{
     id: 'general',
     name: '闲聊',
@@ -87,8 +88,7 @@ const DEFAULTS = deepFreeze({
 });
 
 const ROOT_KEYS_V1 = new Set(['version', 'server', 'room', 'channels', 'limits', 'timeouts', 'rateLimits']);
-const ROOT_KEYS_V2 = new Set([...ROOT_KEYS_V1, 'storage']);
-const ROOT_KEYS_V3 = new Set([...ROOT_KEYS_V2, 'operator']);
+const ROOT_KEYS_V2 = new Set([...ROOT_KEYS_V1, 'storage', 'operator', 'plays']);
 const STORAGE_KEYS = new Set(['driver', 'sqlite']);
 const OPERATOR_KEYS = new Set(['token']);
 const SQLITE_KEYS = new Set(['path', 'engine', 'retentionDays']);
@@ -96,7 +96,9 @@ const STORAGE_DRIVERS = new Set(['memory', 'sqlite']);
 const SQLITE_ENGINES = new Set(['auto', 'node', 'better-sqlite3']);
 const SERVER_KEYS = new Set(['host', 'port', 'maxUsers', 'maxConnections', 'maxConnectionsPerIp', 'allowNoOrigin', 'allowedOrigins']);
 const ROOM_KEYS = new Set(['title', 'defaultChannel', 'exposeMemberIps', 'exposeLanUrls', 'defaultLanguage']);
-const CHANNEL_KEYS = new Set(['id', 'name', 'description', 'enabled', 'readOnly', 'maxUsers', 'welcome']);
+const CHANNEL_KEYS_V1 = new Set(['id', 'name', 'description', 'enabled', 'readOnly', 'maxUsers', 'welcome']);
+const CHANNEL_KEYS_V2 = new Set([...CHANNEL_KEYS_V1, 'play']);
+const MAX_PLAYS = 32;
 const LIMIT_KEYS = new Set(['maxMessagesPerChannel', 'maxTextLength', 'maxImageBytes', 'maxImageDimension', 'maxImagePixels', 'maxJsonBytes', 'maxWebSocketFrameBytes', 'maxChannelBytes', 'maxWritableBytes', 'maxDedupeEntries']);
 const TIMEOUT_KEYS = new Set(['joinMs', 'heartbeatIntervalMs', 'heartbeatTimeoutMs', 'typingTtlMs', 'sessionLeaseMs', 'dedupeTtlMs']);
 const RATE_KEYS = new Set(['windowMs', 'messages', 'reactions', 'typing']);
@@ -176,17 +178,48 @@ function parseOrigins(value, field) {
   return origins;
 }
 
-function normalizeChannels(value, maxUsers) {
+function assertPlayInstalled(playId, field) {
+  if (!CHANNEL_ID_RE.test(playId)) fail(field, '只能使用小写字母、数字、下划线和连字符，且必须以字母或数字开头');
+  const directory = path.join(ROOT, 'plays', playId);
+  if (!fs.existsSync(path.join(directory, 'play.json'))) fail(field, `找不到 plays/${playId}/play.json`);
+  if (!fs.existsSync(path.join(directory, 'host.js'))) fail(field, `找不到 plays/${playId}/host.js`);
+  if (!fs.existsSync(path.join(directory, 'page', 'index.html'))) fail(field, `找不到 plays/${playId}/page/index.html`);
+}
+
+function parsePlays(value) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) fail('plays', '必须是字符串数组');
+  if (value.length > MAX_PLAYS) fail('plays', `最多 ${MAX_PLAYS} 个玩法`);
+  const ids = [];
+  const seen = new Set();
+  for (let index = 0; index < value.length; index += 1) {
+    const field = `plays[${index}]`;
+    const id = text(value[index], field, 1, 32);
+    if (seen.has(id)) fail(field, `玩法 ID “${id}” 重复`);
+    assertPlayInstalled(id, field);
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+function normalizeChannels(value, maxUsers, { schemaVersion, plays } = {}) {
   if (!Array.isArray(value) || value.length < 1 || value.length > MAX_CHANNELS) fail('channels', `必须包含 1–${MAX_CHANNELS} 个频道`);
   const ids = new Set();
+  const enabledPlays = plays || [];
   const channels = value.map((entry, index) => {
     const field = `channels[${index}]`;
     const channel = record(entry, field);
-    knownKeys(channel, CHANNEL_KEYS, field);
+    knownKeys(channel, schemaVersion >= 2 ? CHANNEL_KEYS_V2 : CHANNEL_KEYS_V1, field);
     const id = text(channel.id, `${field}.id`, 1, 32);
     if (!CHANNEL_ID_RE.test(id)) fail(`${field}.id`, '只能使用小写字母、数字、下划线和连字符，且必须以字母或数字开头');
     if (ids.has(id)) fail(`${field}.id`, `频道 ID “${id}” 重复`);
     ids.add(id);
+    let play;
+    if (channel.play !== undefined) {
+      play = text(channel.play, `${field}.play`, 1, 32);
+      if (!enabledPlays.includes(play)) fail(`${field}.play`, `玩法 “${play}” 未在 plays 中启用`);
+    }
     return {
       id,
       name: text(channel.name, `${field}.name`, 1, 40),
@@ -194,7 +227,8 @@ function normalizeChannels(value, maxUsers) {
       enabled: channel.enabled === undefined ? true : boolean(channel.enabled, `${field}.enabled`),
       readOnly: channel.readOnly === undefined ? false : boolean(channel.readOnly, `${field}.readOnly`),
       maxUsers: channel.maxUsers === undefined ? maxUsers : integer(channel.maxUsers, `${field}.maxUsers`, 1, maxUsers),
-      welcome: channel.welcome === undefined ? '' : paragraph(channel.welcome, `${field}.welcome`, 0, MAX_WELCOME_LENGTH)
+      welcome: channel.welcome === undefined ? '' : paragraph(channel.welcome, `${field}.welcome`, 0, MAX_WELCOME_LENGTH),
+      ...(play ? { play } : {})
     };
   });
   if (!channels.some((channel) => channel.enabled && !channel.readOnly)) fail('channels', '至少要启用一个可发言的频道');
@@ -202,9 +236,7 @@ function normalizeChannels(value, maxUsers) {
 }
 
 function rootKeysFor(schemaVersion) {
-  if (schemaVersion === 3) return ROOT_KEYS_V3;
-  if (schemaVersion === 2) return ROOT_KEYS_V2;
-  return ROOT_KEYS_V1;
+  return schemaVersion >= 2 ? ROOT_KEYS_V2 : ROOT_KEYS_V1;
 }
 
 function secretText(value, field, minimum, maximum) {
@@ -247,7 +279,7 @@ function sqliteOperatorNotice(config) {
   return [
     'SQLite 已启用，但未配置 operator.token，无法打开 /admin，也无法配置模型渠道。',
     `生成口令：${OPERATOR_TOKEN_COMMAND}`,
-    '在 version: 3 的配置里写入 operator.token，或设置环境变量 PAVILO_OPERATOR_TOKEN。'
+    '在 version: 2 的配置里写入 operator.token，或设置环境变量 PAVILO_OPERATOR_TOKEN。'
   ].join('\n');
 }
 
@@ -325,13 +357,19 @@ function validateCrossConstraints(config) {
   if (config.maxRoomBytes < largestMessageBytes) fail('limits.maxChannelBytes', '装不下一条最大图片或文字消息');
   if (config.heartbeatTimeoutMs <= config.heartbeatIntervalMs) fail('timeouts.heartbeatTimeoutMs', '必须大于 timeouts.heartbeatIntervalMs');
   if (welcomeBytes > MAX_TOTAL_WELCOME_BYTES) fail('channels', `所有频道 welcome 合计不能超过 ${MAX_TOTAL_WELCOME_BYTES} 字节`);
+  const sqlite = config.storage?.driver === 'sqlite';
+  if (!sqlite && (config.operator?.token || config._operatorDeclared)) {
+    fail('operator', '管理页需要 storage.driver: sqlite');
+  }
+  const usesPlay = (config.plays || []).length > 0 || config.channels.some((channel) => channel.play);
+  if (usesPlay && !sqlite) fail('plays', '玩法需要 storage.driver: sqlite');
 }
 
 function normalizeConfig(document = {}, { requireVersion = false, baseDir = ROOT } = {}) {
   const root = record(document, 'config');
-  if (requireVersion && root.version === undefined) fail('version', '配置文件必须声明 version: 1、2 或 3');
+  if (requireVersion && root.version === undefined) fail('version', '配置文件必须声明 version: 1 或 2（3 视为 2）');
   if (root.version !== undefined && !SUPPORTED_CONFIG_VERSIONS.includes(root.version)) {
-    fail('version', '当前只支持版本 1、2 或 3');
+    fail('version', '当前只支持版本 1 或 2（3 视为 2）');
   }
   const schemaVersion = root.version === undefined ? 1 : root.version;
   knownKeys(root, rootKeysFor(schemaVersion), 'config');
@@ -392,19 +430,22 @@ function normalizeConfig(document = {}, { requireVersion = false, baseDir = ROOT
   optionalInteger(config, 'reactionRateLimit', rateLimits, 'reactions', 'rateLimits.reactions', 1, 10_000);
   optionalInteger(config, 'typingRateLimit', rateLimits, 'typing', 'rateLimits.typing', 1, 10_000);
 
+  config.plays = schemaVersion >= 2 ? parsePlays(root.plays) : [];
   if (root.channels === undefined) {
     config.channels = config.channels.map((channel) => ({ ...channel, maxUsers: Math.min(channel.maxUsers, config.maxUsers) }));
   } else {
-    config.channels = normalizeChannels(root.channels, config.maxUsers);
+    config.channels = normalizeChannels(root.channels, config.maxUsers, { schemaVersion, plays: config.plays });
   }
   const defaultChannel = config.channels.find((channel) => channel.id === config.defaultChannelId);
   if (!defaultChannel) fail('room.defaultChannel', `找不到频道 “${config.defaultChannelId}”`);
   if (!defaultChannel.enabled) fail('room.defaultChannel', '默认频道必须启用');
   if (defaultChannel.readOnly) fail('room.defaultChannel', '默认频道不能是只读频道');
   config.storage = schemaVersion >= 2 ? parseStorage(root.storage, baseDir) : { driver: 'memory' };
-  if (schemaVersion >= 3) config.operator = parseOperator(root.operator);
+  if (schemaVersion >= 2) config.operator = parseOperator(root.operator);
+  if (root.operator !== undefined) config._operatorDeclared = true;
   finalizeOperator(config);
   validateCrossConstraints(config);
+  delete config._operatorDeclared;
   return config;
 }
 
@@ -442,7 +483,7 @@ function assertPrivateConfigPath(resolvedPath) {
   const realRoot = fs.realpathSync(ROOT);
   const realPath = fs.realpathSync(resolvedPath);
   if (isHttpPublicPath(resolvedPath, ROOT) || isHttpPublicPath(realPath, realRoot)) {
-    throw new Error('配置文件不能位于 Pavilo 的 HTTP 公开路径（index.html、vendor/ 或 client/）');
+    throw new Error('配置文件不能位于 Pavilo 的 HTTP 公开路径（index.html、vendor/、client/、admin/ 或 plays/）');
   }
 }
 

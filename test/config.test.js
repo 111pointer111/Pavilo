@@ -30,7 +30,7 @@ function throwsMatch(action, pattern) {
 }
 
 test('built-in defaults are immutable and missing default file falls back to a clone', () => {
-  assert.equal(CONFIG_VERSION, 3);
+  assert.equal(CONFIG_VERSION, 2);
   assert.deepEqual(SUPPORTED_CONFIG_VERSIONS, [1, 2, 3]);
   assert.equal(DEFAULTS.storage.driver, 'memory');
   assert.equal(DEFAULTS.operator.enabled, false);
@@ -111,11 +111,15 @@ test('normalization defaults programmatic input, while files require a version a
   assert.deepEqual(normalizeConfig({}), DEFAULTS);
   assert.equal(DEFAULTS.defaultLanguage, 'zh-CN');
   throwsMatch(() => parseConfig('{}\n'), /version.*必须声明/);
-  throwsMatch(() => parseConfig('version: 4\n'), /当前只支持版本 1、2 或 3/);
+  throwsMatch(() => parseConfig('version: 5\n'), /当前只支持版本 1 或 2/);
+  throwsMatch(() => parseConfig('version: 4\n'), /当前只支持版本 1 或 2/);
+  throwsMatch(() => parseConfig('version: 1\nchannels:\n  - id: general\n    name: 闲聊\n    play: echo\n'), /channels\[0\]\.play.*未知配置项/);
   throwsMatch(() => parseConfig('version: 1\nstorage:\n  driver: memory\n'), /config\.storage.*未知配置项/);
   throwsMatch(() => parseConfig('version: 1\noperator:\n  token: "' + 'a'.repeat(16) + '"\n'), /config\.operator.*未知配置项/);
-  throwsMatch(() => parseConfig('version: 2\noperator:\n  token: "' + 'a'.repeat(16) + '"\n'), /config\.operator.*未知配置项/);
-  throwsMatch(() => parseConfig('version: 3\ngateway:\n  enabled: true\n'), /config\.gateway.*未知配置项/);
+  throwsMatch(() => parseConfig('version: 1\nplays:\n  - echo\n'), /config\.plays.*未知配置项/);
+  throwsMatch(() => parseConfig('version: 2\noperator:\n  token: "' + 'a'.repeat(16) + '"\n'), /operator.*sqlite/);
+  throwsMatch(() => parseConfig('version: 2\nplays:\n  - echo\n'), /plays.*sqlite/);
+  throwsMatch(() => parseConfig('version: 2\ngateway:\n  enabled: true\n'), /config\.gateway.*未知配置项/);
   throwsMatch(() => parseConfig('version: 1\nserver:\n  maxUserz: 4\n'), /server\.maxUserz.*未知配置项/);
   throwsMatch(() => parseConfig('version: 1\nserver:\n  maxUsers: "4"\n'), /server\.maxUsers.*整数/);
   throwsMatch(() => parseConfig('version: 1\nroom:\n  exposeMemberIps: yes\n'), /room\.exposeMemberIps.*true 或 false/);
@@ -531,37 +535,32 @@ channels:
 `), /room\.defaultChannel.*只读频道/);
 });
 
-test('schema v3 accepts omitted operator as disabled and rejects gateway YAML', () => {
-  const config = parseConfig('version: 3\n');
+test('schema v2 accepts omitted operator as disabled; version 3 is an alias of 2', () => {
+  const config = parseConfig('version: 2\n');
   assert.equal(config.storage.driver, 'memory');
   assert.equal(config.operator.enabled, false);
   assert.equal(config.operator.token, '');
-  assert.equal(config.gateway.timeoutMs, 30_000);
-  throwsMatch(() => parseConfig('version: 3\noperator:\n  enabled: true\n'), /operator\.enabled.*未知配置项/);
+  assert.deepEqual(config.plays, []);
+  const alias = parseConfig('version: 3\n');
+  assert.equal(alias.storage.driver, 'memory');
+  assert.equal(alias.operator.enabled, false);
+  throwsMatch(() => parseConfig('version: 2\noperator:\n  enabled: true\n'), /operator\.enabled.*未知配置项/);
 });
 
 test('operator.token is optional in YAML and may be supplied by env', (t) => {
-  const parsed = parseConfig(`
-version: 3
-operator:
-  token: ""
-`);
-  assert.equal(parsed.operator.token, '');
-  assert.equal(parsed.operator.enabled, false);
-
   throwsMatch(() => parseConfig(`
-version: 3
+version: 2
 operator:
   token: short
 `), /operator\.token.*16–256/);
   throwsMatch(() => parseConfig(`
-version: 3
+version: 2
 operator:
   token: "sixteen-chars-ok but space"
 `), /operator\.token.*空白/);
 
   const file = writeConfig(t, `
-version: 3
+version: 2
 storage:
   driver: sqlite
   sqlite:

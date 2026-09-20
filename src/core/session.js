@@ -60,6 +60,7 @@ function createSessionStore(config, rooms, { now, randomResumeToken, schedule, c
       }
       const session = sessions.get(offered);
       if (session) {
+        if (session.kind === 'agent') return { error: 'SESSION_CONFLICT' };
         if (session.nameKey !== nameKey || session.channelId !== channelId) return { error: 'SESSION_CONFLICT' };
         return { nameKey, channelId, channel, token: offered, session };
       }
@@ -71,6 +72,50 @@ function createSessionStore(config, rooms, { now, randomResumeToken, schedule, c
     return { nameKey, channelId, channel, token, session: null };
   }
 
+
+  function findById(id) {
+    for (const session of sessions.values()) if (session.id === id) return session;
+    const timestamp = now();
+    for (const lease of leasedSessions.values()) {
+      if (lease.expiresAt > timestamp && lease.session.id === id) return lease.session;
+    }
+    return null;
+  }
+
+  function seatAgent({ channelId, username, avatarSeed, id, role }) {
+    const channel = rooms.get(channelId);
+    if (!channel?.config.enabled) return { error: 'CHANNEL_UNAVAILABLE' };
+    const cleaned = cleanUsername(username);
+    if (!cleaned) return { error: 'INVALID_NAME' };
+    const nameKey = cleaned.toLocaleLowerCase();
+    if (!nameIsFree(nameKey, channelId)) return { error: 'NAME_TAKEN' };
+    if (activeMembers().size >= config.maxUsers) return { error: 'SERVER_FULL' };
+    if (activeMembers(channelId).size >= channel.config.maxUsers) return { error: 'CHANNEL_FULL' };
+    const token = freshResumeToken();
+    const session = {
+      id,
+      username: cleaned,
+      nameKey,
+      channelId,
+      ip: '',
+      avatarSeed: Number.isFinite(avatarSeed) ? avatarSeed : 0,
+      joinedAt: now(),
+      token,
+      kind: 'agent',
+      role: typeof role === 'string' ? role : '',
+      client: null,
+      rates: Object.create(null)
+    };
+    sessions.set(token, session);
+    return { session };
+  }
+
+  function unseatAgent(token) {
+    const session = sessions.get(token);
+    if (!session || session.kind !== 'agent') return null;
+    sessions.delete(token);
+    return session;
+  }
 
   function attach(session, peer) {
     const lease = leasedSessions.get(session.token);
@@ -96,6 +141,6 @@ function createSessionStore(config, rooms, { now, randomResumeToken, schedule, c
     leasedSessions.clear();
     sessions.clear();
   }
-  return { activeMembers, rosterUsers, nameIsFree, resolveJoin, attach, detach, clear, size: () => sessions.size };
+  return { activeMembers, rosterUsers, nameIsFree, resolveJoin, attach, detach, findById, seatAgent, unseatAgent, clear, size: () => sessions.size };
 }
 module.exports = { createSessionStore, cleanUsername, validateClientId };

@@ -543,7 +543,7 @@ Play 是独立应用层，不把任何一款游戏的规则或页面塞进 `src/
 - 公开发言可走现有 `message`，以便沿用审核与限额；玩法页自行决定怎么渲染；
 - 浏览器不调网关；玩法崩溃 ≠ 聊天崩溃。
 
-页面约定的单一真源是 [docs/play.md](play.md)。实现前用 ADR-0006 冻结信封字段，不写通用游戏引擎，不写组件平台。
+页面约定的单一真源是 [docs/play.md](play.md)。信封已由 ADR-0006 冻结。不写通用游戏引擎，不写组件平台。
 
 ## 11.2 官方样例：文字狼人杀
 
@@ -732,16 +732,11 @@ docs/adr/
   0003-extension-as-trusted-scripts.md
 ```
 
-已于 v1.3 开工时接受：
+已于 v1.3 / v1.5 开工时接受：
 
 ```text
   0004-operator-config-dual-source.md
   0005-in-process-ai-gateway.md
-```
-
-对应版本开工前再写：
-
-```text
   0006-play-contract.md
 ```
 
@@ -779,7 +774,7 @@ docs/adr/
 - `chat-protocol.md`：线上协议真源；
 - `docs/architecture/overview.md`：当前实现；
 - `docs/evolution.md`：未来演进原则；
-- `docs/play.md`：玩法页与频道绑定的约束（v1.5 前为草案）；
+- `docs/play.md`：玩法页与频道绑定的冻结契约；
 - `ROADMAP.md`：版本计划。
 
 CI 至少验证：

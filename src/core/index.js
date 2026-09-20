@@ -57,10 +57,12 @@ function createChatCore(config, runtime = {}) {
     return broadcastAll({ type: 'channelOccupancy', occupancy: occupancySnapshot() }, except);
   }
   const messageStore = createMessageStore(config);
+  const playSlot = { runtime: null };
   function sendJson(peer, payload) { emit(events.directed(peer.id, payload)); }
-  function sendError(peer, code, message, clientMessageId) {
+  function sendError(peer, code, message, clientMessageId, extra = {}) {
     const payload = { type: 'error', code, message };
     if (clientMessageId) payload.clientMessageId = clientMessageId;
+    if (extra.clientActionId) payload.clientActionId = extra.clientActionId;
     sendJson(peer, payload);
   }
   function closeClient(peer, code = 1000, reason = '') {
@@ -73,16 +75,30 @@ function createChatCore(config, runtime = {}) {
     peer.syncing = true;
     const snapshot = [...channel.messages];
     const latestSeq = channel.messageSequence;
-    const payloads = [{
+    const playId = channel.config.play;
+    const capabilities = ['ack', 'historyChunks', 'roomEpoch', 'reconnect', 'reactions', 'typingLease', 'mentions', 'channelOccupancy', 'historyPage'];
+    if (playId) capabilities.push('play');
+    const start = {
       type: 'stateStart',
       protocolVersion: events.PROTOCOL_VERSION,
-      capabilities: ['ack', 'historyChunks', 'roomEpoch', 'reconnect', 'reactions', 'typingLease', 'mentions', 'channelOccupancy', 'historyPage'],
+      capabilities,
       roomEpoch: channel.epoch, roomStartedAt: channel.startedAt, latestSeq, resumeToken: resumeToken || null,
       self: publicUser(session), users: sessionStore.rosterUsers(session.channelId), channelId: channel.config.id,
       occupancy: occupancySnapshot()
-    }];
+    };
+    if (playId) start.play = { id: playId, page: `/plays/${playId}/` };
+    const payloads = [start];
     for (const chunk of rooms.historyChunks(channel, snapshot)) payloads.push({ type: 'history', roomEpoch: channel.epoch, messages: chunk });
     payloads.push({ type: 'historyEnd', roomEpoch: channel.epoch, latestSeq });
+    if (playId && playSlot.runtime) {
+      const joined = playSlot.runtime.onJoin(session, channel.epoch);
+      for (const snap of joined.snapshots || []) {
+        if (snap.visibility === 'private' && snap.actorId && snap.actorId !== session.id) continue;
+        const payload = { ...snap };
+        delete payload.actorId;
+        payloads.push(payload);
+      }
+    }
     emit({ kind: 'initial', peerId: peer.id, payloads });
   }
   function deactivateTyping(peer) {
@@ -111,7 +127,7 @@ function createChatCore(config, runtime = {}) {
   }
   const handleCommand = createCommandHandler(config, rooms, sessionStore, messageStore,
     { publicUser, sendError, sendJson, broadcast, broadcastOccupancy, sendInitialState, activateTyping, deactivateTyping, closeClient, handOffSession },
-    { now, randomId, randomAvatarSeed, cancel, store });
+    { now, randomId, randomAvatarSeed, cancel, store, playSlot });
   const log = runtime.log || ((line) => { process.stdout.write(`${line}\n`); });
   const PRUNE_INTERVAL_MS = 60 * 60 * 1000;
   function runPrune() {
@@ -145,6 +161,7 @@ function createChatCore(config, runtime = {}) {
     deactivateTyping(peer);
     const session = peer.session;
     if (session && session.client === peer) {
+      if (peer.intentionalLeave) playSlot.runtime?.onLeave(session);
       peer.session = null;
       peer.joined = false;
       sessionStore.detach(session, !shuttingDown && !peer.intentionalLeave);
@@ -209,6 +226,62 @@ function createChatCore(config, runtime = {}) {
     }
     return result;
   }
-  return { connect, dispatch, disconnect, connectionStatus, completeSync, markClosing, shutdown, state, health, roomInfo, storageInfo, roomEpoch: rooms.epoch, pruneDedupe: store.pruneDedupe, drainEffects: takeEffects };
+  function attachPlayRuntime(playRuntime) {
+    playSlot.runtime = playRuntime || null;
+  }
+  function roster(channelId) {
+    return [...sessionStore.activeMembers(channelId).values()];
+  }
+  function seatAgent(input) {
+    const result = sessionStore.seatAgent({
+      ...input,
+      id: input.id || randomId('u'),
+      avatarSeed: input.avatarSeed ?? randomAvatarSeed()
+    });
+    if (result.session) {
+      broadcast(result.session.channelId, {
+        type: 'presence',
+        action: 'join',
+        user: publicUser(result.session),
+        users: sessionStore.rosterUsers(result.session.channelId)
+      });
+      broadcastOccupancy();
+    }
+    return result;
+  }
+  function unseatAgent(token) {
+    const session = sessionStore.unseatAgent(token);
+    if (session) {
+      playSlot.runtime?.onLeave(session);
+      broadcast(session.channelId, {
+        type: 'presence',
+        action: 'leave',
+        userId: session.id,
+        username: session.username,
+        users: sessionStore.rosterUsers(session.channelId)
+      });
+      broadcastOccupancy();
+    }
+    return session;
+  }
+  function deliverPlayEffects(playEffects) {
+    for (const effect of playEffects || []) {
+      const payload = { ...effect.payload };
+      const actorId = payload.actorId;
+      delete payload.actorId;
+      if (Buffer.byteLength(JSON.stringify(payload)) > config.maxJsonBytes) continue;
+      if (effect.kind === 'broadcast') broadcast(effect.channelId || payload.channelId, payload);
+      else {
+        const session = sessionStore.findById(actorId || effect.actorId);
+        if (session?.client) sendJson(session.client, payload);
+      }
+    }
+    if (runtime.onEffects) runtime.onEffects(takeEffects());
+  }
+  return {
+    connect, dispatch, disconnect, connectionStatus, completeSync, markClosing, shutdown,
+    state, health, roomInfo, storageInfo, roomEpoch: rooms.epoch, pruneDedupe: store.pruneDedupe,
+    drainEffects: takeEffects, attachPlayRuntime, roster, seatAgent, unseatAgent, deliverPlayEffects
+  };
 }
 module.exports = { createChatCore };

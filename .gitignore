@@ -14,6 +14,7 @@ dist/
 /pavilo.*.yaml
 !pavilo.example.yaml
 !pavilo.sqlite.example.yaml
+!pavilo.plays.example.yaml
 .env
 .env.*
 !.env.example

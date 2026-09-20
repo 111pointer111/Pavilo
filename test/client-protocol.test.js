@@ -46,8 +46,8 @@ test('UMD exposes matching browser/Node API without accessing DOM', () => {
 
 test('protocol version and frozen command/event names match wire contract', () => {
   assert.equal(PROTOCOL_VERSION, 4);
-  assert.deepEqual(Object.values(COMMANDS), ['join', 'message', 'reaction', 'typing', 'switchChannel', 'historyPage', 'leave']);
-  assert.deepEqual(Object.values(EVENTS), ['stateStart', 'history', 'historyEnd', 'historyPageEnd', 'state', 'presence', 'message', 'reaction', 'prune', 'typing', 'channelOccupancy', 'ack', 'error']);
+  assert.deepEqual(Object.values(COMMANDS), ['join', 'message', 'reaction', 'typing', 'switchChannel', 'historyPage', 'playAction', 'leave']);
+  assert.deepEqual(Object.values(EVENTS), ['stateStart', 'history', 'historyEnd', 'historyPageEnd', 'state', 'presence', 'message', 'reaction', 'prune', 'typing', 'channelOccupancy', 'playState', 'ack', 'error']);
   assert.deepEqual(protocol.ACK_FIELDS, ['clientMessageId', 'messageId', 'seq', 'createdAt']);
   assert.deepEqual(protocol.ERROR_FIELDS, ['code', 'message', 'clientMessageId']);
   assert.deepEqual(protocol.SYNC_EVENTS, ['stateStart', 'history', 'historyEnd']);
@@ -114,6 +114,17 @@ test('epoch-less compatibility frames remain valid; sync metadata and sequences 
   assert.equal(parseServerEvent({ ...frames()[0], capabilities: [1] }), null);
   assert.equal(parseServerEvent({ ...frames()[0], resumeToken: 'not a token' }), null);
   assert.equal(parseServerEvent({ ...frames()[0], protocolVersion: 0 }), null);
+});
+
+test('playState requires play envelope fields and accepts a private view', () => {
+  const frame = {
+    type: 'playState', playId: 'echo', channelId: 'echo', gameId: 'g_aabbccddeeff0011',
+    seq: 1, visibility: 'private', state: { lastEcho: { text: 'ping' } }, clientActionId: 'action-echo-0001'
+  };
+  assert.equal(parseServerEvent(frame), frame);
+  assert.equal(parseServerEvent({ ...frame, visibility: 'world' }), null);
+  assert.equal(parseServerEvent({ ...frame, state: null }), null);
+  assert.equal(parseServerEvent({ ...frame, playId: undefined }), null);
 });
 
 test('nested messages/history, replies, removed IDs and reactions reject invalid models', () => {

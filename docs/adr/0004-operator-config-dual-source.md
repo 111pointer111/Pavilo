@@ -19,19 +19,22 @@ v1.3 要让部署者能配置模型渠道并查看用量。启动方式必须保
 
 渠道与 API key **不再**出现在 YAML / 环境变量里，只在 `/admin` 写入 SQLite。YAML 只保留 `operator.token`。sqlite 缺 token 时进程仍启动，但打印提示，且 `/admin` 为 404。
 
+## Amendment（2026-09-20，schema 按部署家族）
+
+Config Schema **不再为每个可选模块 bump 版本**。对外只保留：
+
+| Schema | 部署 | 允许的根键 |
+| --- | --- | --- |
+| v1 | 内存 | 聊天核心。禁止 `storage` / `operator` / `plays` / `gateway` |
+| v2 | SQLite 家族 | v1 + `storage` + `operator` + `plays`。`gateway:` 仍非法 |
+
+`version: 3` 仅作 v2 的读入别名（未发版示例曾用过），文档不再教人写 3。`operator` 与 `plays` 出现在 memory 配置里会拒绝。旧的「只有 storage」的 v2 文件继续合法。
+
 ## Decision
 
-### Config Schema v3
+### Config Schema
 
-新根键 `operator` 只允许出现在 `version: 3`。`gateway:` 不是合法 YAML。
-
-| Schema | 允许的根键 | 网关 / 管理页 |
-| --- | --- | --- |
-| v1 | 现有 | 禁止 `storage` / `gateway` / `operator` |
-| v2 | v1 + `storage` | 禁止 `gateway` / `operator` |
-| v3 | v2 + `operator` | `operator.token`；渠道不在 YAML |
-
-v1 / v2 继续合法。不强迫只聊天的用户改 YAML。
+`operator` 写在 `version: 2`。`gateway:` 不是合法 YAML。v1 继续合法。不强迫只聊天的用户改 YAML。
 
 ### 谁拥有哪一类字段
 

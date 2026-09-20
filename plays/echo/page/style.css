@@ -1,0 +1,63 @@
+:root {
+  color-scheme: dark;
+  --bg: #12110e;
+  --ink: #f4efe4;
+  --muted: #9a917f;
+  --line: #3a3428;
+  --accent: #e6b84d;
+  --panel: #1c1a15;
+  font-family: "Iowan Old Style", "Songti SC", Georgia, serif;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: radial-gradient(circle at top, #2a2418, var(--bg) 55%);
+  color: var(--ink);
+  min-height: 100vh;
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: #0e0d0b;
+}
+
+.mark { color: var(--accent); text-decoration: none; letter-spacing: 0.12em; }
+.status { color: var(--muted); font-size: 12px; }
+.channels { display: flex; gap: 8px; flex-wrap: wrap; }
+.channels button {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+.channels button.active { border-color: var(--accent); color: var(--accent); }
+
+main { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+.note { color: var(--muted); line-height: 1.5; }
+.state {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 16px;
+  overflow: auto;
+  min-height: 120px;
+}
+form, p { display: flex; gap: 8px; margin: 12px 0; }
+input, button {
+  font: inherit;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+}
+button { cursor: pointer; }
+button[type="submit"], #summon, #leave { border-color: var(--accent); }
+#log { color: var(--muted); padding-left: 18px; }
+code { color: var(--accent); }

@@ -259,11 +259,12 @@ Pavilo v1.x 默认场景是：
 - **README**：用户入口、Quick Start、产品边界
 - **`pavilo.example.yaml`**：内存模式可运行配置示例
 - **`pavilo.sqlite.example.yaml`**：SQLite 留存可运行配置示例
+- **`pavilo.plays.example.yaml`**：启用玩法页的可运行配置示例
 - **`docs/configuration.md`**：配置语义唯一详细说明
 - **`docs/architecture/chat-protocol.md`**：协议真源
 - **`docs/architecture/overview.md`**：当前实现
 - **`docs/evolution.md`**：未来演进原则
-- **`docs/play.md`**：玩法页与频道绑定（v1.5 前为草案）
+- **`docs/play.md`**：玩法页与频道绑定（v1.5 契约已冻结）
 - **`docs/adr/`**：重大决策记录
 - **ROADMAP.md**：版本计划
 
