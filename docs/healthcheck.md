@@ -37,7 +37,7 @@ GET /healthz
 | `messages` | number | 当前保存的消息总数（所有频道） |
 | `roomBytes` | number | 当前消息占用的字节数 |
 | `clients` | number | 当前 WebSocket 连接数 |
-| `ephemeral` | boolean | 是否为临时模式（v0.x 固定为 `true`） |
+| `ephemeral` | boolean | `true` 表示 memory（重启即空）；`false` 表示 sqlite 留存 |
 
 ### 失败响应
 
@@ -148,7 +148,7 @@ scrape_configs:
 - ✅ 成功时返回 `200 OK`
 - ✅ 响应体为 JSON 格式
 - ✅ 始终包含 `ok`, `users`, `messages`, `roomBytes`, `clients`, `ephemeral` 字段
-- ✅ `ephemeral` 固定为 `true`（内存存储）
+- ✅ `ephemeral` 随存储驱动：`memory` 为 `true`，`sqlite` 为 `false`
 - ✅ 无需认证或特殊头
 
 ### v1.0+ 规划

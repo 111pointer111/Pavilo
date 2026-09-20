@@ -649,7 +649,7 @@ pm2 logs pavilo
 ╰──────────────────────────────────────╯
 
 ✓ Protocol version: 4
-✓ Storage mode: ephemeral (in-memory only)
+✓ Storage mode: memory
 ✓ Config source: /path/to/pavilo.yaml
   → Restart required to apply config changes
 

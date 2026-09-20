@@ -15,7 +15,7 @@ function createChatServer(options = {}) {
   const server = http.createServer(createHttpHandler(config, core, () => server.address(), __dirname));
   transport = createWebSocketTransport(server, config, core);
   const { listen, stop, roomEpoch, localAddresses, state } = transport;
-  return { server, listen, stop, roomEpoch, localAddresses, config, state };
+  return { server, listen, stop, roomEpoch, localAddresses, config, state, storageInfo: core.storageInfo };
 }
 
 module.exports = { createChatServer, DEFAULTS, PROTOCOL_VERSION, REACTION_EMOJIS: [...REACTION_EMOJIS] };
@@ -43,7 +43,13 @@ if (require.main === module) {
 
     // Core info
     process.stdout.write(`✓ Protocol version: ${PROTOCOL_VERSION}\n`);
-    process.stdout.write(`✓ Storage mode: ephemeral (in-memory only)\n`);
+    const storage = app.storageInfo();
+    if (storage.driver === 'sqlite') {
+      const retention = storage.retentionDays == null ? 'forever' : `${storage.retentionDays}d`;
+      process.stdout.write(`✓ Storage mode: sqlite (engine=${storage.engine}, path=${storage.path}, retentionDays=${retention})\n`);
+    } else {
+      process.stdout.write(`✓ Storage mode: memory\n`);
+    }
     process.stdout.write(`✓ Config source: ${loaded.configPath || 'built-in defaults'}\n`);
     process.stdout.write(`  → Restart required to apply config changes\n\n`);
 

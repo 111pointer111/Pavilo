@@ -1,6 +1,6 @@
 # HTTP API 文档
 
-Pavilo 提供以下 HTTP 端点。所有数据都只存在于进程内存中（`ephemeral`），没有持久化存储。
+Pavilo 提供以下 HTTP 端点。默认 memory 模式下数据只在进程内存中（`ephemeral: true`）；sqlite 模式下 `ephemeral` 为 `false`。
 
 ## 端点列表
 
@@ -151,7 +151,8 @@ Referrer-Policy: strict-origin-when-cross-origin
 | `supportedLanguages` | array | 客户端支持的语言，固定为 `["zh-CN", "en"]` |
 | `channels` | array | 频道列表，见下表 |
 | `limits` | object | 客户端所需的尺寸限制，见下表 |
-| `ephemeral` | boolean | 固定为 `true`（纯内存存储） |
+| `ephemeral` | boolean | `true` 为 memory（重启即空）；`false` 为 sqlite 留存 |
+| `retentionDays` | number \| null | 仅 sqlite：留存天数；`null` 表示永久。memory 模式不出现此字段 |
 | `localUrl` | string | `http://localhost:<实际监听端口>`，始终存在 |
 | `lanUrls` | array | 局域网地址列表；`room.exposeLanUrls` 为 `false` 时为空数组 |
 
@@ -225,7 +226,7 @@ Referrer-Policy: strict-origin-when-cross-origin
 | `messages` | number | 所有频道当前保留的消息总条数 |
 | `roomBytes` | number | 所有频道消息占用的总字节数 |
 | `clients` | number | 当前 WebSocket 连接数（未 join 的连接也计入） |
-| `ephemeral` | boolean | 固定为 `true` |
+| `ephemeral` | boolean | 与 `/room-info` 相同：memory 为 `true`，sqlite 为 `false` |
 
 服务端只要还能处理 HTTP 请求就返回 200；当前实现没有返回非 200 的分支，健康检查失败只能体现为连接失败或超时。
 

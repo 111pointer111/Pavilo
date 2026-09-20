@@ -73,7 +73,7 @@ Current version: **v1.0.0** (Ephemeral Stable) — multiple ephemeral channels, 
 **Current read-only boundaries**
 
 - Messages cannot be edited or deleted after sending; reactions are the only way to respond
-- No history persistence, direct messages, search, accounts, or role permissions
+- History persistence is off by default (optional SQLite via Config Schema v2, 30-day retention); no direct messages, search, accounts, or role permissions
 - Channels with `enabled: false` cannot be joined at all; `readOnly: true` channels can be joined, read, and reacted to, but nobody can post (no exceptions, no admin bypass)
 - `config.js`, `pavilo.yaml`, and `index.html` are never served by the app
 

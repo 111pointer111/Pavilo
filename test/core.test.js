@@ -3,8 +3,13 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const { DEFAULTS } = require('../config');
 const { createChatCore } = require('../src/core');
+const { createMemoryStore } = require('../src/storage/memory-store');
+const { isNodeSqliteAvailable } = require('../src/storage/sqlite-engine');
 
 function createHarness(options = {}) {
   let clock = 1_000;
@@ -22,7 +27,9 @@ function createHarness(options = {}) {
       timers.push(timer);
       return timer;
     },
-    cancel(timer) { if (timer) timer.cancelled = true; }
+    cancel(timer) { if (timer) timer.cancelled = true; },
+    store: options.store,
+    log: options.log || (() => {})
   });
   function advance(ms) {
     clock += ms;
@@ -351,3 +358,65 @@ test('core rejects protocol versions other than 4 and closes the peer', () => {
   assert.equal(accepted.protocolVersion, 4);
   assert.deepEqual(core.roomInfo().deprecatedProtocols, []);
 });
+
+test('core does not ACK or broadcast when appendMessage throws', () => {
+  const inner = createMemoryStore({ ...DEFAULTS, channels: DEFAULTS.channels.map((channel) => ({ ...channel })) });
+  const store = new Proxy(inner, {
+    get(target, prop, receiver) {
+      if (prop === 'appendMessage') return () => { throw new Error('disk full'); };
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === 'function' ? value.bind(target) : value;
+    }
+  });
+  const { core } = createHarness({ store });
+  join(core, 'alice-peer', 'Alice', 'session-alice-0001');
+  const result = core.dispatch('alice-peer', {
+    type: 'message', clientMessageId: 'message-store-fail-0001', kind: 'text', text: 'lost'
+  });
+  assert.equal(result.accepted, false);
+  assert.equal(result.error.code, 'STORAGE_UNAVAILABLE');
+  assert.equal(core.state().messages, 0);
+  assert.ok(!result.effects.some((effect) => effect.payload?.type === 'message'));
+});
+
+test('memory roomInfo stays ephemeral without retentionDays', () => {
+  const { core } = createHarness();
+  const info = core.roomInfo();
+  assert.equal(info.ephemeral, true);
+  assert.equal(info.retentionDays, undefined);
+  assert.deepEqual(core.storageInfo(), { driver: 'memory', ephemeral: true });
+});
+
+if (isNodeSqliteAvailable()) {
+  test('sqlite core keeps history across process restart', (t) => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'pavilo-core-sqlite-'));
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+    const storage = {
+      driver: 'sqlite',
+      sqlite: { path: path.join(directory, 'pavilo.db'), engine: 'node', retentionDays: 30 }
+    };
+    const first = createHarness({ storage });
+    join(first.core, 'alice-peer', 'Alice', 'session-alice-0001');
+    const sent = first.core.dispatch('alice-peer', {
+      type: 'message', clientMessageId: 'message-persist-0001', kind: 'text', text: 'still here'
+    });
+    assert.equal(sent.accepted, true);
+    const epoch = first.core.roomInfo().roomEpoch;
+    assert.equal(first.core.roomInfo().ephemeral, false);
+    assert.equal(first.core.roomInfo().retentionDays, 30);
+    assert.equal(first.core.storageInfo().driver, 'sqlite');
+    first.core.shutdown();
+
+    const second = createHarness({ storage });
+    t.after(() => second.core.shutdown());
+    assert.equal(second.core.connect('bob-peer'), true);
+    const joined = second.core.dispatch('bob-peer', {
+      type: 'join', protocolVersion: 4, username: 'Bob', clientSessionId: 'session-bob-0001'
+    });
+    const messages = joined.effects.find((effect) => effect.kind === 'initial').payloads
+      .filter((payload) => payload.type === 'history')
+      .flatMap((payload) => payload.messages);
+    assert.equal(second.core.roomInfo().roomEpoch, epoch);
+    assert.equal(messages.some((message) => message.text === 'still here'), true);
+  });
+}

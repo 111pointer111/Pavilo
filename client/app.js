@@ -171,6 +171,15 @@
       if (node.id === 'messageCount' || node.id === 'connectionText') continue;
       node.textContent = t(node.dataset.i18n);
     }
+    const note = document.querySelector('.ephemeral-note');
+    if (note) {
+      const forever = roomInfo && roomInfo.ephemeral === false && roomInfo.retentionDays == null;
+      const persisted = roomInfo && roomInfo.ephemeral === false;
+      const days = roomInfo?.retentionDays ?? 30;
+      note.querySelector('strong').textContent = t(persisted ? 'persisted.strong' : 'ephemeral.strong');
+      note.querySelector('p').textContent = t(forever ? 'persisted.copyForever' : persisted ? 'persisted.copy' : 'ephemeral.copy', { days });
+      note.querySelector('code').textContent = t(forever ? 'persisted.codeForever' : persisted ? 'persisted.code' : 'ephemeral.code', { days });
+    }
     for (const node of document.querySelectorAll('[data-i18n-html]')) {
       node.innerHTML = t(node.dataset.i18nHtml);
     }

@@ -112,6 +112,14 @@ function createChatCore(config, runtime = {}) {
   const handleCommand = createCommandHandler(config, rooms, sessionStore, messageStore,
     { publicUser, sendError, sendJson, broadcast, broadcastOccupancy, sendInitialState, activateTyping, deactivateTyping, closeClient, handOffSession },
     { now, randomId, randomAvatarSeed, cancel, store });
+  const log = runtime.log || ((line) => { process.stdout.write(`${line}\n`); });
+  const PRUNE_INTERVAL_MS = 60 * 60 * 1000;
+  function runPrune() {
+    const { deleted } = store.pruneExpired();
+    if (deleted) log(`Storage prune: deleted ${deleted} expired messages`);
+  }
+  runPrune();
+  const pruneTimer = schedule(() => timerTask(runPrune), PRUNE_INTERVAL_MS);
   function connect(peerId, ip = 'unknown') {
     if (shuttingDown || peers.has(peerId)) return false;
     const peer = { id: peerId, ip, session: null, joined: false, closing: false, intentionalLeave: false,
@@ -156,6 +164,7 @@ function createChatCore(config, runtime = {}) {
     shuttingDown = true;
     sessionStore.clear();
     if (store.ephemeral) rooms.clear();
+    if (pruneTimer) cancel(pruneTimer);
     store.close();
     for (const peer of peers.values()) {
       if (peer.joinTimer) cancel(peer.joinTimer);
@@ -169,8 +178,22 @@ function createChatCore(config, runtime = {}) {
     const channels = rooms.snapshot();
     return { clients: peers.size, sessions: sessionStore.size(), messages: channels.reduce((n, c) => n + c.messages, 0), roomBytes: channels.reduce((n, c) => n + c.roomBytes, 0), latestSeq: rooms.get(config.defaultChannelId).messageSequence };
   }
-  function roomInfo() { return { protocolVersion: events.PROTOCOL_VERSION, deprecatedProtocols: [], roomEpoch: rooms.epoch, roomTitle: config.roomTitle, defaultChannelId: config.defaultChannelId, defaultLanguage: config.defaultLanguage || 'zh-CN', supportedLanguages: ['zh-CN', 'en'], channels: config.channels.map(events.publicChannel), limits: events.publicLimits(config), ephemeral: store.ephemeral }; }
+  function storageInfo() {
+    const sqlite = config.storage?.sqlite;
+    return {
+      driver: store.driver,
+      ephemeral: store.ephemeral,
+      ...(store.engine ? { engine: store.engine } : {}),
+      ...(sqlite?.path ? { path: sqlite.path } : {}),
+      ...(store.driver === 'sqlite' ? { retentionDays: sqlite.retentionDays } : {})
+    };
+  }
+  function roomInfo() {
+    const info = { protocolVersion: events.PROTOCOL_VERSION, deprecatedProtocols: [], roomEpoch: rooms.epoch, roomTitle: config.roomTitle, defaultChannelId: config.defaultChannelId, defaultLanguage: config.defaultLanguage || 'zh-CN', supportedLanguages: ['zh-CN', 'en'], channels: config.channels.map(events.publicChannel), limits: events.publicLimits(config), ephemeral: store.ephemeral };
+    if (store.driver === 'sqlite') info.retentionDays = config.storage.sqlite.retentionDays;
+    return info;
+  }
   function health() { const value = state(); return { ok: true, users: value.sessions, messages: value.messages, roomBytes: value.roomBytes, clients: value.clients, ephemeral: store.ephemeral }; }
-  return { connect, dispatch, disconnect, connectionStatus, completeSync, markClosing, shutdown, state, health, roomInfo, roomEpoch: rooms.epoch, pruneDedupe: store.pruneDedupe, drainEffects: takeEffects };
+  return { connect, dispatch, disconnect, connectionStatus, completeSync, markClosing, shutdown, state, health, roomInfo, storageInfo, roomEpoch: rooms.epoch, pruneDedupe: store.pruneDedupe, drainEffects: takeEffects };
 }
 module.exports = { createChatCore };

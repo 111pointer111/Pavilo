@@ -14,12 +14,14 @@ services:
     volumes:
       # Mount custom configuration (optional)
       # Uncomment to use custom config:
-      # - ./pavilo.yaml:/config/pavilo.yaml:ro
+      # - ./pavilo.yaml:/app/pavilo.yaml:ro
+      # SQLite: also mount a data directory and turn off read_only below
+      # - ./data:/app/data
     restart: unless-stopped
     # Security options
     security_opt:
       - no-new-privileges:true
-    # Read-only root filesystem (app writes nothing to disk in ephemeral mode)
+    # Read-only root filesystem (app writes nothing to disk in memory mode)
     read_only: true
     # Minimal capabilities
     cap_drop:

@@ -267,17 +267,31 @@ services:
 
 ## 数据持久化
 
-### 当前版本（v0.x）
+默认镜像仍是零编译、纯内存：不挂卷，容器一停记录就没了。
 
-Pavilo v0.x 是**纯内存存储**（ephemeral），不需要挂载数据卷。
+若启用 SQLite，把数据目录挂出来，并使用 Config Schema v2：
 
-- ✅ 容器重启 = 所有消息清空
-- ✅ 适合临时协作、短期讨论
-- ✅ 无需备份、无状态
+```yaml
+# pavilo.yaml
+version: 2
+storage:
+  driver: sqlite
+  sqlite:
+    path: ./data/pavilo.db
+    engine: auto
+    retentionDays: 30
+```
 
-### 未来版本
+```bash
+docker run -d \
+  --name pavilo \
+  -p 4173:4173 \
+  -v "$PWD/pavilo.yaml:/app/pavilo.yaml:ro" \
+  -v "$PWD/data:/app/data" \
+  ghcr.io/caigg188/pavilo:latest
+```
 
-v1.0+ 将支持可选的 SQLite 持久化，届时需要挂载数据库文件。
+不要让两个 Pavilo 实例共享同一个 db 文件。默认镜像不编译 `better-sqlite3`；Node 22.5+ 走内置 `node:sqlite`。
 
 ---
 

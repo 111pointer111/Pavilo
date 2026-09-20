@@ -156,9 +156,15 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       return;
     }
     const ack = messageAck(message);
-    const { removedIds } = store.appendMessage(channelId, message, {
-      idempotency: { scope, clientMessageId: effectiveClientMessageId, fingerprint, ack }
-    });
+    let removedIds;
+    try {
+      ({ removedIds } = store.appendMessage(channelId, message, {
+        idempotency: { scope, clientMessageId: effectiveClientMessageId, fingerprint, ack }
+      }));
+    } catch {
+      sendError(client, 'STORAGE_UNAVAILABLE', '消息未能保存，请重试。', effectiveClientMessageId);
+      return;
+    }
     store.pruneDedupe();
     sendJson(client, ack);
     broadcast(channelId, { type: 'message', roomEpoch: channel.epoch, message: publicMessage(message), removedIds });
@@ -175,18 +181,24 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       sendError(client, 'INVALID_REACTION', '不支持这个回应。');
       return;
     }
-    const result = store.updateReactions(channelId, command.messageId, (message) => {
-      let userIds = message.reactionUsers.get(command.emoji);
-      if (!userIds) {
-        userIds = new Set();
-        message.reactionUsers.set(command.emoji, userIds);
-      }
-      if (command.active) userIds.add(client.session.id);
-      else userIds.delete(client.session.id);
-      if (!userIds.size) message.reactionUsers.delete(command.emoji);
-      message.reactions = reactionSummary(message);
-      message.byteSize = messageByteSize(message);
-    });
+    let result;
+    try {
+      result = store.updateReactions(channelId, command.messageId, (message) => {
+        let userIds = message.reactionUsers.get(command.emoji);
+        if (!userIds) {
+          userIds = new Set();
+          message.reactionUsers.set(command.emoji, userIds);
+        }
+        if (command.active) userIds.add(client.session.id);
+        else userIds.delete(client.session.id);
+        if (!userIds.size) message.reactionUsers.delete(command.emoji);
+        message.reactions = reactionSummary(message);
+        message.byteSize = messageByteSize(message);
+      });
+    } catch {
+      sendError(client, 'STORAGE_UNAVAILABLE', '回应未能保存，请重试。');
+      return;
+    }
     if (!result) {
       sendError(client, 'MESSAGE_GONE', '这条消息已经离开临时历史。');
       return;
