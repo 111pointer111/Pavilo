@@ -163,7 +163,7 @@ PAVILO_CONFIG=/etc/pavilo/config.yaml npm start
 
 修改配置后必须**重启进程**，运行中的服务不会热加载。`npm run config:check` 只校验并显示实际配置来源，不启动服务。
 
-配置必须声明 `version: 1`。YAML 使用严格类型：布尔值写作 `true` / `false`，数字写作整数；未知配置项、重复键、未知 tag、锚点/别名和非对象根节点都会被拒绝。完整字段及推荐值见 [`pavilo.example.yaml`](./pavilo.example.yaml)。
+配置必须声明 `version: 1` 或 `version: 2`。`version: 1` 禁止出现 `storage`，行为与 v1.0 相同；`version: 2` 可配置可选 SQLite。YAML 使用严格类型：布尔值写作 `true` / `false`，数字写作整数；未知配置项、重复键、未知 tag、锚点/别名和非对象根节点都会被拒绝。完整字段及推荐值见 [`pavilo.example.yaml`](./pavilo.example.yaml)。
 
 ### 频道和人数语义
 

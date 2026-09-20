@@ -155,7 +155,7 @@ PAVILO_CONFIG=/etc/pavilo/config.yaml npm start
 
 Configuration changes require a **process restart**; a running service never hot-reloads. `npm run config:check` validates and reports the actual configuration source without starting the service.
 
-Configuration must declare `version: 1`. YAML uses strict types: write booleans as `true` / `false` and numbers as integers; unknown keys, duplicate keys, unknown tags, anchors/aliases, and non-object roots are rejected. See [`pavilo.example.yaml`](./pavilo.example.yaml) for every field and recommended value, and [docs/configuration.md](docs/configuration.md) (Chinese) for a full reference.
+Configuration must declare `version: 1` or `version: 2`. Version 1 forbids `storage` and matches v1.0; version 2 may enable optional SQLite. YAML uses strict types: write booleans as `true` / `false` and numbers as integers; unknown keys, duplicate keys, unknown tags, anchors/aliases, and non-object roots are rejected. See [`pavilo.example.yaml`](./pavilo.example.yaml) for every field and recommended value, and [docs/configuration.md](docs/configuration.md) (Chinese) for a full reference.
 
 ### Channel and capacity semantics
 

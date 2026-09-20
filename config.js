@@ -5,7 +5,9 @@ const path = require('node:path');
 const YAML = require('yaml');
 
 const ROOT = __dirname;
-const CONFIG_VERSION = 1;
+const CONFIG_VERSION = 2;
+const SUPPORTED_CONFIG_VERSIONS = Object.freeze([1, 2]);
+const MAX_SQLITE_RETENTION_DAYS = 3650;
 const CHANNEL_ID_RE = /^[a-z0-9](?:[a-z0-9_-]{0,31})$/;
 const DECIMAL_PORT_RE = /^(?:[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$/;
 const MAX_CONFIG_BYTES = 256 * 1024;
@@ -55,6 +57,7 @@ const DEFAULTS = deepFreeze({
   exposeMemberIps: true,
   exposeLanUrls: true,
   defaultLanguage: 'zh-CN',
+  storage: { driver: 'memory' },
   channels: [{
     id: 'general',
     name: '闲聊',
@@ -74,7 +77,12 @@ const DEFAULTS = deepFreeze({
   }]
 });
 
-const ROOT_KEYS = new Set(['version', 'server', 'room', 'channels', 'limits', 'timeouts', 'rateLimits']);
+const ROOT_KEYS_V1 = new Set(['version', 'server', 'room', 'channels', 'limits', 'timeouts', 'rateLimits']);
+const ROOT_KEYS_V2 = new Set([...ROOT_KEYS_V1, 'storage']);
+const STORAGE_KEYS = new Set(['driver', 'sqlite']);
+const SQLITE_KEYS = new Set(['path', 'engine', 'retentionDays']);
+const STORAGE_DRIVERS = new Set(['memory', 'sqlite']);
+const SQLITE_ENGINES = new Set(['auto', 'node', 'better-sqlite3']);
 const SERVER_KEYS = new Set(['host', 'port', 'maxUsers', 'maxConnections', 'maxConnectionsPerIp', 'allowNoOrigin', 'allowedOrigins']);
 const ROOM_KEYS = new Set(['title', 'defaultChannel', 'exposeMemberIps', 'exposeLanUrls', 'defaultLanguage']);
 const CHANNEL_KEYS = new Set(['id', 'name', 'description', 'enabled', 'readOnly', 'maxUsers', 'welcome']);
@@ -182,6 +190,56 @@ function normalizeChannels(value, maxUsers) {
   return channels;
 }
 
+function parseRetentionDays(value, field) {
+  if (value === undefined) return 30;
+  if (value === null || value === 'forever') return null;
+  if (value === 0) fail(field, '不能为 0；永久留存请使用 null 或 forever');
+  return integer(value, field, 1, MAX_SQLITE_RETENTION_DAYS);
+}
+
+function assertPrivateSqlitePath(resolvedPath, field) {
+  if (isHttpPublicPath(resolvedPath, ROOT)) fail(field, '不能位于 Pavilo 的 HTTP 公开路径（index.html、vendor/ 或 client/）');
+  try {
+    if (fs.existsSync(resolvedPath)) {
+      const stat = fs.statSync(resolvedPath);
+      if (stat.isDirectory()) fail(field, '必须是数据库文件路径，不能是目录');
+      const realPath = fs.realpathSync(resolvedPath);
+      const realRoot = fs.realpathSync(ROOT);
+      if (isHttpPublicPath(realPath, realRoot)) fail(field, '不能位于 Pavilo 的 HTTP 公开路径（index.html、vendor/ 或 client/）');
+    }
+  } catch (error) {
+    if (error.message.startsWith(`${field}:`)) throw error;
+  }
+}
+
+function parseStorage(value, baseDir) {
+  if (value === undefined) return { driver: 'memory' };
+  const storage = record(value, 'storage');
+  knownKeys(storage, STORAGE_KEYS, 'storage');
+  const driver = storage.driver === undefined ? 'memory' : text(storage.driver, 'storage.driver', 1, 32);
+  if (!STORAGE_DRIVERS.has(driver)) fail('storage.driver', '只能是 memory 或 sqlite');
+  if (driver === 'memory') {
+    if (storage.sqlite !== undefined) fail('storage.sqlite', '仅在 storage.driver 为 sqlite 时可用');
+    return { driver: 'memory' };
+  }
+  if (storage.sqlite === undefined) fail('storage.sqlite', '必须提供');
+  const sqlite = record(storage.sqlite, 'storage.sqlite');
+  knownKeys(sqlite, SQLITE_KEYS, 'storage.sqlite');
+  if (sqlite.path === undefined) fail('storage.sqlite.path', '必须提供');
+  const resolvedPath = path.resolve(baseDir, text(sqlite.path, 'storage.sqlite.path', 1, 4096));
+  assertPrivateSqlitePath(resolvedPath, 'storage.sqlite.path');
+  const engine = sqlite.engine === undefined ? 'auto' : text(sqlite.engine, 'storage.sqlite.engine', 1, 32);
+  if (!SQLITE_ENGINES.has(engine)) fail('storage.sqlite.engine', '只能是 auto、node 或 better-sqlite3');
+  return {
+    driver: 'sqlite',
+    sqlite: {
+      path: resolvedPath,
+      engine,
+      retentionDays: parseRetentionDays(sqlite.retentionDays, 'storage.sqlite.retentionDays')
+    }
+  };
+}
+
 function validateCrossConstraints(config) {
   const maxTextBytes = config.maxTextLength * 4;
   const encodedImageBytes = Math.ceil(config.maxImageBytes / 3) * 4;
@@ -201,11 +259,14 @@ function validateCrossConstraints(config) {
   if (welcomeBytes > MAX_TOTAL_WELCOME_BYTES) fail('channels', `所有频道 welcome 合计不能超过 ${MAX_TOTAL_WELCOME_BYTES} 字节`);
 }
 
-function normalizeConfig(document = {}, { requireVersion = false } = {}) {
+function normalizeConfig(document = {}, { requireVersion = false, baseDir = ROOT } = {}) {
   const root = record(document, 'config');
-  knownKeys(root, ROOT_KEYS, 'config');
-  if (requireVersion && root.version === undefined) fail('version', `配置文件必须声明 version: ${CONFIG_VERSION}`);
-  if (root.version !== undefined && root.version !== CONFIG_VERSION) fail('version', `当前只支持版本 ${CONFIG_VERSION}`);
+  if (requireVersion && root.version === undefined) fail('version', '配置文件必须声明 version: 1 或 2');
+  if (root.version !== undefined && !SUPPORTED_CONFIG_VERSIONS.includes(root.version)) {
+    fail('version', '当前只支持版本 1 或 2');
+  }
+  const schemaVersion = root.version === undefined ? 1 : root.version;
+  knownKeys(root, schemaVersion === 2 ? ROOT_KEYS_V2 : ROOT_KEYS_V1, 'config');
 
   const server = record(root.server, 'server');
   const room = record(root.room, 'room');
@@ -272,6 +333,7 @@ function normalizeConfig(document = {}, { requireVersion = false } = {}) {
   if (!defaultChannel) fail('room.defaultChannel', `找不到频道 “${config.defaultChannelId}”`);
   if (!defaultChannel.enabled) fail('room.defaultChannel', '默认频道必须启用');
   if (defaultChannel.readOnly) fail('room.defaultChannel', '默认频道不能是只读频道');
+  config.storage = schemaVersion === 2 ? parseStorage(root.storage, baseDir) : { driver: 'memory' };
   validateCrossConstraints(config);
   return config;
 }
@@ -292,7 +354,8 @@ function parseConfig(source, filename = 'pavilo.yaml') {
     throw new Error(`${filename}: YAML 解析失败：${error.message}`);
   }
   try {
-    return normalizeConfig(document, { requireVersion: true });
+    const baseDir = path.isAbsolute(filename) ? path.dirname(filename) : ROOT;
+    return normalizeConfig(document, { requireVersion: true, baseDir });
   } catch (error) {
     throw new Error(`${filename}: ${error.message}`);
   }
@@ -362,6 +425,6 @@ function checkConfig() {
   }
 }
 
-module.exports = { CONFIG_VERSION, DEFAULTS, loadConfig, normalizeConfig, parseConfig };
+module.exports = { CONFIG_VERSION, SUPPORTED_CONFIG_VERSIONS, DEFAULTS, loadConfig, normalizeConfig, parseConfig };
 
 if (require.main === module) checkConfig();

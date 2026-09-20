@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
 
-const { CONFIG_VERSION, DEFAULTS, loadConfig, normalizeConfig, parseConfig } = require('../config');
+const { CONFIG_VERSION, SUPPORTED_CONFIG_VERSIONS, DEFAULTS, loadConfig, normalizeConfig, parseConfig } = require('../config');
 
 const ROOT = path.resolve(__dirname, '..');
 
@@ -30,7 +30,9 @@ function throwsMatch(action, pattern) {
 }
 
 test('built-in defaults are immutable and missing default file falls back to a clone', () => {
-  assert.equal(CONFIG_VERSION, 1);
+  assert.equal(CONFIG_VERSION, 2);
+  assert.deepEqual(SUPPORTED_CONFIG_VERSIONS, [1, 2]);
+  assert.equal(DEFAULTS.storage.driver, 'memory');
   assert.equal(DEFAULTS.exposeMemberIps, true);
   assert.equal(DEFAULTS.defaultChannelId, 'general');
   assert.equal(DEFAULTS.channels[0].maxUsers, DEFAULTS.maxUsers);
@@ -106,7 +108,8 @@ test('normalization defaults programmatic input, while files require a version a
   assert.deepEqual(normalizeConfig({}), DEFAULTS);
   assert.equal(DEFAULTS.defaultLanguage, 'zh-CN');
   throwsMatch(() => parseConfig('{}\n'), /version.*必须声明/);
-  throwsMatch(() => parseConfig('version: 2\n'), /当前只支持版本 1/);
+  throwsMatch(() => parseConfig('version: 3\n'), /当前只支持版本 1 或 2/);
+  throwsMatch(() => parseConfig('version: 1\nstorage:\n  driver: memory\n'), /config\.storage.*未知配置项/);
   throwsMatch(() => parseConfig('version: 1\nserver:\n  maxUserz: 4\n'), /server\.maxUserz.*未知配置项/);
   throwsMatch(() => parseConfig('version: 1\nserver:\n  maxUsers: "4"\n'), /server\.maxUsers.*整数/);
   throwsMatch(() => parseConfig('version: 1\nroom:\n  exposeMemberIps: yes\n'), /room\.exposeMemberIps.*true 或 false/);
@@ -295,6 +298,98 @@ test('rejects configs in the client asset directory and symlinks into it', (t) =
 
 test('rejects a config source larger than the parser limit', () => {
   throwsMatch(() => parseConfig(Buffer.alloc(256 * 1024 + 1)), /不能超过 262144 字节/);
+});
+
+test('schema v2 accepts omitted or memory storage and rejects sqlite extras on memory', () => {
+  const omitted = parseConfig('version: 2\n');
+  assert.deepEqual(omitted.storage, { driver: 'memory' });
+  const memory = parseConfig('version: 2\nstorage:\n  driver: memory\n');
+  assert.deepEqual(memory.storage, { driver: 'memory' });
+  throwsMatch(() => parseConfig('version: 2\nstorage:\n  driver: memory\n  sqlite:\n    path: ./data/pavilo.db\n'), /storage\.sqlite.*仅在/);
+  throwsMatch(() => parseConfig('version: 2\nstorage:\n  driver: postgres\n'), /storage\.driver.*memory 或 sqlite/);
+});
+
+test('schema v2 sqlite path, engine and retentionDays are validated', (t) => {
+  const directory = temporaryDirectory(t);
+  const configPath = path.join(directory, 'pavilo.yaml');
+  const dbPath = path.join(directory, 'chat.db');
+  fs.writeFileSync(configPath, `
+version: 2
+storage:
+  driver: sqlite
+  sqlite:
+    path: ./chat.db
+`);
+  const loaded = loadConfig({ env: {}, configPath });
+  assert.equal(loaded.config.storage.driver, 'sqlite');
+  assert.equal(loaded.config.storage.sqlite.path, dbPath);
+  assert.equal(loaded.config.storage.sqlite.engine, 'auto');
+  assert.equal(loaded.config.storage.sqlite.retentionDays, 30);
+
+  const forever = parseConfig(`
+version: 2
+storage:
+  driver: sqlite
+  sqlite:
+    path: ${dbPath}
+    engine: node
+    retentionDays: forever
+`);
+  assert.equal(forever.storage.sqlite.engine, 'node');
+  assert.equal(forever.storage.sqlite.retentionDays, null);
+
+  const explicitNull = parseConfig(`
+version: 2
+storage:
+  driver: sqlite
+  sqlite:
+    path: ${dbPath}
+    retentionDays: null
+`);
+  assert.equal(explicitNull.storage.sqlite.retentionDays, null);
+
+  throwsMatch(() => parseConfig(`
+version: 2
+storage:
+  driver: sqlite
+  sqlite:
+    path: ${dbPath}
+    retentionDays: 0
+`), /retentionDays.*不能为 0/);
+  throwsMatch(() => parseConfig(`
+version: 2
+storage:
+  driver: sqlite
+`), /storage\.sqlite.*必须提供/);
+  throwsMatch(() => parseConfig(`
+version: 2
+storage:
+  driver: sqlite
+  sqlite:
+    engine: auto
+`), /storage\.sqlite\.path.*必须提供/);
+  throwsMatch(() => parseConfig(`
+version: 2
+storage:
+  driver: sqlite
+  sqlite:
+    path: ${dbPath}
+    engine: postgres
+`), /storage\.sqlite\.engine.*auto、node 或 better-sqlite3/);
+  throwsMatch(() => parseConfig(`
+version: 2
+storage:
+  driver: sqlite
+  sqlite:
+    path: ${path.join(ROOT, 'index.html')}
+`), /storage\.sqlite\.path.*HTTP 公开路径/);
+  throwsMatch(() => parseConfig(`
+version: 2
+storage:
+  driver: sqlite
+  sqlite:
+    path: ${path.join(ROOT, 'vendor', 'hidden.db')}
+`), /storage\.sqlite\.path.*HTTP 公开路径/);
 });
 
 test('the distributed example parses and explicitly documents every config section', () => {

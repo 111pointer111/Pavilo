@@ -99,9 +99,54 @@ rateLimits:
 version: 1
 ```
 
-- **必填**
+- **必填**（配置文件）
 - **类型**：整数
-- **说明**：配置文件版本，当前只支持 `1`
+- **说明**：配置文件结构版本。支持 `1` 和 `2`。
+  - `1`：与 v1.0 相同；**禁止**出现 `storage`，内部归一为 `storage.driver: memory`
+  - `2`：允许可选 `storage`；省略则仍为 memory
+  - 其它 version 一律拒绝
+
+---
+
+### `storage` —— 可选持久化（仅 `version: 2`）
+
+默认安装不需要这一节。未写 `storage`、或 `driver: memory` 时，行为与 v1.0 完全一致：重启即空。
+
+```yaml
+version: 2
+storage:
+  driver: sqlite
+  sqlite:
+    path: ./data/pavilo.db
+    engine: auto
+    retentionDays: 30
+```
+
+#### `storage.driver`
+
+- **默认值**：`memory`
+- **类型**：`memory` 或 `sqlite`
+- **说明**：`memory` 时禁止出现 `sqlite` 子块，避免配了却没生效。
+
+#### `storage.sqlite.path`
+
+- **必填**（仅 `driver: sqlite`）
+- **类型**：字符串
+- **说明**：数据库文件路径。相对路径相对配置文件所在目录解析。不能指向 Pavilo 的 HTTP 公开路径（`index.html`、`vendor/`、`client/`）。
+
+#### `storage.sqlite.engine`
+
+- **默认值**：`auto`
+- **类型**：`auto` | `node` | `better-sqlite3`
+- **说明**：`auto` 在 Node 22.5+ 使用内置 `node:sqlite`，否则尝试 `better-sqlite3`。
+
+#### `storage.sqlite.retentionDays`
+
+- **默认值**：`30`
+- **类型**：`1`–`3650` 的整数，或 `null` / `forever`
+- **说明**：按消息 `created_at` 保留最近 N 天。永久留存必须写 `null` 或 `forever`。**禁止用 `0` 表示永久或关闭。**
+
+单进程使用：不要让两个 Pavilo 实例共享同一个 db 文件。YAML 删除频道不会 DROP 库里的旧行。
 
 ---
 
