@@ -4,15 +4,15 @@
 
 ## 1. 生命周期与状态所有权
 
-Pavilo 的聊天数据全部在单个服务进程内存中：
+Pavilo 的聊天数据默认全部在单个服务进程内存中：
 
-- **服务实例**拥有频道 Map、活跃 sessions、断线 leases、消息幂等表、连接集合和 shutdown 状态；
-- **频道**拥有自己的 epoch、启动时间、消息历史、消息序号与字节用量；
+- **ConversationStore** 拥有每频道 epoch、启动时间、工作集历史、消息序号、字节用量和消息幂等表；
+- **服务实例**拥有活跃 sessions、断线 leases、连接集合和 shutdown 状态；
 - **session**拥有公开身份、恢复 token、当前频道和至多一个当前连接；
 - **连接**拥有 join/sync/closing 状态、帧缓冲、写入/同步队列、心跳、typing 和限流桶；
 - **浏览器页面**拥有连接状态、当前频道快照、pending、草稿、typing 展示、未读和 UI 临时状态。
 
-没有数据库或跨进程恢复。服务实例结束时，历史、身份、lease、回应和去重记录都结束。
+当前默认驱动是 memory：没有数据库或跨进程恢复。服务实例结束时，历史、身份、lease、回应和去重记录都结束。内核经 store 端口读写会话数据，不直接持有消息数组。
 
 ## 2. 服务端模型
 
@@ -24,8 +24,9 @@ shuttingDown: boolean
 clients: Set<Connection>
 sessions: Map<token, Session>
 leasedSessions: Map<token, Lease>
-dedupe: Map<channelId + token + clientMessageId, DedupeEntry>
-channelStates: Map<channelId, ChannelState>
+store: ConversationStore
+  dedupe: Map<channelId + token + clientMessageId, DedupeEntry>
+  channelStates: Map<channelId, ChannelState>
 ```
 
 不变量：
@@ -33,7 +34,7 @@ channelStates: Map<channelId, ChannelState>
 1. `listen()` 只可从 `created` 调用；当前实例 stop 后不可再次 listen。
 2. shutdown 后拒绝新的 WebSocket upgrade，并最终销毁现有连接。
 3. 活跃 session 与 lease 合起来才是“占用成员名额”的集合；同一 token 计算一次。
-4. `dedupe` 是有 TTL/容量限制的可靠性缓存，不是消息存储。
+4. `dedupe` 是有 TTL/容量限制的可靠性缓存，不是消息存储；与 `appendMessage` 同一次 store 写入记录。
 
 ### 2.2 频道
 
@@ -349,7 +350,7 @@ YAML 严格拒绝未知字段、错误类型、重复键、别名和不支持的
 3. session/lease、每频道 epoch、幂等 key、同步队列和切换原子性不变；
 4. YAML 路径、优先级、字段含义、严格校验和默认值不变；
 5. `npm start` 继续以 `server.js` 启动；`createChatServer`、`listen`、`stop` 和测试状态入口保持兼容；
-6. 一次只移动一个责任边界，不同时更改协议、配置、默认值或 UI；
+6. 一次只移动一个责任边界，不同时更改协议、配置、默认值或 UI；`src/core` 不 import `node:sqlite` / `better-sqlite3`；
 7. 移动后立即运行对应单元/集成测试；涉及刷新、重连、切频道、图片或阅读位置时补真实浏览器验证；
 8. 架构文档反映当前实际代码状态，不描述未完成的目标结构。
 

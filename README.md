@@ -261,6 +261,7 @@ PAVILO_PLAYWRIGHT_PATH=/tmp/pavilo-browser-verify/node_modules/playwright npm ru
 ├── client/             # 协议、连接、状态、pending 与独立视图模块
 ├── server.js           # 配置、core/transport 组合与兼容启动入口
 ├── src/core/           # 不依赖网络的房间、会话、命令与领域事件
+├── src/storage/        # ConversationStore 端口；默认 memory 驱动
 ├── src/transport/      # HTTP 静态白名单、WebSocket 连接与帧协议
 ├── vendor/             # 自托管的第三方前端资源
 ├── scripts/            # Lucide 资源构建脚本

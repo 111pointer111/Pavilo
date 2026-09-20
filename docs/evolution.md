@@ -164,9 +164,9 @@ v1.1 建议只保存聊天耐久状态：
 
 # 5. ConversationStore：SQLite 的正确边界
 
-当前 `room.js` 同时承担频道 epoch、历史、seq、字节预算与 FIFO；这是 memory-only 阶段的合理实现。
+`src/storage` 已经抽出面向聊天领域的 `ConversationStore` 端口；当前默认实现是 `memory-store.js`。`room.js` 只保留频道配置目录与历史分块。
 
-引入 SQLite 时，不建议设计“一张表一个 Repository”的通用 CRUD 层，而应抽出面向聊天领域的高层 Store Port。
+引入 SQLite 时，不要改成“一张表一个 Repository”的通用 CRUD 层，让 sqlite 实现同一端口即可。
 
 概念接口：
 

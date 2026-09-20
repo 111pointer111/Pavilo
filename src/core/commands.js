@@ -4,11 +4,10 @@ const { cleanUsername, validateClientId } = require('./session');
 const { cleanText } = require('./messages');
 const { PROTOCOL_VERSION, REACTION_EMOJIS, publicMessage } = require('./events');
 const serialize = (payload) => Buffer.from(JSON.stringify(payload));
-function createCommandHandler(config, rooms, sessionStore, messageStore, peerEffects, { now, randomId, randomAvatarSeed, cancel }) {
+function createCommandHandler(config, rooms, sessionStore, messageStore, peerEffects, { now, randomId, randomAvatarSeed, cancel, store }) {
   const { resolveJoin, rosterUsers, nameIsFree, activeMembers } = sessionStore;
-  const { parseImage, normalizeMentions, payloadFingerprint, findReply, messageByteSize, messageAck, pruneDedupe, reactionSummary } = messageStore;
+  const { parseImage, normalizeMentions, payloadFingerprint, findReply, messageByteSize, messageAck, reactionSummary } = messageStore;
   const { publicUser, sendError, sendJson, broadcast, broadcastOccupancy, sendInitialState, activateTyping, deactivateTyping, closeClient, handOffSession } = peerEffects;
-  const evictMessages = rooms.evictMessages;
   function rateAllows(client, bucket = 'message', maximum = 8, windowMs = 5000) {
     const timestamp = now();
     const stamps = client.rates[bucket] || [];
@@ -111,8 +110,9 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     const caption = kind === 'image' ? text : '';
 
     const fingerprint = payloadFingerprint(command, kind, text, image);
-    const dedupeKey = `${channel.config.id}:${client.session.token}:${effectiveClientMessageId}`;
-    const previous = messageStore.previous(dedupeKey);
+    const channelId = channel.config.id;
+    const scope = `${channelId}:${client.session.token}`;
+    const previous = store.findIdempotent(scope, effectiveClientMessageId);
     if (previous) {
       if (previous.fingerprint !== fingerprint) sendError(client, 'MESSAGE_ID_CONFLICT', '消息标识已用于其他内容，请重新发送。', effectiveClientMessageId);
       else sendJson(client, previous.ack);
@@ -127,7 +127,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     const mentions = mentionSource
       ? normalizeMentions(command.mentions, rosterUsers(client.session.channelId), mentionSource)
       : [];
-    const sequence = ++channel.messageSequence;
+    const sequence = store.incrementSeq(channelId);
     const message = {
       id: randomId(`m${sequence}`),
       seq: sequence,
@@ -135,7 +135,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       kind,
       author: publicUser(client.session),
       createdAt: now(),
-      replyTo: findReply(channel, command.replyTo),
+      replyTo: findReply(store.getMessage(channelId, command.replyTo)),
       reactions: {},
       ...(mentions.length ? { mentions } : {})
     };
@@ -155,18 +155,18 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       sendError(client, 'MESSAGE_TOO_LARGE', '这条内容超过单条历史容量，请压缩后再发送。', clientMessageId);
       return;
     }
-    channel.messages.push(message);
-    channel.roomBytes += message.byteSize;
-    const removedIds = evictMessages(channel);
     const ack = messageAck(message);
-    messageStore.remember(dedupeKey, { acceptedAt: now(), fingerprint, ack });
-    pruneDedupe();
+    const { removedIds } = store.appendMessage(channelId, message, {
+      idempotency: { scope, clientMessageId: effectiveClientMessageId, fingerprint, ack }
+    });
+    store.pruneDedupe();
     sendJson(client, ack);
-    broadcast(channel.config.id, { type: 'message', roomEpoch: channel.epoch, message: publicMessage(message), removedIds });
+    broadcast(channelId, { type: 'message', roomEpoch: channel.epoch, message: publicMessage(message), removedIds });
   }
 
   function handleReaction(client, command) {
     const channel = rooms.get(client.session.channelId);
+    const channelId = channel.config.id;
     if (!rateAllows(client, 'reaction', config.reactionRateLimit, config.rateLimitWindowMs)) {
       sendError(client, 'REACTION_RATE_LIMITED', '回应太快了，请稍等。');
       return;
@@ -175,29 +175,27 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       sendError(client, 'INVALID_REACTION', '不支持这个回应。');
       return;
     }
-    const message = channel.messages.find((item) => item.id === command.messageId);
-    if (!message) {
+    const result = store.updateReactions(channelId, command.messageId, (message) => {
+      let userIds = message.reactionUsers.get(command.emoji);
+      if (!userIds) {
+        userIds = new Set();
+        message.reactionUsers.set(command.emoji, userIds);
+      }
+      if (command.active) userIds.add(client.session.id);
+      else userIds.delete(client.session.id);
+      if (!userIds.size) message.reactionUsers.delete(command.emoji);
+      message.reactions = reactionSummary(message);
+      message.byteSize = messageByteSize(message);
+    });
+    if (!result) {
       sendError(client, 'MESSAGE_GONE', '这条消息已经离开临时历史。');
       return;
     }
-    let userIds = message.reactionUsers.get(command.emoji);
-    if (!userIds) {
-      userIds = new Set();
-      message.reactionUsers.set(command.emoji, userIds);
-    }
-    if (command.active) userIds.add(client.session.id);
-    else userIds.delete(client.session.id);
-    if (!userIds.size) message.reactionUsers.delete(command.emoji);
-    message.reactions = reactionSummary(message);
-    const oldSize = message.byteSize;
-    message.byteSize = messageByteSize(message);
-    channel.roomBytes += message.byteSize - oldSize;
-    const removedIds = evictMessages(channel);
-    if (removedIds.includes(message.id)) {
-      broadcast(channel.config.id, { type: 'prune', roomEpoch: channel.epoch, removedIds });
+    if (result.removedIds.includes(command.messageId)) {
+      broadcast(channelId, { type: 'prune', roomEpoch: channel.epoch, removedIds: result.removedIds });
       return;
     }
-    broadcast(channel.config.id, { type: 'reaction', roomEpoch: channel.epoch, messageId: message.id, reactions: message.reactions, removedIds });
+    broadcast(channelId, { type: 'reaction', roomEpoch: channel.epoch, messageId: command.messageId, reactions: result.message.reactions, removedIds: result.removedIds });
   }
 
   function handleSwitchChannel(client, command) {

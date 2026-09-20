@@ -252,6 +252,7 @@ Architecture decisions and evolution strategy:
 ├── client/             # protocol, connection, state, pending, and view modules
 ├── server.js           # configuration, core/transport composition, compatible entry
 ├── src/core/           # network-free rooms, sessions, commands, and domain events
+├── src/storage/        # ConversationStore port; memory driver by default
 ├── src/transport/      # HTTP static allowlist, WebSocket connections, frame protocol
 ├── vendor/             # self-hosted third-party front-end assets
 ├── scripts/            # Lucide asset build script

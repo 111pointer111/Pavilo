@@ -80,6 +80,7 @@ npm run config:check
 ├── server.js            # 服务入口（composition root）
 ├── src/
 │   ├── core/           # 核心逻辑（不依赖网络）
+│   ├── storage/        # ConversationStore（默认 memory）
 │   └── transport/      # HTTP / WebSocket 适配器
 ├── client/             # 前端模块
 ├── test/               # Node.js 测试
@@ -117,6 +118,7 @@ Pavilo 使用约定式提交（Conventional Commits）格式：
 ### Scope（模块，英文）
 
 - `core`: src/core/
+- `storage`: src/storage/
 - `transport`: src/transport/
 - `client`: client/
 - `config`: 配置相关

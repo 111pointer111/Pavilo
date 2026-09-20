@@ -42,6 +42,7 @@ Pavilo 的核心不是“功能越来越多的聊天系统”，而是一个**�
 
 - `server.js`：配置、core / transport 组合与 CLI 生命周期；
 - `src/core/`：房间、session、消息、命令、领域事件；
+- `src/storage/`：ConversationStore 端口（当前仅 memory 驱动）；
 - `src/transport/`：HTTP、WebSocket 生命周期与帧协议；
 - `client/`：protocol / connection / state / pending / images / messages / composer / overlays / notifications / i18n / app；
 - `test/`：Node 单元/集成测试和独立浏览器验收；

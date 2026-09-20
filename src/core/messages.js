@@ -6,8 +6,7 @@ function cleanText(value, maxLength) {
   if (typeof value !== 'string') return '';
   return value.replace(/\r\n/g, '\n').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').trim().slice(0, maxLength);
 }
-function createMessageStore(config, now) {
-  const dedupe = new Map();
+function createMessageStore(config) {
   function imageMagicMatches(mime, bytes) {
     if (mime === 'image/png') return bytes.length >= 24 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
     if (mime === 'image/jpeg') return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
@@ -66,9 +65,7 @@ function createMessageStore(config, now) {
     return { src: value.src, mime, width: claimedWidth, height: claimedHeight, bytes: decoded.length };
   }
 
-  function findReply(channel, id) {
-    if (typeof id !== 'string') return null;
-    const original = channel.messages.find((message) => message.id === id);
+  function findReply(original) {
     if (!original) return null;
     return {
       id: original.id,
@@ -88,14 +85,6 @@ function createMessageStore(config, now) {
 
   function messageByteSize(message) {
     return Buffer.byteLength(JSON.stringify(publicMessage(message)));
-  }
-
-  function pruneDedupe() {
-    const cutoff = now() - config.dedupeTtlMs;
-    for (const [key, value] of dedupe) {
-      if (value.acceptedAt < cutoff || dedupe.size > config.maxDedupeEntries) dedupe.delete(key);
-      else break;
-    }
   }
 
   function mentionIds(value) {
@@ -148,7 +137,6 @@ function createMessageStore(config, now) {
   }
 
 
-  return { parseImage, normalizeMentions, findReply, reactionSummary, messageByteSize, pruneDedupe, payloadFingerprint, messageAck,
-    previous: (key) => dedupe.get(key), remember: (key, value) => dedupe.set(key, value), clear: () => dedupe.clear() };
+  return { parseImage, normalizeMentions, findReply, reactionSummary, messageByteSize, payloadFingerprint, messageAck };
 }
 module.exports = { createMessageStore, cleanText };

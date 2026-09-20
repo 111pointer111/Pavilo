@@ -40,14 +40,21 @@ await app.stop();
 
 兼容导出仍为 `createChatServer`、`DEFAULTS`、`PROTOCOL_VERSION`、`REACTION_EMOJIS`。工厂返回 `server/listen/stop/roomEpoch/localAddresses/config/state`，不要求现有调用者迁移。
 
+### 存储 `src/storage`
+
+内核只依赖 `ConversationStore` 端口，不 import SQLite 驱动。未注入 store 时，`createChatCore` 内部创建 memory 实现。当前默认驱动仍是进程内数组：重启即空。
+
+- `index.js`：`createConversationStore(config, runtime)`，按 `config.storage.driver` 选择实现；省略则 memory。
+- `memory-store.js`：每频道 epoch / 工作集 / seq / 字节数 / FIFO / 幂等窗口；FIFO 淘汰是真删除。
+
 ### 领域内核 `src/core`
 
-- `room.js`：每频道 epoch/开始时间、历史、序号、字节数、FIFO 淘汰、历史分块和统计。
+- `room.js`：频道配置目录、默认频道校验、历史分块；会话状态委托给 ConversationStore。
 - `session.js`：用户名规范化、恢复凭据、频道与全局容量、active/leased、昵称冲突、租约到期。
-- `messages.js`：图片魔数/尺寸校验、消息公开字节、回复快照、指纹和去重窗口。
-- `commands.js`：join/switchChannel/message/reaction/typing/leave 规则和限流。
+- `messages.js`：图片魔数/尺寸校验、消息公开字节、回复快照、指纹。
+- `commands.js`：join/switchChannel/message/reaction/typing/leave 规则和限流；写入经 store。
 - `events.js`：公开投影与私有路由 envelope。typing 标记为 transient；ACK/error 只发给对应连接。
-- `index.js`：组合内核、逻辑 peer、命令 dispatch、同步完成、断线和关闭。时钟、ID 及定时调度可注入。
+- `index.js`：组合内核、逻辑 peer、命令 dispatch、同步完成、断线和关闭。时钟、ID、定时调度与 store 可注入。
 
 内核没有 HTTP request 或 socket。peer 是内核内部的逻辑身份；其 `session.client` 只是逻辑 peer 引用，不是网络连接。内部 Map 不向传输层暴露。
 

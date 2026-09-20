@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const { createConversationStore } = require('../storage');
 const { createRoomStore } = require('./room');
 const { createSessionStore } = require('./session');
 const { createMessageStore } = require('./messages');
@@ -17,7 +18,8 @@ function createChatCore(config, runtime = {}) {
   const randomResumeToken = runtime.randomResumeToken || (() => crypto.randomBytes(9).toString('base64url'));
   const randomAvatarSeed = runtime.randomAvatarSeed || (() => crypto.randomInt(0, 0x7fffffff));
   const peers = new Map();
-  const rooms = createRoomStore(config, { randomId, now });
+  const store = runtime.store || createConversationStore(config, { randomId, now });
+  const rooms = createRoomStore(config, store);
   const publicUser = (session) => events.publicUser(session, config.exposeMemberIps);
   let effects = [];
   let shuttingDown = false;
@@ -54,7 +56,7 @@ function createChatCore(config, runtime = {}) {
   function broadcastOccupancy(except) {
     return broadcastAll({ type: 'channelOccupancy', occupancy: occupancySnapshot() }, except);
   }
-  const messageStore = createMessageStore(config, now);
+  const messageStore = createMessageStore(config);
   function sendJson(peer, payload) { emit(events.directed(peer.id, payload)); }
   function sendError(peer, code, message, clientMessageId) {
     const payload = { type: 'error', code, message };
@@ -109,7 +111,7 @@ function createChatCore(config, runtime = {}) {
   }
   const handleCommand = createCommandHandler(config, rooms, sessionStore, messageStore,
     { publicUser, sendError, sendJson, broadcast, broadcastOccupancy, sendInitialState, activateTyping, deactivateTyping, closeClient, handOffSession },
-    { now, randomId, randomAvatarSeed, cancel });
+    { now, randomId, randomAvatarSeed, cancel, store });
   function connect(peerId, ip = 'unknown') {
     if (shuttingDown || peers.has(peerId)) return false;
     const peer = { id: peerId, ip, session: null, joined: false, closing: false, intentionalLeave: false,
@@ -154,7 +156,6 @@ function createChatCore(config, runtime = {}) {
     shuttingDown = true;
     sessionStore.clear();
     rooms.clear();
-    messageStore.clear();
     for (const peer of peers.values()) {
       if (peer.joinTimer) cancel(peer.joinTimer);
       if (peer.typingTimer) cancel(peer.typingTimer);
@@ -167,8 +168,8 @@ function createChatCore(config, runtime = {}) {
     const channels = rooms.snapshot();
     return { clients: peers.size, sessions: sessionStore.size(), messages: channels.reduce((n, c) => n + c.messages, 0), roomBytes: channels.reduce((n, c) => n + c.roomBytes, 0), latestSeq: rooms.get(config.defaultChannelId).messageSequence };
   }
-  function roomInfo() { return { protocolVersion: events.PROTOCOL_VERSION, deprecatedProtocols: [], roomEpoch: rooms.epoch, roomTitle: config.roomTitle, defaultChannelId: config.defaultChannelId, defaultLanguage: config.defaultLanguage || 'zh-CN', supportedLanguages: ['zh-CN', 'en'], channels: config.channels.map(events.publicChannel), limits: events.publicLimits(config), ephemeral: true }; }
-  function health() { const value = state(); return { ok: true, users: value.sessions, messages: value.messages, roomBytes: value.roomBytes, clients: value.clients, ephemeral: true }; }
-  return { connect, dispatch, disconnect, connectionStatus, completeSync, markClosing, shutdown, state, health, roomInfo, roomEpoch: rooms.epoch, pruneDedupe: messageStore.pruneDedupe, drainEffects: takeEffects };
+  function roomInfo() { return { protocolVersion: events.PROTOCOL_VERSION, deprecatedProtocols: [], roomEpoch: rooms.epoch, roomTitle: config.roomTitle, defaultChannelId: config.defaultChannelId, defaultLanguage: config.defaultLanguage || 'zh-CN', supportedLanguages: ['zh-CN', 'en'], channels: config.channels.map(events.publicChannel), limits: events.publicLimits(config), ephemeral: store.ephemeral }; }
+  function health() { const value = state(); return { ok: true, users: value.sessions, messages: value.messages, roomBytes: value.roomBytes, clients: value.clients, ephemeral: store.ephemeral }; }
+  return { connect, dispatch, disconnect, connectionStatus, completeSync, markClosing, shutdown, state, health, roomInfo, roomEpoch: rooms.epoch, pruneDedupe: store.pruneDedupe, drainEffects: takeEffects };
 }
 module.exports = { createChatCore };
