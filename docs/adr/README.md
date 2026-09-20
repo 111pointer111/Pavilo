@@ -25,6 +25,11 @@ ADR 不是"所有技术选择的流水账"，而是**会影响未来 1-3 年架�
 | [0001](0001-protocol-v4-only-for-v1.md) | v1.0 只承诺 Protocol v4 | 已接受 | 2026-09-15 |
 | [0002](0002-sqlite-pragmatic-hybrid.md) | SQLite 驱动：node:sqlite 优先的实用主义方案 | 已接受 | 2026-09-15 |
 | [0003](0003-extension-as-trusted-scripts.md) | Extension 作为可信脚本，而非沙箱插件系统 | 已接受 | 2026-09-15 |
+| 0004 | Operator 配置双源（YAML 启动 + SQLite 管理页） | 计划于 v1.3 开工前 | — |
+| 0005 | 进程内 AI 网关（preset、用量、非微服务） | 计划于 v1.3 开工前 | — |
+| 0006 | Play 契约（频道绑定、独立玩法页、playAction 信封） | 计划于 v1.5 开工前 | — |
+
+ADR-0003 仍是加载模型：trusted script，不是沙箱。官方维护基础设施（网关、Play 契约）和参考实现（狼人杀）；其他玩法按 0006 的契约贡献，不另开商店。
 
 ## 编写指南
 

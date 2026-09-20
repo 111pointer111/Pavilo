@@ -285,7 +285,10 @@ gh release view v0.6.0
 
 v1.0 额外：
 
-- [ ] v0.9 RC 在目标环境观察至少 7 天无阻塞问题
+- [ ] GitHub Release 标记为 stable（非 pre-release）
+- [ ] GHCR 打上 `1` 主版本标签
+
+不要求生产观察期。测试、文档和发布流程过关即可打稳定标签。
 
 ## Git 提交规范
 

@@ -1,10 +1,12 @@
 # Pavilo 架构演进与版本策略
 
-本文描述 Pavilo 从当前 Ephemeral Core 演进到可选持久化、Agent 与安全扩展时的目标架构。
+本文描述 Pavilo 从当前 Ephemeral Core 演进到可选持久化、统一 AI 网关、内容审核与可贡献玩法时的目标架构。版本边界见 [ROADMAP.md](../ROADMAP.md)。
 
-它不是对未来实现的强行抽象。任何新增边界都应遵循一个原则：
+它不是对未来实现的强行抽象。任何新增边界都应遵循：
 
 > **先有真实需求，再引入抽象；但在真实需求到来之前，不要让现有代码形成无法拆开的耦合。**
+>
+> **只保留当下有调用方的端口。** 不为「以后所有 Agent 游戏」发明引擎、DSL、商店或通用 UI 组件平台。狼人杀用到的，才写进 Play 契约。玩法页是独立文档，不是聊天页的皮肤。
 
 ---
 
@@ -46,6 +48,7 @@ app (composition)
 - 不让 reducer 做 IO；
 - 不因为 SQLite 引入 ORM 后让 SQL model 变成领域模型；
 - 不因为 Agent 引入 SDK 后让模型厂商 API 进入 core；
+- 不把游戏状态机、网关 HTTP 客户端或管理页路由塞进 `src/core`；
 - 不因为未来“可能分布式”现在就加入消息队列、Redis 或 async everywhere。
 
 ---
@@ -55,39 +58,23 @@ app (composition)
 中期目标：
 
 ```text
-                         ┌────────────────────┐
-                         │   Browser Client   │
-                         └─────────┬──────────┘
-                                   │
-                         HTTP / WebSocket
-                                   │
-                         ┌─────────▼──────────┐
-                         │ Transport Adapters │
-                         │ http / websocket   │
-                         └─────────┬──────────┘
-                                   │ command
-                                   ▼
-                    ┌────────────────────────────┐
-                    │ Application / Chat Core    │
-                    │ validation · command rules │
-                    │ sessions · policy · effect │
-                    └───────┬───────────┬────────┘
-                            │           │
-              conversation  │           │ domain event
-                            │           │
-                  ┌─────────▼───┐   ┌──▼─────────────┐
-                  │ Store Port  │   │ Event / Hooks  │
-                  └──────┬──────┘   └──┬─────────────┘
-                         │             │
-             ┌───────────┴───────┐     ├─ Webhook
-             │                   │     ├─ Bot
-     ┌───────▼────────┐  ┌──────▼────┐├─ Agent
-     │ Memory Adapter │  │ SQLite    │└─ Moderation
-     │ default        │  │ Adapter   │
-     └────────────────┘  └───────────┘
+  `/` 聊天页                 `/plays/<id>/` 玩法页
+  (未绑定 play 的频道)        (channel.play = id)
+           │                           │
+           └──── 同一会话 + Protocol v4 ─┘
+                           │
+                    Transport HTTP / WS
+                           │
+                    Application
+                    (core · policy · play host)
+                      │         │          │
+                   Store     Gateway     Play 模块
+                memory/sqlite  presets   host.js + page/
+
+  `/admin` 管理页：另一条 HTTP 面，用 operator token，不走聊天会话。
 ```
 
-长期如果出现管理 API、CLI、Agent 等新的命令来源，它们应进入同一 Application/Core 命令路径，而不是各自直接修改状态。
+聊天页和玩法页共用身份与协议，不共用 DOM。玩法 host 与 trusted script 同一加载模型。谁都不能直写 Store 或 socket。
 
 ---
 
@@ -113,10 +100,15 @@ Storage Adapter 可以依赖 SQLite；core 只能依赖 Storage Port。
 core -> websocket
 core -> HTTP request
 core -> node:sqlite
-core -> OpenAI SDK
+core -> OpenAI SDK / DeepSeek SDK
 core -> webhook URL
+core -> play state machine
 SQLite adapter -> browser payload routing
-Agent -> raw database
+Gateway -> raw ConversationStore writes
+Agent / Play host -> raw database
+Play page -> AI Gateway
+Play page -> core internal Maps
+Operator UI -> core internal Maps
 ```
 
 代码评审遇到这些依赖应默认视为架构告警。
@@ -148,7 +140,7 @@ Agent -> raw database
 
 ## 4.2 SQLite 持久化状态
 
-v1.1 建议只保存：
+v1.1 建议只保存聊天耐久状态：
 
 - channel durable cursor；
 - epoch；
@@ -160,12 +152,11 @@ v1.1 建议只保存：
 - retention metadata；
 - DB schema migration。
 
-以后 Access/Moderation 成熟后才考虑：
+后续版本按需增加，仍然是耐久状态，不是把 runtime Map 搬进表：
 
-- account/identity；
-- invite；
-- ban；
-- audit。
+- v1.3：gateway channel 配置、API key 密文、usage 计数；
+- v1.5：play 对局、Agent 局内记忆；
+- Access 成熟后：account/identity、invite、ban、audit。
 
 不要为了“既然有数据库”把所有 Map 机械搬进表。
 
@@ -317,12 +308,12 @@ reactions
 idempotency
 ```
 
-不把它当作最终 SQL DDL；真正实现前通过 ADR 固化。
+v1.3+ 按需增加 `gateway_channels` / `gateway_usage` / `play_games` 等，仍由对应 adapter 拥有，不把它提前写成通用 ORM。不把它当作最终 SQL DDL；真正实现前通过 ADR 固化。
 
 建议：
 
 - foreign keys 开启；
-- WAL 是否默认开启通过 benchmark/ADR 决定；
+- WAL：v1.1 默认开启，若实现时有反证再写 ADR 调整；
 - 有明确 busy timeout；
 - 所有 message + idempotency mutation 使用 transaction；
 - 不支持多个 Pavilo 进程同时把同一个 SQLite 文件当共享数据库，除非未来专门设计；
@@ -370,12 +361,26 @@ storage:
     retentionDays: 30
 ```
 
+`retentionDays` 在 sqlite 模式下 **默认 30**（最近 30 天）。省略该字段也按 30。永久留存必须用显式值（如 `null` / `forever`），禁止用 `0` 同时表示「关闭」和「永久」。
+
 原因：
 
 - driver 是可扩展枚举；
 - 不把“开数据库”写成产品代际；
 - 将来真有其他 driver 时结构不需要推倒；
 - memory 是显式一等实现。
+
+## 8.1 配置双源（v1.3 起）
+
+YAML 继续负责「怎么启动」：监听地址、频道、是否开 sqlite、是否开网关。
+
+管理页保存的**网关渠道**（模型供应商配置，不是聊天频道）、key 和用量落在 SQLite。某个网关渠道被管理页保存后，以 SQLite 为准；必须在文档里写清优先级，避免改 yaml 不生效。
+
+未开 sqlite 时：YAML/环境变量仍可调用模型，但不记用量，管理页也不可编辑。用量与管理页写入以 sqlite 为前提。
+
+密钥：不进日志、不进 `/room-info`、不进公开协议。operator token / 管理密码保护管理页，不是账号系统。
+
+实现前用 ADR-0004 固化优先级。
 
 ## Config Compatibility
 
@@ -401,26 +406,25 @@ Config Schema v2 才允许声明 `storage`。
 
 # 9. 协议兼容策略
 
-当前浏览器使用 Protocol v4，服务端还保留 Alpha 阶段旧版本兼容。
+当前浏览器与服务端只使用 Protocol v4（ADR-0001）。v1.0 后对文档明确承诺的协议做兼容。
 
-在 v1.0 前必须决定：
-
-1. WebSocket protocol 是否正式作为第三方 Public API；
-2. 如果是，支持窗口多长；
-3. 如果不是，至少保证“服务器与同版本自带浏览器”稳定，并给热升级时旧标签页一个清晰策略。
-
-建议：
-
-- Alpha 阶段的 v1/v2 不要仅因为“已经写了”就永久冻结；
-- v0.9 前清理不再值得维护的历史分支；
-- v1.0 后对文档明确承诺的协议做兼容；
-- 第三方 Bot/Agent 不应依赖伪装成浏览器 WebSocket 客户端；v1.3 后给它们统一 Command/Extension API。
+第三方 Bot/Agent 不应依赖伪装成浏览器 WebSocket 客户端；它们应走 Command API / 官方模块，而不是再开一套协议。
 
 ---
 
-# 10. Extension 架构
+# 10. Policy、官方模块与用户扩展
 
-Agent、Webhook、Moderation 有两个完全不同的方向，不能用一个万能 Hook 混在一起。
+分清「我们维护的基础设施」和「可以贡献的模块」：
+
+| 层 | 谁来做 | 例子 |
+| --- | --- | --- |
+| 基础设施 | 主线 | Store、Gateway、Safety、Play 契约 |
+| 官方样例 | 主线 | 文字狼人杀（把契约跑通） |
+| 可贡献模块 | 社区 / 部署者 | 新玩法、webhook、自定义词库策略 |
+
+可贡献模块是 trusted script（ADR-0003）：配置指向文件，与主进程同权。不另造沙箱或商店。
+
+Policy 与 Play 不是同一个端口：Policy 回答「这条命令能不能提交」；Play 拥有一局状态机和 Agent 演员。不要用万能 Hook 混在一起。官方审核走 Policy，默认随配置启用，不要求用户写代码。
 
 ## 10.1 Pre-commit Policy
 
@@ -489,64 +493,83 @@ Event subscriber 失败：
 
 ---
 
-# 11. Agent 与统一网关
+# 11. 统一 AI 网关
 
-Agent 应被视为“特殊 actor + 外部能力 adapter”，而不是数据库触发器。
+网关是进程内模块，不是微服务，也不是「每个扩展自己握一把 key」。
 
-推荐路径：
+`src/core` 不 import 任何 LLM SDK。官方 Play、内容审核的视觉调用、以及未来用户脚本，都通过 Gateway 发请求。
 
 ```text
-message.created
+Play / Safety / 用户脚本
       ↓
-Agent extension
+AI Gateway（preset · timeout · retry · usage）
       ↓
-Model Gateway
-      ↓
-Agent result
-      ↓
-Command API
-      ↓
-Core validation
-      ↓
-ConversationStore
-      ↓
-broadcast
+provider (first: DeepSeek, OpenAI-compatible)
 ```
 
-这样 Agent 输出仍然遵守：
+第一阶段：官方 DeepSeek 渠道。选择 preset 后自动填充 base URL，管理员只填 key。后续渠道以 preset 扩展，不新造调用层。
 
-- 频道权限；
-- 文本长度；
-- rate policy；
-- message schema；
-- persistence；
-- audit。
+管理页（如 `/admin`）可查看和编辑渠道、掩码回显 key、按渠道看用量、看综合 dashboard。管理页属于 Operator HTTP，不进入 core。
 
-### Gateway 边界
-
-`src/core` 不 import 任何 LLM SDK。
-
-可选扩展层处理：
-
-- OpenAI-compatible；
-- 未来其他 provider；
-- API key；
-- timeout；
-- retry；
-- streaming；
-- usage。
-
-即使 Agent 全部故障：
+Usage 计入 SQLite（v1.3，依赖持久化）。网关未启用或调用失败时：
 
 ```text
 normal Pavilo chat = unaffected
 ```
 
-这是架构验收条件。
+这是架构验收条件。实现前用 ADR-0005 固化边界。
+
+## 11.1 Play 契约
+
+Play 是独立应用层，不把任何一款游戏的规则或页面塞进 `src/core`，也不把玩法交互塞进聊天页。
+
+第一性：管理员增加一个玩法 = 给一个频道绑定 `playId`。进入该频道，打开该玩法自己的页面。聊天页只是 `play` 为空时的默认投影。
+
+```text
+频道（配置 play: werewolf）
+  ├─ 页面 /plays/werewolf/     贡献者自己的 HTML/CSS/交互
+  └─ host（确定性状态机）
+        ├─ human / agent actors
+        ├─ playAction / playState（同一 Protocol v4）
+        └─ 需要模型时 → AI Gateway（仅服务端）
+```
+
+硬约束：
+
+- 主持人裁决规则，LLM 只发言和推理；
+- 浏览器的 `playAction` 仍是 Protocol v4 命令，由 core 分发给 host；host 只能再走 Command API，不直写 SQLite、不碰 socket；
+- 记忆与对局状态的作用域是「这一局」；
+- 公开发言可走现有 `message`，以便沿用审核与限额；玩法页自行决定怎么渲染；
+- 浏览器不调网关；玩法崩溃 ≠ 聊天崩溃。
+
+页面约定的单一真源是 [docs/play.md](play.md)。实现前用 ADR-0006 冻结信封字段，不写通用游戏引擎，不写组件平台。
+
+## 11.2 官方样例：文字狼人杀
+
+狼人杀交付两样东西：host，以及独立玩法页（阶段、选人、夜间操作气泡都在这个页里，不在 `client/messages.js`）。人和 Agent 混编开局。新玩法抄这个目录边界。
+
+## 11.3 社区玩法怎么接入
+
+一个玩法 = `host.js` + `page/`，绑到频道。加载模型仍是 trusted module（ADR-0003）。主仓库可收符合 [docs/play.md](play.md) 的 PR；部署者也可以只在自己的实例加载。
+
+不提供：商店、iframe 市场、强制 UI 框架、规则 DSL、把玩法嵌进聊天气泡。需要新能力时，先证明现有信封不够用，再扩大端口。
 
 ---
 
-# 12. Access / Authorization / Moderation
+# 12. Content Safety 与 Access
+
+顺序：先内容审核（v1.4），后访问控制（v1.6）。审核完成仍不宣称可以把裸端口暴露到公网。
+
+## 12.1 内容审核
+
+官方模块走 §10 的 Pre-commit Policy：
+
+- 文本：可启用屏蔽词库。腾讯游戏词库只是候选数据源，落地前核对许可证；同时支持自定义词库路径。
+- 图片：可选，调用网关里具备视觉能力的模型；网关未配则不可开。
+- 局域网默认可 fail-open；面向公网的配置应 fail-closed。
+- 超时、结构化 `{ allowed, code, message }`，不能绕过 core。
+
+## 12.2 Access / Authorization
 
 不要把当前 session 当成未来 account。
 
@@ -655,6 +678,16 @@ SQLiteConversationStore
 - backup/restore；
 - large history。
 
+## Gateway / Play / Safety（v1.3+）
+
+- preset 自动填充 base URL；
+- key 不出现在日志与公开 payload；
+- usage 计数与渠道隔离；
+- 文本 Policy 拒绝路径；
+- 网关故障时聊天仍可用；
+- 狼人杀状态机：非法动作拒绝、局内存活、私密 playState 不广播；
+- 玩法页不调用网关；玩法 host 不直写 Store。
+
 ## Security / fuzz
 
 - malformed frame；
@@ -689,14 +722,21 @@ Pavilo 的“小”本身是产品价值。
 
 # 15. ADR：重要决定不能只留在 Issue/聊天记录里
 
-建议从 v0.2 开始建立：
+已有：
 
 ```text
 docs/adr/
-  0001-protocol-support-policy.md
-  0002-sqlite-driver-choice.md
-  0003-persistence-epoch-semantics.md
-  0004-extension-hooks.md
+  0001-protocol-v4-only-for-v1.md
+  0002-sqlite-pragmatic-hybrid.md
+  0003-extension-as-trusted-scripts.md
+```
+
+对应版本开工前再写，本次不提前起草正文：
+
+```text
+  0004-operator-config-dual-source.md
+  0005-in-process-ai-gateway.md
+  0006-play-contract.md
 ```
 
 每份 ADR 只需要：
@@ -709,27 +749,31 @@ docs/adr/
 
 尤其以下决策必须 ADR：
 
-- `node:sqlite` vs third-party driver；
-- protocol 支持窗口（v0.9 起只承诺 v4）；
+- `node:sqlite` vs third-party driver（已有 0002）；
+- protocol 支持窗口（已有 0001）；
 - SQLite epoch；
 - sync vs async Store；
-- extension execution model；
+- extension execution model（已有 0003）；
+- operator 配置双源（0004）；
+- 进程内网关边界（0005）；
+- Play 契约（0006）：只收录狼人杀用到的端口，贡献玩法复用同一契约；
 - trusted proxy。
 
 ---
 
 # 16. 文档单一真源
 
-当前已经出现 `readOnly` 的代码/README/example 漂移，后续要减少重复描述。
+配置、协议、README 曾经漂过（例如 `readOnly`）。后续以单一真源为准，避免再复制一份会过期的说明。
 
 建议：
 
 - README：用户入口、Quick Start、产品边界；
 - `pavilo.example.yaml`：可运行的配置例子；
-- `docs/configuration.md`（未来新增）：配置语义唯一详细说明；
+- `docs/configuration.md`：配置语义唯一详细说明；
 - `chat-protocol.md`：线上协议真源；
-- `overview.md`：当前实现；
-- `evolution.md`：未来演进原则；
+- `docs/architecture/overview.md`：当前实现；
+- `docs/evolution.md`：未来演进原则；
+- `docs/play.md`：玩法页与频道绑定的约束（v1.5 前为草案）；
 - `ROADMAP.md`：版本计划。
 
 CI 至少验证：
@@ -745,7 +789,7 @@ CI 至少验证：
 
 # 17. 架构完成度检查
 
-任何新功能合并前问 7 个问题：
+任何新功能合并前问这些问题：
 
 1. 默认 ephemeral 用户是否被迫承担了额外复杂度？
 2. 业务规则是否进入 transport 了？
@@ -754,5 +798,8 @@ CI 至少验证：
 5. public contract 是否有测试？
 6. 重启/失败/超限时语义是否定义？
 7. README/配置/协议/代码是否可能再次漂移？
+8. 管理页保存配置后，YAML 与 SQLite 的优先级是否写清？
+9. 网关或某个 Agent 故障时，普通聊天是否仍可用？
+10. 这条抽象是狼人杀现在就要的，还是为尚未存在的玩法提前造的？
 
 如果其中任何一个答案不清楚，功能还没有真正“设计完成”。

@@ -74,16 +74,18 @@ Pavilo 永远只有一套主代码和一条版本主线。`memory`、`sqlite` �
 **意味着：**
 - README 默认场景是"局域网 / Tailscale / 反向代理后"
 - 公网暴露需要显式警告
-- v1.5 Access & Moderation 完成前，不营销"公网可用"
+- v1.6 Access 完成前，不营销"公网可用"
 
 ### 7. No Premature Generalization
 
-不为了"未来可能支持 PostgreSQL / 分布式 / 插件市场"提前复杂化当前架构。真实需求出现后再扩展边界。
+不为了"未来可能支持 PostgreSQL / 分布式 / 插件市场"提前复杂化当前架构。真实需求出现后再扩展边界。玩法亦然：只把狼人杀当下用到的能力写成 Play 契约。
 
 **意味着：**
 - 不做"通用 ORM"
 - 不做"抽象消息队列"
 - 不做"插件沙箱运行时"
+- 不做"通用游戏引擎 / 规则 DSL / 玩法商店"
+- 不把玩法交互塞进聊天页；玩法是独立页面，绑在频道上
 - 先用最简单的方案，等真实瓶颈出现再优化
 
 ---
@@ -256,10 +258,11 @@ Pavilo v1.x 默认场景是：
 
 - **README**：用户入口、Quick Start、产品边界
 - **`pavilo.example.yaml`**：可运行的配置示例
-- **`docs/configuration.md`**（未来）：配置语义唯一详细说明
+- **`docs/configuration.md`**：配置语义唯一详细说明
 - **`docs/architecture/chat-protocol.md`**：协议真源
 - **`docs/architecture/overview.md`**：当前实现
-- **`docs/architecture/evolution.md`**：未来演进原则
+- **`docs/evolution.md`**：未来演进原则
+- **`docs/play.md`**：玩法页与频道绑定（v1.5 前为草案）
 - **`docs/adr/`**：重大决策记录
 - **ROADMAP.md**：版本计划
 
@@ -320,8 +323,9 @@ Pavilo v1.x 默认场景是：
 
 **不是 Breaking Change：**
 - SQLite 持久化（可选功能）→ v1.1
-- Extension 系统（可选功能）→ v1.3
-- Agent 支持（基于 Extension）→ v1.4
+- 进程内 AI 网关与管理页（可选功能）→ v1.3
+- 官方内容审核 / Play 契约与狼人杀样例（可选功能）→ v1.4 / v1.5
+- 社区玩法按同一契约接入（后置，不挡主线）
 
 ---
 
@@ -374,6 +378,7 @@ Pavilo v1.x 默认场景是：
 - 多实例共享 session（Redis / PostgreSQL）
 - Kubernetes operator
 - 主题/插件市场
+- 玩法商店 / 通用游戏引擎
 
 ### 判断标准
 

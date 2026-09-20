@@ -11,6 +11,7 @@
 - [Pull Request 流程](#pull-request-流程)
 - [代码审查清单](#代码审查清单)
 - [测试要求](#测试要求)
+- [贡献玩法](#贡献玩法)
 - [架构原则](#架构原则)
 
 ---
@@ -122,6 +123,8 @@ Pavilo 使用约定式提交（Conventional Commits）格式：
 - `room`: 房间逻辑
 - `session`: 会话管理
 - `protocol`: 协议变更
+- `play`: 玩法契约或官方/社区玩法
+- `gateway`: AI 网关
 - `adr`: ADR 文档
 
 ### 示例
@@ -218,6 +221,8 @@ git push origin feat/your-feature-name
 7. **README/配置/协议/代码是否可能再次漂移？**
    - 新配置字段是否同步到 example？
 
+玩法相关 PR 额外对照 [docs/play.md](docs/play.md)：页面是否独立、是否走 `playAction`、浏览器是否调用了网关。
+
 ## 测试要求
 
 ### 测试金字塔
@@ -263,6 +268,16 @@ node --test test/room.test.js
 npm run test:browser
 ```
 
+## 贡献玩法
+
+Pavilo 主线负责 **AI 网关**、**Play 宿主** 和一层薄契约。官方样例是文字狼人杀（状态机 + **自己的页面**）。启用一套玩法模块，再把频道的 `play` 指过去；进入该频道即加载玩法页，不要改聊天气泡流。
+
+请先读 [docs/play.md](docs/play.md)、[ROADMAP v1.5](ROADMAP.md)、[evolution.md §11](docs/evolution.md)。v1.5 之前还没有运行时，不要提交「通用游戏平台」或往 `chat.css` 里塞玩法按钮。
+
+在此之前用 Issue 对齐：规则、页面交互、人数、Agent 怎么参与。必须能回答：主持人是否为状态机？浏览器是否不调网关？失败时普通聊天是否仍可用？页面是否独立于聊天页？
+
+v1.5 之后：按 `plays/<id>/host.js` + `page/` 提交；想进主仓库就提 PR，也可以只在自己的实例加载。
+
 ## 架构原则
 
 在开发前，请务必阅读并遵守：
@@ -292,7 +307,7 @@ src/core
 4. **Core Before Platform** — 核心保持小而确定
 5. **Compatibility Is a Feature** — 多类版本号独立演进
 6. **Safe by Construction** — 安全默认值
-7. **No Premature Generalization** — 真实需求出现后再抽象
+7. **No Premature Generalization** — 真实需求出现后再抽象；玩法契约只收录狼人杀用到的端口
 
 详见 [架构原则](docs/architecture/principles.md)。
 
@@ -304,6 +319,7 @@ src/core
 - 文件管理（只有图片）
 - 语音/视频
 - 原生 App
+- 玩法商店 / 通用游戏引擎
 - 插件市场
 
 如果你的 PR 涉及这些，很可能被拒绝。

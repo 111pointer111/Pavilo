@@ -239,6 +239,7 @@ PAVILO_PLAYWRIGHT_PATH=/tmp/pavilo-browser-verify/node_modules/playwright npm ru
 架构决策与演进策略见：
 - [架构原则](docs/architecture/principles.md) — 核心设计哲学与不变量
 - [架构演进](docs/evolution.md) — 未来扩展边界
+- [玩法契约](docs/play.md) — 频道绑定与独立玩法页（v1.5 前为草案）
 - [架构决策记录](docs/adr/) — 重大技术决策的背景与权衡
 - [产品路线图](ROADMAP.md) — 版本规划与发布门槛
 

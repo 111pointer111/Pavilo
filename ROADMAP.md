@@ -29,20 +29,24 @@ Pavilo 的核心不是“功能越来越多的聊天系统”，而是一个**�
    在认证、TLS、可信代理和滥用防护未形成完整基线前，不宣称可以把裸端口直接暴露到公网。
 
 7. **No Premature Generalization**  
-   不为了“未来可能支持 PostgreSQL / 分布式 / 插件市场”提前复杂化当前架构。真实需求出现后再扩展边界。
+   不为了“未来可能支持 PostgreSQL / 分布式 / 插件市场”提前复杂化当前架构。真实需求出现后再扩展边界。  
+   玩法亦然：只把**狼人杀当下用到的**能力写成 Play 契约。不为「以后所有 Agent 游戏」发明引擎、DSL 或商店。
 
 ---
 
-## 2. 当前基线：v0.1 Alpha
+## 2. 当前基线：v0.9.0 Release Candidate
 
-当前代码已经不再是单文件原型，而具备比较清晰的模块边界：
+当前版本 **v0.9.0**。无存储群聊作为默认产品已经可用：Protocol v4 only、Config Schema v1 冻结、中英 UI、Docker / 反向代理 / CI / 文档齐备。
+
+模块边界：
 
 - `server.js`：配置、core / transport 组合与 CLI 生命周期；
 - `src/core/`：房间、session、消息、命令、领域事件；
 - `src/transport/`：HTTP、WebSocket 生命周期与帧协议；
 - `client/`：protocol / connection / state / pending / images / messages / composer / overlays / notifications / i18n / app；
 - `test/`：Node 单元/集成测试和独立浏览器验收；
-- `docs/architecture/`：当前架构、协议和状态契约。
+- `docs/architecture/`：当前架构、协议和状态契约；
+- `docs/evolution.md`：后续演进原则（不是当前实现说明书）。
 
 已经具备：
 
@@ -56,9 +60,7 @@ Pavilo 的核心不是“功能越来越多的聊天系统”，而是一个**�
 - 静态 `readOnly` 频道；
 - 可注入时钟/ID/定时器的无网络 core 测试。
 
-### 当前需要马上修正的文档漂移
-
-代码已经支持 `channels[].readOnly`，且默认频道为 `general + project`；README 与示例配置中的部分文字仍沿用旧语义。v0.2.0 必须先把这些契约重新对齐。
+v0.2–v0.9 的工程门槛均已完成，见下文各版本记录。到 v1.0 只做小修小改、基础聊天收口和稳定标签，不启动 SQLite、网关、审核或玩法。
 
 ---
 
@@ -108,7 +110,7 @@ SQLite、Agent、账号系统不阻塞 v1.0。
 - ✅ 修正 README 中默认频道为 `general + project`。
 - ✅ README、`pavilo.example.yaml`、配置测试、协议文档对齐。
 - ✅ 现有架构决策记录（ADR）：
-  - `docs/architecture/evolution.md` — 架构演进原则
+  - `docs/evolution.md` — 架构演进原则
   - `docs/adr/` — 架构决策记录
     - ADR-0001：Protocol v4 only for v1.0
     - ADR-0002：SQLite pragmatic hybrid
@@ -459,7 +461,6 @@ v0.5.0 发布时，`client/error-states.js` 与 `client/performance.js` **实际
 推迟 / 不作为本版本门槛：
 
 - Config Schema v2 迁移器 → v1.1
-- 生产环境跑 7 天 → v1.0 发布门槛
 - GitHub Topics / Description → 打标签时手工设置
 - 跳过的 SYNC_IN_PROGRESS 集成测试 → 已知限制
 
@@ -480,6 +481,8 @@ v0.5.0 发布时，`client/error-states.js` 与 `client/performance.js` **实际
 v1.0 的产品定义：
 
 > **一个极简、可靠、浏览器即用、默认无数据库的自托管网页聊天频道。**
+
+v0.9.x / v1.0.x 不启动四大支柱（存储、网关、审核、玩法）。无存储聊天已经基本完成；到稳定标签只做小修小改、基础聊天收口和发布工程。
 
 ### 必须保证
 
@@ -515,22 +518,41 @@ v1.0 的产品定义：
 - Agent
 - LLM 网关
 - 插件市场
+- 内容审核
+- 官方玩法
 
 这些缺失不是 v1.0 “没做完”，而是产品边界。
 
 ### 发布门槛
 
-- v0.9.0 RC 已发布，并在目标环境观察至少 7 天无阻塞性问题
-- 所有 P0/P1 bug 已修复
-- 文档完整且审查通过
-- 测试覆盖充分（> 250 个测试）
-- 安全审计通过
-- GHCR 镜像成功发布
+Pavilo 是给外部部署者用的开源软件，维护者不自建生产观察期。质量靠测试和契约，不靠挂机天数。
+
+- 现有测试全绿（含浏览器验收）
+- README / 示例配置 / 协议文档无已知漂移
+- 无已知 P0/P1
+- CHANGELOG、Git 标签、GHCR workflow 能走通
+- `npm audit` 无高危
 - 浏览器兼容性文档完成
 
 ---
 
-# 5. 中期目标：v1.x 可选持久化与扩展基础
+# 5. 中期目标：v1.x 存储、网关、审核与玩法
+
+v1.x 主线按依赖推进，不把存储、网关、审核、玩法、访问控制同时做成未冻结的公共契约：
+
+```text
+存储 → 网关/管理页 → 内容审核 → Play 契约 + 官方狼人杀 → 访问控制
+```
+
+职责切开，避免把 Pavilo 做成游戏平台：
+
+- **我们做基础设施**：存储、网关、审核、一层薄的 Play 契约（含玩法页宿主与 URL 约定）。
+- **我们做官方样例**：文字狼人杀（服务端状态机 + 自己的页面），用来把契约跑通。
+- **社区做更多玩法**：一个玩法 = 一个（或一组）频道；进入频道即加载该玩法自己的页面。不另造商店、沙箱或第二套插件系统。
+
+页面约束见 [docs/play.md](docs/play.md)。聊天页只是「未绑定玩法」的默认投影，不是所有玩法的底板。
+
+访问控制不挡局域网玩法，但挡「可以安全暴露公网」的宣传。
 
 ## v1.1.0 — Persistence Foundation
 
@@ -564,7 +586,7 @@ storage:
   sqlite:
     path: ./data/pavilo.db
     engine: auto  # auto | node | better-sqlite3
-    retentionDays: 30
+    retentionDays: 30  # sqlite 模式下默认 30；省略时也按 30
 ```
 
 规则：
@@ -572,7 +594,11 @@ storage:
 - 不使用 `database.enabled`；
 - Config Schema v1 继续接受，并自动归一化为 `storage.driver: memory`；
 - 开启 SQLite 不是”运行 v2”，只是当前 App 的 persistent mode；
-- `retentionDays` 缺省表示不按时间自动删除；不要让 `0` 同时承担”关闭”和”永久”两种含义。
+- `driver: memory`：不留存，重启即空；
+- `driver: sqlite`：`retentionDays` **默认 30**（最近 30 天）；
+- 永久留存必须用显式值（如 `retentionDays: null` 或文档约定的 `forever`），**禁止用 `0` 表示永久或关闭**；
+- 本期存储只走 YAML，不做管理页改留存配置；
+- 过期删除在 v1.1 就要按 `retentionDays` 生效（启动时或简单周期即可）。v1.2 再补可运维的 prune、备份与统计，而不是把「能按天删」推迟到 v1.2。
 
 ### SQLite Driver 策略（ADR-0002）
 
@@ -587,8 +613,8 @@ storage:
 package.json 策略：
 ```json
 {
-  “optionalDependencies”: {
-    “better-sqlite3”: “^11.0.0”
+  "optionalDependencies": {
+    "better-sqlite3": "^11.0.0"
   }
 }
 ```
@@ -662,13 +688,13 @@ src/storage/migrations/
 
 ---
 
-## v1.2.0 — Persistence Hardening
+## v1.2.0 — Persistence Operations
 
-目标：让 SQLite 从“能存”变成“可长期运行”。
+目标：让 SQLite 从“能按天留存”变成“可长期运行”。网关用量、管理页编辑和玩法对局都依赖这一层运维能力。v1.1 已按 `retentionDays` 删除过期消息；本期补分页、备份、完整性与统计。
 
 ### 功能
 
-- retention 定期清理；
+- 可运维的 retention / prune（进度、日志、不长时间阻塞聊天）；
 - 历史分页；
 - 文本历史搜索（优先 SQLite FTS，是否启用由实现评估）；
 - backup；
@@ -689,288 +715,153 @@ src/storage/migrations/
 
 ---
 
-## v1.3.0 — Extension Foundation
+## v1.3.0 — Operator Console & AI Gateway
 
-目标：为 Bot、Webhook、Agent、Moderation 建立统一扩展边界，但不把具体 LLM 厂商塞进 core。
+目标：让部署者能在一个页面里配置模型渠道、查看用量；聊天核心仍然不依赖 AI。
 
-### 设计原则（ADR-0003）
+这是对旧规划「不做 Agent Gateway」的收窄修正：**不做独立微服务，不做企业级模型路由/负载均衡**；做进程内统一网关 + 可编辑管理页。
 
-**Extension as Trusted Scripts，而非沙箱插件系统**
+实现前补 ADR-0004（operator 配置双源）和 ADR-0005（进程内网关）。
 
-- 用户编写 JavaScript 文件，通过配置路径加载
-- 与 Pavilo 主进程同权限运行（类似 Vite plugin、Express middleware）
-- 没有沙箱、没有权限系统、没有插件市场
-- 文档明确："Extensions are trusted code. Only load scripts you trust."
+### 网关
 
-### 配置方式
+- 新模块（如 `src/gateway/`）：渠道 preset、OpenAI 兼容调用、超时/重试、usage。
+- `src/core` 不 import 任何厂商 SDK。
+- 第一阶段官方渠道：**DeepSeek**。选择 preset 后自动填充 base URL，管理员只填 key。
+- 协议按 OpenAI compatible 走，后续加渠道主要是加 preset，而不是新造一套调用层。
+- 密钥不进日志、不进公开 `/room-info`。
+- 网关故障或未启用时，普通聊天必须不受影响。
 
-```yaml
-version: 2
+### 管理页
 
-extensions:
-  # Policy Hooks（同步拦截）
-  policy: ./extensions/moderation.js
-  
-  # Event Handlers（异步监听）
-  events:
-    - ./extensions/discord-webhook.js
-    - ./extensions/analytics.js
-    - ./extensions/chatgpt-bot.js
-```
+- 启用后提供管理页（路径如 `/admin`，实现时再定）。
+- 能力：查看与编辑网关渠道、填 key（只写 / 掩码回显）、按网关渠道查看用量、综合 dashboard。
+- 保护：`operator.token` 或管理密码。本期不做账号系统。
+- 默认关闭；未启用时不增加 ephemeral 用户的启动成本。
 
-### 1. Policy Hooks（同步，Pre-commit）
+### 配置双源
 
-在命令提交前拦截，返回 allow/deny。
-
-接口示例：
-```js
-// extensions/my-policy.js
-module.exports = {
-  async canSendMessage({ user, channel, message, core }) {
-    if (message.text?.includes('spam')) {
-      return { allowed: false, code: 'BLOCKED_WORD' };
-    }
-    return { allowed: true };
-  },
-  
-  async canJoinChannel({ user, channel, core }) { ... },
-  async canUploadImage({ user, channel, image, core }) { ... }
-};
-```
-
-规则：
-
-- 返回明确 `{ allowed: true/false, code?, message? }`
-- 严格超时：5 秒未响应视为失败
-- 失败策略可配置：fail-open（允许）/ fail-closed（拒绝）
-- 不允许扩展绕过 core 直接写 Store
-
-### 2. Domain Events（异步，Post-commit）
-
-消息已提交后触发，失败不影响聊天。
-
-接口示例：
-```js
-// extensions/chatgpt-bot.js
-module.exports = {
-  async onMessageCreated({ message, channel, api }) {
-    if (message.text?.startsWith('@bot ')) {
-      const response = await callOpenAI(message.text);
-      await api.sendMessage({
-        channelId: channel.id,
-        text: response,
-        replyTo: message.id
-      });
-    }
-  },
-  
-  async onUserJoined({ user, channel, api }) { ... },
-  async onUserLeft({ user, channel, api }) { ... }
-};
-```
-
-事件类型：
-- `message.created`
-- `reaction.changed`
-- `member.joined`
-- `member.left`
-- `channel.switched`
-
-订阅者失败不能回滚已经成功提交的聊天消息。
-
-### Extension API
-
-扩展接收的 `api` 对象提供对 core 的受限访问：
-
-```js
-class ExtensionAPI {
-  async sendMessage({ channelId, text, replyTo })
-  getChannel(channelId)
-  getOnlineUsers(channelId)
-  // 不允许：直接操作 SQLite、绕过 Policy、访问其他扩展状态
-}
-```
-
-### Bot / Agent 实现
-
-Bot 本质上是"监听 Domain Event + 调用 Command API"：
-
-- 不是独立服务，不需要 HTTP/gRPC 接口
-- 不需要沙箱，用户自己审查代码后加载
-- 用熟悉的 npm 包（OpenAI SDK、Discord.js 等）
-
-### 生态策略
-
-**不做插件市场，做示例 + 文档**
-
-```
-docs/extensions/
-  README.md              # 如何编写扩展 + 安全警告
-  api-reference.md       # Extension API 文档
-  examples/
-    word-filter.js       # 敏感词过滤
-    discord-webhook.js   # Discord 同步
-    openai-bot.js        # OpenAI 聊天机器人
-    claude-bot.js        # Claude 机器人
-    audit-log.js         # 审计日志
-```
-
-用户复制示例到自己的 `extensions/` 目录，修改配置后引用。
-
-### Extension API 稳定性
-
-此版本 Extension API 标记为 **experimental**。
-
-- v1.3-v1.5 可能调整接口
-- v1.6 稳定化后才承诺长期兼容
-
----
-
-# 6. 中长期目标：Agent、权限与生态
-
-## v1.4.0 — Agent & Gateway
-
-目标：让 Pavilo 可以”长出智能能力”，但聊天核心仍然不依赖 AI。
-
-**重要：根据 ADR-0003，Agent 只是特殊的 Extension Event Handler，不需要独立架构。**
-
-### 功能
-
-v1.3 的 Extension 机制已经足够实现 Bot/Agent，v1.4 主要是完善体验和提供官方示例：
-
-- **Bot 身份标识**：
-  - 协议增加可选 `author.isBot: true` 字段
-  - 客户端 UI 显示 Bot 标识（徽章、颜色区分）
-  
-- **Agent 示例集**：
-  - `examples/agents/openai-bot.js` — OpenAI GPT 集成
-  - `examples/agents/claude-bot.js` — Anthropic Claude 集成
-  - `examples/agents/ollama-bot.js` — 本地 Ollama 集成
-  - `examples/agents/webhook-bot.js` — 通用 Webhook Bot 框架
-
-- **Agent 配置增强**：
-  ```yaml
-  extensions:
-    events:
-      - path: ./extensions/chatgpt.js
-        botIdentity:
-          username: ChatGPT
-          avatarSeed: chatgpt
-          channels: [general, project]  # 限制 Bot 活跃频道
-  ```
-
-- **Streaming 输出**：
-  - Agent 可以通过 `api.streamMessage()` 分块发送长消息
-  - 客户端渐进式渲染（类似 ChatGPT 打字效果）
-
-- **错误隔离**：
-  - Agent 失败不影响正常聊天
-  - Extension 崩溃时自动禁用，打印错误，不让主进程挂掉
-
-### 架构约束（继续强制）
-
-- `src/core` 不 import OpenAI/Anthropic/其他厂商 SDK
-- Agent 不能直接操作 SQLite，必须通过 Command API
-- LLM 调用不能阻塞 WebSocket transport
-- Agent 默认关闭，显式启用
+- YAML / 环境变量可以引导启动（选**网关渠道**、填 key）。这里的渠道是模型供应商，不是聊天频道。
+- 管理页保存某个网关渠道后，以 SQLite 为准。
+- 未开 SQLite：YAML 配的网关仍可调用模型，但不记用量，管理页不可编辑。
+- 必须写清优先级，避免部署者改了 yaml 却不生效。
 
 ### 非目标
 
-- ❌ 不做独立的”Agent Gateway”微服务
-- ❌ 不做”模型路由”、”负载均衡”等企业功能
-- ❌ 不做”Agent 市场”、”一键安装 Bot”
-- ❌ 不做沙箱（Bot 是用户信任的代码）
+- 独立网关微服务；
+- 模型市场、一键安装 Bot；
+- 负载均衡、自动故障转移；
+- 完整账号系统。
 
 ---
 
-## v1.5.0 — Access & Moderation
+# 6. 中长期目标：审核、玩法与公网基线
 
-目标：在不破坏匿名局域网模式的前提下增加可选访问控制。
+## v1.4.0 — Content Safety
 
-候选能力：
+目标：在存储意味着可能面向更广用户之后，先审「能说什么」，再谈「谁能进来」。
 
-- access mode：
-  - open；
-  - shared password；
-  - invite；
-  - account（若真实需求证明必要）。
-- role：
-  - owner/admin；
-  - channel manager；
-  - member。
-- role-based channel write；
-- mute / kick / ban；
-- 举报；
-- audit event；
-- moderation Policy Hook；
+- 走 Policy（pre-commit）端口，但是 **一等功能**，不是「请用户自己写 word-filter.js」。
+- **文本**：可启用屏蔽词库。腾讯游戏屏蔽词库仅作候选数据源，落地前必须核对许可证，不能默认假定可直接放进仓库；同时支持自定义词库路径。
+- **图片**：可选，调用网关里具备视觉能力的模型；网关未配置则图片审计不可开启。
+- 明确 fail-open / fail-closed：局域网默认可 fail-open；面向公网的配置应 fail-closed。
+- 超时、结构化拒绝码（如 `POLICY_DENIED`），不允许审核模块绕过 core 直写 Store。
+- 本期 **不** 把文档改成「可以安全把裸端口暴露到公网」。
+
+### 非目标
+
+- 账号、邀请制、角色权限（v1.6）；
+- 把 `readOnly` 改成管理员例外。
+
+---
+
+## v1.5.0 — Play 契约、玩法页与官方狼人杀
+
+目标：用狼人杀这一个真实需求，抽出**最薄**的 Play 契约（服务端 host + 独立玩法页）；狼人杀既是产品功能，也是贡献者的参考实现。
+
+实现前补 ADR-0006。契约只写狼人杀用到的东西。页面约束先见 [docs/play.md](docs/play.md)。
+
+### 频道即玩法
+
+```yaml
+channels:
+  - id: general          # 无 play → 聊天页
+  - id: village
+    name: 狼人杀
+    play: werewolf       # 进入 → /plays/werewolf/?channel=village
+```
+
+管理员启用玩法 = 安装该玩法的 `host.js` + `page/`，再把某个频道的 `play` 指过去。同一 `play` 可绑多桌（多个频道，同一页面）。
+
+聊天页点到玩法频道应跳转玩法页，不要在气泡流里塞选人器。
+
+### 服务端契约（狼人杀需要这些，所以才存在）
+
+- 稳定 `playId`，host 是确定性状态机；LLM 不裁决规则。
+- 人与 Agent 都是演员，进入同一 roster。
+- Agent 局内私密记忆落 SQLite，作用域为「这一局」。
+- 结构化动作走 `playAction`，经主持人校验；私密结果只回当事 peer。
+- 模型调用全部走 v1.3 网关。公开发言可走现有 `message`，以便沿用审核与限额。
+- 玩法或某个 Agent 故障时，普通聊天频道不受影响。
+
+### 页面契约
+
+- 每个玩法是**自己的 HTML/CSS/JS**，不是聊天页插槽。
+- 主线只提供宿主：会话、Protocol v4、频道切换、`playAction` / `playState`。
+- 交互与样式由该玩法自己定义（投票、选人、夜间操作气泡都可以是玩法自己的弹层）。
+- 不强制使用 `chat.css` 或消息气泡组件。
+- 静态文件只从该玩法的 `page/` 目录提供。
+
+### 官方交付
+
+- 更新后的 [docs/play.md](docs/play.md)（实现时补函数名）。
+- 文字狼人杀：host + 独立页面；人可以和 Agent 混编开局。
+
+### 贡献路径
+
+按 `docs/play.md` 提交 `host.js` + `page/`。想进主仓库：先 Issue，再按狼人杀的目录边界发 PR。也可以只在自己的实例加载。
+
+### 非目标（奥卡姆）
+
+- 在现有聊天页上堆玩法按钮；
+- 通用游戏引擎、规则 DSL、组件平台、玩法商店；
+- 强制前端框架或 iframe 市场；
+- 沙箱或第二套插件系统；
+- 语音/视频狼人杀。
+
+---
+
+## v1.6.0 — Access & Public Baseline
+
+目标：在不破坏匿名局域网模式的前提下增加可选访问控制，并给出谨慎的公网基线。
+
+- access mode：open / shared password / invite（account 仍要有真实需求才上）；
 - 可信反向代理配置；
-- 更完整的公网部署安全指南。
+- 管理端鉴权加固；
+- 滥用防护；
+- 公网部署清单：TLS 终止 + 访问控制 + 内容审核 + 留存策略。
 
 注意：
 
 - 当前 `readOnly: true` 是静态频道属性，不等于角色权限；
-- 未来“管理员可发、普通成员只读”属于 Access/Authorization 层。
-
-只有认证、TLS 终止、可信代理和滥用防护形成完整基线后，文档才能谨慎扩大公网使用场景。
+- 未来「管理员可发、普通成员只读」属于 Authorization 层，不改变 `readOnly` 旧语义；
+- 只有认证入口、TLS、审核和访问控制齐了，文档才谨慎扩大公网场景。
 
 ---
 
-## v1.6.0 — Extension Ecosystem
+## 其后 — 贡献面稳定化（不挡主线）
 
-目标：把已经验证过的扩展机制稳定下来。
+v1.5 之后，贡献者主要加两类东西：Policy/Event 脚本，以及一个玩法（服务端 host + 自己的页面，绑到频道）。二者都是 trusted code（ADR-0003）。页面规范见 [docs/play.md](docs/play.md)。
 
-### Extension API 稳定化
+公开契约在狼人杀跑通后再按 SemVer 冻结，不让「先做生态」挡住网关和官方样例。
 
-从 v1.6 开始，Extension API 遵循 SemVer：
-- Breaking changes 只在 major 版本（v2.0）
-- 新增可选字段/方法可以在 minor 版本
-- 文档维护 “Extension API Changelog”
+仍然明确不做：
 
-### 交付物
+- 插件市场 / npm 包发布机制 / 玩法商店；
+- 沙箱运行时；
+- scoped API token（与主进程同权限）。
 
-- **Stable Extension API**：
-  - Policy Hooks 接口冻结
-  - Domain Events 类型冻结
-  - Extension API 方法签名冻结
-  
-- **文档完善**：
-  - Extension 开发指南（从零开始）
-  - 最佳实践（错误处理、性能优化、测试）
-  - 安全检查清单（审查第三方扩展的要点）
-  - 故障排查指南
-  
-- **示例扩展库**（15-20 个）：
-  - Policy：敏感词过滤、上传限制、邀请制
-  - Webhook：Discord、Slack、Telegram、Mattermost
-  - Agent：OpenAI、Claude、Ollama、通用 HTTP Bot
-  - Moderation：审计日志、举报系统、自动封禁
-  - 工具：消息归档、统计分析、备份
-
-- **社区分享机制**：
-  - `docs/extensions/community/` 目录收录优秀社区扩展（经审查）
-  - GitHub Discussions 标签：`extension-showcase`
-  - 贡献指南：如何提交扩展示例
-
-### 明确不做（ADR-0003）
-
-- ❌ 插件市场 / npm 包发布机制
-- ❌ 扩展 manifest / 版本声明系统
-- ❌ scoped API token（扩展与主进程同权限）
-- ❌ 独立的扩展包目录规范
-- ❌ 沙箱运行时
-- ❌ 权限模型
-
-### 安全立场
-
-文档中继续明确强调：
-
-> **⚠️ Extensions are trusted code**
-> 
-> Pavilo extensions run in the same process with full system access. This is intentional — Pavilo is a self-hosted tool for technical users, not a SaaS platform.
-> 
-> Only load extensions you trust. Review the code before enabling.
-
-参考 Vite、Rollup、Express 的插件模式，而不是 Chrome Extension、VS Code Extension 的沙箱模式。
+文档继续强调：只加载你信任的脚本。想贡献进主仓库，先 Issue 后代码。
 
 ---
 
@@ -987,7 +878,7 @@ v1.3 的 Extension 机制已经足够实现 Bot/Agent，v1.4 主要是完善体�
 - 身份模型发生无法兼容的重构；
 - 其他无法通过兼容层解决的重大架构迁移。
 
-如果 SQLite、Agent、权限都能以兼容的可选模块加入，它们完全可以留在 v1.x。
+如果 SQLite、网关、审核、玩法和权限都能以兼容的可选模块加入，它们完全可以留在 v1.x。
 
 ---
 
@@ -1006,7 +897,8 @@ v1.3 的 Extension 机制已经足够实现 Bot/Agent，v1.4 主要是完善体�
 - Redis；
 - PostgreSQL/MySQL；
 - Kubernetes operator；
-- 主题/插件市场。
+- 主题/插件市场；
+- 玩法商店 / 通用游戏引擎。
 
 进入主线前必须先回答：它是否强化 Pavilo 的核心定位？是否可以保持默认部署极简？
 
@@ -1014,7 +906,7 @@ v1.3 的 Extension 机制已经足够实现 Bot/Agent，v1.4 主要是完善体�
 
 # 9. “明星开源项目”工程标准
 
-功能不是 Star 项目的唯一指标。v1.0 前应逐步具备：
+功能不是 Star 项目的唯一指标。下列工程标准在 v0.9 已基本具备，v1.0 起维持，不因新支柱回退：
 
 ### 代码
 
@@ -1068,12 +960,13 @@ v1.3 的 Extension 机制已经足够实现 Bot/Agent，v1.4 主要是完善体�
 
 当前从高到低：
 
-1. **P0：修正文档/实现漂移，补 CI。**
-2. **P0：冻结 v1.0 产品定义——Ephemeral Stable。**
-3. **P1：部署、Docker、反向代理和真实网络验收。**
-4. **P1：安全默认值、压力测试和性能基线。**
-5. **P1：v0.9 契约冻结与发布工程。**
-6. **v1.0 之后才开始 SQLite。**
-7. **SQLite 稳定后再开放 Agent/Policy/Event 扩展。**
+1. **收口并打 v1.0 稳定标签**（测试、文档、发布流程过关即可，无生产观察期）。
+2. **v1.1 SQLite 可选留存**（默认最近 30 天）。
+3. **v1.2 持久化运维**（prune、分页、备份、统计）。
+4. **v1.3 进程内 AI 网关 + 可编辑管理页**（DeepSeek 为首个官方渠道）。
+5. **v1.4 内容审核**（文本词库 + 可选图片视觉审计）。
+6. **v1.5 Play 契约 + 独立玩法页 + 官方狼人杀**（频道绑定玩法；社区按 [docs/play.md](docs/play.md) 接入）。
+7. **v1.6 访问控制与公网基线**。
+8. **其后**冻结 Play / Extension 贡献面。
 
-这条顺序的核心目的不是“做得慢”，而是避免在架构仍快速变化时同时背上数据库、认证、Agent 和第三方扩展四种兼容债务。
+这条顺序的核心目的不是“做得慢”，而是先把会改变 epoch / ACK / 配置真源的地基铺好，再用一个真实玩法把贡献契约跑通，而不是先造生态再找需求。

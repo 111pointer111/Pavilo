@@ -230,6 +230,7 @@ Architecture decisions and evolution strategy:
 
 - [Architecture principles](docs/architecture/principles.md) — core philosophy and invariants
 - [Architecture evolution](docs/evolution.md) — future extension boundaries
+- [Play contract](docs/play.md) — channel binding and standalone play pages (draft until v1.5)
 - [Architecture decision records](docs/adr/) — context and trade-offs behind major decisions
 - [Roadmap](ROADMAP.md) — version planning and release gates
 
