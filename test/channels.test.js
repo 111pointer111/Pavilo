@@ -247,6 +247,8 @@ test('a client that reconnects mid-sync resumes with a complete history', async 
   assert.equal(resumed.historyEnd, undefined);
 });
 
+// Integration timing is too tight to hit the sync window reliably. The
+// SYNC_IN_PROGRESS contract is covered in test/core.test.js. Keep skip.
 test.skip('a client is told to wait rather than losing events while its history syncs', async (t) => {
   const { port } = await setup(t, { maxMessages: 200, maxJsonBytes: 700 });
   const { client } = await member(port, 'Burst');

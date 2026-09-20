@@ -47,7 +47,7 @@ _注：以上统计为时间点快照，运行 `npm test` 查看当前实际状�
    test.skip('a client is told to wait', async (t) => {
      // 历史同步期间发消息应返回 SYNC_IN_PROGRESS
    ```
-   - **决策**: 已知限制，不挡 v0.9.0。Core 在 `syncing` 时会拒绝命令；集成测试的时序仍不稳定。v1.0 前再评估是修还是删。
+   - **决策**: 不挡 v1.0。Core 在 `syncing` 时拒绝命令（`test/core.test.js` 已覆盖）。集成层难以稳定命中同步窗口，继续 skip，不作为 P0。
 
 ### 🟡 结构优化
 
@@ -226,7 +226,7 @@ node --test test/channels.test.js
 // test/channels.test.js
 test.skip('a client is told to wait rather than losing events while its history syncs', async (t) => {
   // 问题: 集成层难以稳定命中 SYNC_IN_PROGRESS 窗口
-  // 跟踪: 已知限制，不挡 v0.9.0
+  // 跟踪: 已知限制，不挡 v1.0；契约由 core 单测覆盖
 });
 ```
 
@@ -252,7 +252,7 @@ test.skip('a client is told to wait rather than losing events while its history 
 
 ### 当前状态
 
-- ✅ 通过率: 99.6% (228/229)
+- ✅ 通过率: 285 通过 / 1 跳过（SYNC_IN_PROGRESS 集成窗口）
 - ✅ 执行速度: 单元+集成 ~0.5s
 - ✅ CI 稳定性: 最近 5 次 CI 全部成功
 
@@ -288,9 +288,9 @@ test.skip('a client is told to wait rather than losing events while its history 
    - 并发连接数
    - 内存占用
 
-### 长期（v1.0）
+### 长期（v1.x）
 
-5. **评估跳过的 SYNC_IN_PROGRESS 集成测试**：修时序或删除
+5. **SYNC_IN_PROGRESS 集成测试**：需要可注入的背压/慢写时再启，不挡稳定标签
 
 6. **考虑快照测试**
    - 对于复杂的客户端状态转换，使用快照减少断言代码

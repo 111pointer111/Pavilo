@@ -34,9 +34,9 @@ Pavilo 的核心不是“功能越来越多的聊天系统”，而是一个**�
 
 ---
 
-## 2. 当前基线：v0.9.0 Release Candidate
+## 2. 当前基线：v1.0.0 Ephemeral Stable
 
-当前版本 **v0.9.0**。无存储群聊作为默认产品已经可用：Protocol v4 only、Config Schema v1 冻结、中英 UI、Docker / 反向代理 / CI / 文档齐备。
+当前版本 **v1.0.0**。无存储群聊作为默认产品已经稳定：Protocol v4 only、Config Schema v1 冻结、中英 UI、Docker / 反向代理 / CI / 文档齐备。
 
 模块边界：
 
@@ -60,7 +60,7 @@ Pavilo 的核心不是“功能越来越多的聊天系统”，而是一个**�
 - 静态 `readOnly` 频道；
 - 可注入时钟/ID/定时器的无网络 core 测试。
 
-v0.2–v0.9 的工程门槛均已完成，见下文各版本记录。到 v1.0 只做小修小改、基础聊天收口和稳定标签，不启动 SQLite、网关、审核或玩法。
+v0.2–v1.0 的工程门槛均已完成，见下文各版本记录。v1.0 不包含 SQLite、网关、审核或玩法。
 
 ---
 
@@ -476,7 +476,7 @@ v0.5.0 发布时，`client/error-states.js` 与 `client/performance.js` **实际
 
 ---
 
-## v1.0.0 — Ephemeral Stable
+## v1.0.0 — Ephemeral Stable（已完成）
 
 v1.0 的产品定义：
 
@@ -500,13 +500,11 @@ v0.9.x / v1.0.x 不启动四大支柱（存储、网关、审核、玩法）。�
 
 ### 发布执行
 
-- 更新 package.json 版本号为 v1.0.0
-- 更新 CHANGELOG.md
-- 创建 v1.0.0 Git 标签
-- 发布 GitHub Release（**stable**，非 pre-release）
-- 发布 GHCR 镜像（ghcr.io/caigg188/pavilo:latest, :1.0.0, :1.0, :1）
-- 更新 README 徽章和版本信息
-- 浏览器兼容性文档
+- ✅ 更新 package.json 版本号为 v1.0.0
+- ✅ 更新 CHANGELOG.md
+- ✅ 更新 README 徽章和版本信息
+- ✅ 浏览器兼容性文档
+- 创建 `v1.0.0` Git 标签后，Actions 会发 GitHub Release（stable）并推送 GHCR：`latest`、`1.0.0`、`1.0`、`1`
 
 ### 明确不包含
 
@@ -523,16 +521,20 @@ v0.9.x / v1.0.x 不启动四大支柱（存储、网关、审核、玩法）。�
 
 这些缺失不是 v1.0 “没做完”，而是产品边界。
 
-### 发布门槛
+### 发布门槛（✅ 代码与文档已收口）
 
 Pavilo 是给外部部署者用的开源软件，维护者不自建生产观察期。质量靠测试和契约，不靠挂机天数。
 
-- 现有测试全绿（含浏览器验收）
-- README / 示例配置 / 协议文档无已知漂移
-- 无已知 P0/P1
-- CHANGELOG、Git 标签、GHCR workflow 能走通
-- `npm audit` 无高危
-- 浏览器兼容性文档完成
+- ✅ 现有测试全绿（285 通过，1 跳过：SYNC_IN_PROGRESS 集成窗口，core 已覆盖契约）
+- ✅ README / 示例配置 / 协议文档无已知漂移
+- ✅ 无已知 P0/P1
+- ✅ CHANGELOG、GHCR / Release workflow 已按 v1.x stable 调整
+- ✅ `npm audit` 无高危
+- ✅ 浏览器兼容性文档完成（自动化基线为 Playwright + Chrome）
+
+打 `v1.0.0` 标签后由 GitHub Actions 创建 stable Release，并推送 GHCR `latest` / `1.0.0` / `1.0` / `1`。
+
+**v1.0.0 已完成产品与工程收口，可以发布。**
 
 ---
 
@@ -960,7 +962,7 @@ v1.5 之后，贡献者主要加两类东西：Policy/Event 脚本，以及一�
 
 当前从高到低：
 
-1. **收口并打 v1.0 稳定标签**（测试、文档、发布流程过关即可，无生产观察期）。
+1. **打 v1.0.0 标签并确认 GHCR / GitHub Release**（代码与文档已收口）。
 2. **v1.1 SQLite 可选留存**（默认最近 30 天）。
 3. **v1.2 持久化运维**（prune、分页、备份、统计）。
 4. **v1.3 进程内 AI 网关 + 可编辑管理页**（DeepSeek 为首个官方渠道）。

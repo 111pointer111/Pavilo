@@ -6,11 +6,20 @@ Pavilo 的重要变更都记在这份文件里。
 
 ## [Unreleased]
 
-### Changed
-- 更新 v1.x 规划：可选 SQLite（默认留存 30 天）、进程内 AI 网关与管理页、内容审核、独立玩法页与官方狼人杀样例。v1.0 发布不再要求生产观察期。
+## [1.0.0] - 2026-09-20
+
+第一个稳定版本（**Ephemeral Stable**）：默认无数据库、浏览器即用的自托管网页聊天。Protocol v4 与 Config Schema v1 在整个 v1.x 按文档承诺兼容。
+
+本版本**不包含** SQLite、AI 网关、内容审核、官方玩法；那些是 v1.1 起的可选能力，不是 v1.0 没做完。
 
 ### Added
-- [docs/play.md](docs/play.md)：玩法频道绑定与独立页面的贡献约束（v1.5 前为草案）
+- [docs/play.md](docs/play.md)：后续玩法贡献的约束草案（本版本运行时不加载玩法页）
+
+### Changed
+- 产品从 Release Candidate 进入稳定；README / SECURITY / 发布流程去掉 Alpha / 观察期口径
+- 更新 v1.x 规划：可选 SQLite（默认留存 30 天）、进程内 AI 网关与管理页、内容审核、独立玩法页与官方狼人杀样例
+- GHCR：v1.x 标签打 `latest`、`1.0.0`、`1.0`、`1`；v0.x 标签不打 `latest` 与主版本 `1`
+- GitHub Release 对 v1.x 标记为 stable（非 pre-release）
 
 ## [0.9.0] - 2026-09-18
 
@@ -307,6 +316,8 @@ Pavilo 的重要变更都记在这份文件里。
 
 ## 版本摘要
 
+- **v1.0.0** — Ephemeral Stable
+- **v0.9.0** — Protocol v4 only Release Candidate
 - **v0.3.0** — Docker 支持与可部署性
 - **v0.2.0** — Protocol v4、回应、图片、界面增强
 - **v0.1.0** — 首个临时聊天系统

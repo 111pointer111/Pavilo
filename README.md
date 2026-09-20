@@ -10,7 +10,14 @@
 
 Pavilo（**Pavilion + Local**）是一个浏览器即用、默认临时、可以自行托管的极简群聊。像一座随处可搭的小亭：启动 Node.js 进程，同一局域网里的人打开网页就能交谈，服务停止后一切回到空白。
 
-当前版本 **v0.9.0**（Release Candidate）：支持配置多个临时频道，仅内存存储，界面提供简体中文与英语，WebSocket 协议只接受 v4。适合可信局域网、私有网络或 VPN 环境。
+<p align="center">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.0.0-0f7772">
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-0f7772">
+  <img alt="Node.js" src="https://img.shields.io/badge/node-%3E%3D22-0f7772">
+  <img alt="Protocol v4" src="https://img.shields.io/badge/protocol-v4-0f7772">
+</p>
+
+当前版本 **v1.0.0**（Ephemeral Stable）：支持配置多个临时频道，仅内存存储，界面提供简体中文与英语，WebSocket 协议只接受 v4。适合可信局域网、私有网络或 VPN 环境。
 
 <p align="center">
   <img src="docs/screenshots/overview.png" width="880" alt="Pavilo 界面预览：桌面聊天、登录页与移动端">
@@ -126,7 +133,7 @@ docker run -d -p 4173:4173 --name pavilo pavilo
 
 ## 协议稳定性
 
-v0.9.0 起只接受 [Protocol v4](docs/api/websocket-protocol.md)。v1–v3 已删除。v1.0 将承诺 v4 在整个 v1.x 系列保持稳定。第三方客户端见 [迁移说明](docs/api/websocket-protocol.md#从旧协议迁移)。
+v1.0 起只接受 [Protocol v4](docs/api/websocket-protocol.md)，并在整个 v1.x 系列保持稳定。v1–v3 已删除。第三方客户端见 [迁移说明](docs/api/websocket-protocol.md#从旧协议迁移)。
 
 ## 配置
 
@@ -234,7 +241,7 @@ PAVILO_PLAYWRIGHT_PATH=/tmp/pavilo-browser-verify/node_modules/playwright npm ru
 
 脚本自动创建仓库外临时 YAML、分配回环端口、驱动双页面，并只关闭自己启动的进程。覆盖频道隔离/切换失败、刷新/断线恢复、IME、图片查看器、阅读位置、移动端抽屉和正常停服；移动键盘使用缩小视口模拟，不能代替真机输入法验收。
 
-模块边界和维护约定见 [架构概览](docs/architecture/overview.md)、[协议契约](docs/architecture/chat-protocol.md)、[状态契约](docs/architecture/state-model.md) 和 [设计语言](docs/design-language.md)。
+模块边界和维护约定见 [架构概览](docs/architecture/overview.md)、[协议契约](docs/architecture/chat-protocol.md)、[状态契约](docs/architecture/state-model.md)、[设计语言](docs/design-language.md) 和 [浏览器兼容性](docs/v0.5.0-browser-compatibility.md)。
 
 架构决策与演进策略见：
 - [架构原则](docs/architecture/principles.md) — 核心设计哲学与不变量

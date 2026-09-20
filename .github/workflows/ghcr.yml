@@ -39,6 +39,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}},enable=${{ !startsWith(github.ref_name, 'v0.') }}
+            type=raw,value=latest,enable=${{ !startsWith(github.ref_name, 'v0.') }}
 
       - name: Build and push
         uses: docker/build-push-action@v6

@@ -70,7 +70,7 @@ jobs:
           - [Architecture Principles](https://github.com/caigg188/Pavilo/blob/main/docs/architecture/principles.md)
           - [Contributing Guide](https://github.com/caigg188/Pavilo/blob/main/CONTRIBUTING.md)
 
-          ⚠️ **Note**: v0.x is in Alpha stage. Breaking changes may occur between versions.
+          See [CHANGELOG.md](https://github.com/caigg188/Pavilo/blob/main/CHANGELOG.md) for the full release notes.
           EOF
 
       - name: Create GitHub Release

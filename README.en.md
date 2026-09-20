@@ -10,7 +10,14 @@
 
 Pavilo (**Pavilion + Local**) is a minimal, self-hosted group chat that runs in the browser and is ephemeral by default. Like a small pavilion you can put up anywhere: start a Node.js process, and anyone on the same local network can open a web page and talk. When the service stops, everything returns to blank.
 
-Current version: **v0.9.0** (Release Candidate) — multiple ephemeral channels, in-memory storage only, Simplified Chinese and English UI, WebSocket Protocol v4 only. Built for trusted LANs, private networks, and VPNs.
+<p align="center">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.0.0-0f7772">
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-0f7772">
+  <img alt="Node.js" src="https://img.shields.io/badge/node-%3E%3D22-0f7772">
+  <img alt="Protocol v4" src="https://img.shields.io/badge/protocol-v4-0f7772">
+</p>
+
+Current version: **v1.0.0** (Ephemeral Stable) — multiple ephemeral channels, in-memory storage only, Simplified Chinese and English UI, WebSocket Protocol v4 only. Built for trusted LANs, private networks, and VPNs.
 
 <p align="center">
   <img src="docs/screenshots/overview.png" width="880" alt="Pavilo preview: desktop chat, login, and mobile">
@@ -120,7 +127,7 @@ Press `Ctrl-C` to stop the service.
 
 ## Protocol stability
 
-From v0.9.0 the server accepts only [Protocol v4](docs/api/websocket-protocol.md). v1–v3 have been removed. v1.0 will keep v4 stable throughout v1.x. Third-party clients: see the [migration notes](docs/api/websocket-protocol.md#从旧协议迁移).
+From v1.0 the server accepts only [Protocol v4](docs/api/websocket-protocol.md), and v4 stays stable throughout v1.x. v1–v3 have been removed. Third-party clients: see the [migration notes](docs/api/websocket-protocol.md#从旧协议迁移).
 
 ## Configuration
 
@@ -224,7 +231,7 @@ PAVILO_PLAYWRIGHT_PATH=/tmp/pavilo-browser-verify/node_modules/playwright npm ru
 
 The script creates a temporary YAML outside the repository, allocates loopback ports, drives two pages, and only stops processes it started itself. It covers channel isolation and failed switches, reload/disconnect recovery, IME, the image viewer, reading position, the mobile drawer, and graceful shutdown.
 
-Module boundaries and maintenance conventions: [architecture overview](docs/architecture/overview.md), [protocol contract](docs/architecture/chat-protocol.md), [state contract](docs/architecture/state-model.md), [design language](docs/design-language.md) (all Chinese).
+Module boundaries and maintenance conventions: [architecture overview](docs/architecture/overview.md), [protocol contract](docs/architecture/chat-protocol.md), [state contract](docs/architecture/state-model.md), [design language](docs/design-language.md), [browser compatibility](docs/v0.5.0-browser-compatibility.md) (all Chinese).
 
 Architecture decisions and evolution strategy:
 

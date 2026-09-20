@@ -410,7 +410,7 @@ docker compose up -d
 
 ```bash
 docker pull ghcr.io/caigg188/pavilo:latest
-# 或钉死版本：ghcr.io/caigg188/pavilo:0.9.0
+# 或钉死版本：ghcr.io/caigg188/pavilo:1.0.0
 
 # 停止旧容器
 docker stop pavilo
@@ -420,7 +420,7 @@ docker rm pavilo
 docker run -d --name pavilo -p 4173:4173 ghcr.io/caigg188/pavilo:latest
 ```
 
-当前 `latest` 指向最新 SemVer 发布（含 v0.x）。`1` / `1.0` 这类主版本标签仍留给 v1.0。
+v1.x 标签会打 `latest`、`{{major}}.{{minor}}` 和主版本 `1`。不要用 v0.x 镜像当生产基线。
 
 ---
 
