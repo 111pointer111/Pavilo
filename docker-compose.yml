@@ -9,11 +9,13 @@ services:
     environment:
       # Optional: Override port
       # PORT: 4173
-      # Optional: Specify config file path
-      # PAVILO_CONFIG: /config/pavilo.yaml
+      # Optional: operator token for /admin (sqlite only; or put it in pavilo.yaml)
+      # PAVILO_OPERATOR_TOKEN: ""
+      # Only set PAVILO_CONFIG if the file is not at /app/pavilo.yaml
+      # PAVILO_CONFIG: /app/pavilo.yaml
     volumes:
       # Mount custom configuration (optional)
-      # Uncomment to use custom config:
+      # Uncomment to use custom config at the default path:
       # - ./pavilo.yaml:/app/pavilo.yaml:ro
       # SQLite: also mount a data directory and turn off read_only below
       # - ./data:/app/data

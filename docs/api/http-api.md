@@ -594,12 +594,21 @@ services:
 | DELETE | `/admin/api/channels/:id` | 删除该模型渠道（管理页是唯一来源，不会回到 YAML） |
 | POST | `/admin/api/channels/:id/probe` | 极短 `complete()` |
 | GET | `/admin/api/usage?days=7` | sqlite 用量；memory 为 `{ tracking: false, rows: [] }` |
+| GET | `/admin/api/people` | 当前席位账本、IP 黑名单、真源、最近操作 |
+| GET | `/admin/api/people/:id` | 这一席 + 同上列表 |
+| GET | `/admin/api/people/:id/messages` | 该席发言摘要；查询 `beforeCreatedAt` / `beforeChannelId` / `beforeId` / `limit` |
+| POST | `/admin/api/people/:id/mute` | `{ active }`；省略 `active` 视为禁言。玩法席 409 `AGENT_SEAT` |
+| POST | `/admin/api/people/:id/kick` | `{ denyIp }`；`denyIp: true` 请离并写入 IP 黑名单（认领 `moderation` 段） |
+| PUT | `/admin/api/moderation` | `{ ipDenyList }`；保存并认领 `moderation` 段 |
+| DELETE | `/admin/api/moderation` | 取消认领，套回 YAML 黑名单 |
 
-前端路由（hash）把语亭后台与 AI 网关分开，见 [admin.md](../admin.md)。`GET/PUT /admin/api/channels` 管的是**模型渠道**，不是聊天频道。聊天频道走 `/admin/api/pavilion/channels`。
+人员页管**当前进程里的临时席位**，不是会员名录。昵称离开后再进是新的一席。值班台始终能看到 IP，不受 `exposeMemberIps` 限制。玩法 Agent 席不能禁言或请离。
+
+前端路由（hash）把语亭后台与 AI 网关分开，见 [admin.md](../admin.md)。`GET/PUT /admin/api/channels` 管的是**模型渠道**，不是聊天频道。聊天频道走 `/admin/api/pavilion/channels`。人员与 IP 黑名单走 `/admin/api/people*` 与 `/admin/api/moderation`。
 
 `PUT /admin/api/pavilion/channels` 的 body 为 `{ channels: [...] }`，字段与 YAML `channels[]` 相同。频道内仍有成员时停用或删除返回 409 `CHANNEL_BUSY`；有进行中的玩法时改绑定返回 409 `PLAY_BOUND`。非法目录（没有可发言频道、默认频道只读等）返回 400。
 
-错误码：`OPERATOR_UNAUTHORIZED`（401）、`OPERATOR_FORBIDDEN`（403）、`OPERATOR_RATE_LIMITED`（429）、`OPERATOR_READONLY`（409）、`CHANNEL_BUSY` / `PLAY_BOUND`（409）。网关部署见 [gateway.md](../gateway.md)。覆盖层见 [ADR-0007](../adr/0007-pavilion-config-overlay.md)。
+错误码：`OPERATOR_UNAUTHORIZED`（401）、`OPERATOR_FORBIDDEN`（403）、`OPERATOR_RATE_LIMITED`（429）、`OPERATOR_READONLY`（409）、`CHANNEL_BUSY` / `PLAY_BOUND` / `AGENT_SEAT`（409）、`NOT_FOUND`（404）、`OPERATOR_BAD_REQUEST` / `BAD_JSON`（400）。网关部署见 [gateway.md](../gateway.md)。覆盖层见 [ADR-0007](../adr/0007-pavilion-config-overlay.md)。人员页见 [admin.md](../admin.md)。
 
 ---
 

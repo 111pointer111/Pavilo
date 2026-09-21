@@ -6,6 +6,8 @@ Pavilo 的重要变更都记在这份文件里。
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-21
+
 进程内 AI 网关、Play 宿主与 Agent 基座。配置对外仍是两种部署：`version: 1` 内存、`version: 2` SQLite 家族。默认关闭。聊天核心不依赖 AI 或玩法。内容审核不阻塞本期；后续阶段按更新后的路线图推进。官方狼人杀尚未实现。
 
 ### Added
@@ -31,6 +33,10 @@ Pavilo 的重要变更都记在这份文件里。
 - [`plays/echo/`](plays/echo/) 契约夹具（默认不启用）；[`pavilo.plays.example.yaml`](pavilo.plays.example.yaml)
 - [`plays/werewolf/README.md`](plays/werewolf/README.md) 官方样例目录约定（规划中，待实现）
 - 冻结后的 [`docs/play.md`](docs/play.md)
+- `/admin` 人员页：当前席位账本、禁言、请离；可选把该席 IP 写入黑名单
+- SQLite migration 005：`operator_config` 增加 `moderation` 段（`ipDenyList`）；YAML `moderation.ipDenyList` 在 Schema v2 可用，管理页保存后认领该段
+- Play host 可主动 `emit` / `post`；Agent 公开发言走现有 `message` 路径，不能绕过频道只读与限额
+- [`docs/v1.3-closeout.md`](docs/v1.3-closeout.md)：v1.3 收口工作文档
 
 ### Fixed
 - `/admin` 房间和聊天频道打开时带出当前有效配置；`/admin/api/pavilion` 失败时不再显示空白表，也不再把 404 正文当成空目录
@@ -40,12 +46,14 @@ Pavilo 的重要变更都记在这份文件里。
 - `version: 1` 出现 `storage` / `operator` / `plays` 会拒绝；memory 下的 v2 写 `operator`/`plays` 会拒绝。任何版本出现 `gateway:` 都会被拒绝。`version: 3` 当作 v2 读入。模型渠道只在 `/admin` 写入 SQLite
 - sqlite 引擎由 composition 打开一次，聊天 store 与网关 store 共享连接
 - `/admin` 房间 / 聊天频道不再是预留页；`config:check` 与启动横幅标明每段真源
+- `/admin` 改为账本式布局：人员按频道分列，总览展示运行与存储
+- 聊天输入框聚焦改为克制的呼吸光晕
 - 内容审核不挡 Play 宿主开工；玩法公开发言仍走现有 `message`
 - 更新产品与规划文档：独立聊天室与可嵌入聊天能力共用主线；v1.3–v2.0 按组装、宿主身份、嵌入与治理推进，官方狼人杀并行开发。新增集成设计和 ADR-0008；本次不实现未来功能或修改版本
 - 对齐剩余入口与贡献材料：口号、包描述、项目结构、贡献/审查清单、Issue/PR 模板，以及网关、状态模型和测试策略中的版本状态
 
 ### Tests
-- 2026-09-21 文档梳理基线：381 个 Node 测试，379 通过、2 跳过；本次未执行浏览器验收
+- 2026-09-21 收口验证：`npm test` 381 个 Node 测试，379 通过、2 跳过（`SYNC_IN_PROGRESS` 集成窗口、未安装 `better-sqlite3`）；`npm run test:browser` 19 通过
 
 ## [1.2.0] - 2026-09-20
 
@@ -392,6 +400,7 @@ SQLite 运维：历史分页、备份/恢复、完整性检查与 healthz 库存
 
 ## 版本摘要
 
+- **v1.3.0** — 可选网关、值班台、人员治理与 Play 宿主
 - **v1.0.0** — Ephemeral Stable
 - **v0.9.0** — Protocol v4 only Release Candidate
 - **v0.3.0** — Docker 支持与可部署性

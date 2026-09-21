@@ -82,7 +82,7 @@ v2/v3/v4 的同步顺序：
 3. `historyEnd`：包含相同 `roomEpoch` 和快照 `latestSeq`；
 4. 快照期间发生的频道广播按到达顺序排在 `historyEnd` 后发送。
 
-同步是一个不可交错的快照边界。同步期间，除 `leave` 外的客户端命令均返回可重试的 `SYNC_IN_PROGRESS`；若命令带 `clientMessageId`，错误会原样携带它。同步队列超出写缓冲或同步超时会关闭连接。当前浏览器在同步时暂存 `presence`、`message`、`reaction`、`typing`、`ack`、`error`，在 `historyEnd` 后处理。
+同步是一个不可交错的快照边界。同步期间，除 `leave` 外的客户端命令均返回可重试的 `SYNC_IN_PROGRESS`；若命令带 `clientMessageId`，错误会原样携带它。同步队列超出写缓冲或同步超时会关闭连接。当前浏览器在同步时暂存 `presence`、`message`、`reaction`、`typing`、`channelOccupancy`、`playState`、`ack`、`error`、`moderation`，在 `historyEnd` 后处理。
 
 可选历史分页（`historyPage` capability）：
 
@@ -90,6 +90,8 @@ v2/v3/v4 的同步顺序：
 - 回复：零个或多个已有 `history` 分块，然后 `{ type: "historyPageEnd", beforeSeq, exhausted, roomEpoch }`。
 - Memory：工作集之外 `exhausted: true`。SQLite 可返回工作集之前的行。
 - 客户端滚到顶且 capability 存在时请求更早消息，插到列表前并保住阅读锚点。
+
+可选玩法（当前频道绑了 `play` 时 `stateStart.capabilities` 含 `play`）：命令 `playAction`，事件 `playState`。未绑定返回 `PLAY_NOT_BOUND`。信封见 [play.md](../play.md)，不另开协议号。
 
 客户端只应用当前 epoch 的 `history`/`historyEnd` 和带 epoch 的消息状态事件；epoch 改变时，旧 pending 消息不得自动重发，因为服务端去重表也属于旧房间生命周期。
 
@@ -194,6 +196,7 @@ ACK 形状为：
 | `channelOccupancy` | 所有频道的在线人数摘要（包含有效 lease） | 可通过下一次 `stateStart` 恢复；不包含成员身份 |
 | `typing` | 即时展示的租约提示，服务端默认 4 秒自动撤销 | **临时、允许丢失、不进历史**；客户端还以本地到期兜底 |
 | `ack` / `error` | 仅发给命令发起者的结果 | 不广播、不进历史；重复消息可在去重窗口内重得 ACK |
+| `playState` | 玩法状态投影；公开或 `visibility: private` | 对局状态由 Play 宿主持有；私密视图只给授权演员，切频道后不得沿用 |
 | `moderation` | 仅发给当事席：`muted` / `unmuted` / `kicked` | 不广播、不进历史；禁言挂在 session 上，重连后会再发 `muted` |
 
 WebSocket 本身没有应用层重放保证。`message`、`reaction`、`prune`、roster 是服务端权威事实，但单个实时事件仍可能因断线丢失；客户端通过下一次完整同步收敛，不能把 typing 或 presence 提示伪装成持久历史。

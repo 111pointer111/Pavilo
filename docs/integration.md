@@ -2,7 +2,7 @@
 
 > 状态：已确认的 v2.0 设计方向，尚未实现。本文不是当前 SDK/API 使用教程，不提供可直接复制到现有配置的未来字段。
 
-当前最新稳定版为 v1.2.0；主分支有 Play/Agent 宿主，但没有嵌入入口、宿主身份或公开接入 SDK。现有聊天/玩法响应包含 `X-Frame-Options: DENY`，客户端连接与跳转围绕独立站点运行。仅删除响应头不能完成本设计。阶段见 [路线图](../ROADMAP.md)，决策见 [ADR-0008](adr/0008-embeddable-composable-chat.md)。
+当前最新稳定版为 v1.3.0；已有 Play/Agent 宿主，但没有嵌入入口、宿主身份或公开接入 SDK。现有聊天/玩法响应包含 `X-Frame-Options: DENY`，客户端连接与跳转围绕独立站点运行。仅删除响应头不能完成本设计。阶段见 [路线图](../ROADMAP.md)，决策见 [ADR-0008](adr/0008-embeddable-composable-chat.md)。
 
 ## 交付形态与接入流程
 

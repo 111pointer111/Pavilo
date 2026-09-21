@@ -1,6 +1,6 @@
 # Play 契约
 
-本文是主分支已实现、尚未随稳定标签发布的玩法贡献契约，不是宿主应用接入 SDK。已有契约按冻结约束兼容演进。背景见 [ADR-0006](adr/0006-play-contract.md)、[架构演进](evolution.md) 与 [路线图](../ROADMAP.md)；新增产品方向见 [ADR-0008](adr/0008-embeddable-composable-chat.md)。
+本文是 v1.3.0 已发布的玩法贡献契约，不是宿主应用接入 SDK。已有契约按冻结约束兼容演进。背景见 [ADR-0006](adr/0006-play-contract.md)、[架构演进](evolution.md) 与 [路线图](../ROADMAP.md)；新增产品方向见 [ADR-0008](adr/0008-embeddable-composable-chat.md)。
 
 > 聊天页是「没有玩法」的默认频道投影。玩法不是在气泡上打补丁。
 

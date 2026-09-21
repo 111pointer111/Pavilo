@@ -11,13 +11,13 @@
 Pavilo（**Pavilion + Local**）是浏览器即用、默认临时、可自托管、可按需组装的轻量聊天工具，也在向方便接入已有产品的聊天与玩法能力演进。像一座随处可搭的小亭：启动 Node.js 进程，同一局域网里的人打开网页就能交谈；默认内存模式下，服务停止后聊天记录回到空白。
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.2.0-0f7772">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.3.0-0f7772">
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-0f7772">
   <img alt="Node.js" src="https://img.shields.io/badge/node-%3E%3D22-0f7772">
   <img alt="Protocol v4" src="https://img.shields.io/badge/protocol-v4-0f7772">
 </p>
 
-当前版本 **v1.2.0**：默认仍是无数据库的临时群聊；可用 Config Schema v2 可选启用 SQLite（默认留存 30 天，支持历史分页与备份）。界面提供简体中文与英语，WebSocket 协议只接受 v4。适合可信局域网、私有网络或 VPN 环境。
+当前版本 **v1.3.0**：默认仍是无数据库的临时群聊；可用 Config Schema v2 可选启用 SQLite（默认留存 30 天，支持历史分页与备份）。sqlite 下可打开 `/admin` 值班台、可选 AI 网关与 Play 宿主。界面提供简体中文与英语，WebSocket 协议只接受 v4。适合可信局域网、私有网络或 VPN 环境。
 
 <p align="center">
   <img src="docs/screenshots/overview.png" width="880" alt="Pavilo 界面预览：桌面聊天、登录页与移动端">
@@ -32,12 +32,12 @@ Pavilo（**Pavilion + Local**）是浏览器即用、默认临时、可自托管
 | 状态 | 能力 |
 | --- | --- |
 | 已发布：v1.2.0 | 临时聊天、可选 SQLite 留存与分页/备份等运维能力 |
-| 主分支已实现，未发布 | AI 网关、管理后台、房间/频道配置、席位禁言/请离/IP 黑名单、Play/Agent 宿主和 echo 夹具 |
+| 已发布：v1.3.0（最新稳定版） | AI 网关、管理后台、房间/频道配置、席位禁言/请离/IP 黑名单、Play/Agent 宿主和 echo 夹具 |
 | 计划中，v2.0 目标 | 功能组装、宿主身份与频道授权、嵌入页面及接入 SDK、基础治理闭环、官方狼人杀 |
 
 **当前还没有可直接使用的嵌入 SDK 或宿主身份接口。** v2.0 以独立服务＋现成界面＋接入 SDK 为主要交付形态，先接入预建频道，支持品牌与布局配置。部署服务、配置宿主信任关系、复制少量接入代码即可使用，是我们对“一键接入”的目标定义。
 
-默认临时模式始终保留；狼人杀作为官方完整 Play 示例，与基础设施并行开发，并在 v2.0 前完成。阶段与暂缓范围见 [路线图](ROADMAP.md)，接口边界见 [集成设计（规划中）](docs/integration.md)。本文后续配置和主分支能力说明以当前代码为准，使用稳定标签时请阅读对应标签文档。
+默认临时模式始终保留；狼人杀作为官方完整 Play 示例，与基础设施并行开发，并在 v2.0 前完成。阶段与暂缓范围见 [路线图](ROADMAP.md)，接口边界见 [集成设计（规划中）](docs/integration.md)。本文配置和能力说明以当前稳定版为准。
 
 ## 设计原则
 
@@ -74,7 +74,7 @@ Pavilo（**Pavilion + Local**）是浏览器即用、默认临时、可自托管
 - 精心设计的**色彩系统**和间距规范，详见 [设计语言文档](docs/design-language.md)
 - 图标来自自托管的 [Lucide](https://lucide.dev)（`vendor/lucide`，ISC 许可）
 - 表情选择器来自自托管的 `vendor/emoji-picker`（Apache-2.0 许可）
-- 服务端静态白名单提供聊天页、样式、明确列出的 `client/` 模块及所需的 `vendor/` 资源；主分支另按启用状态提供后台与玩法资源，不提供任意仓库文件
+- 服务端静态白名单提供聊天页、样式、明确列出的 `client/` 模块及所需的 `vendor/` 资源；sqlite 且配置了 operator token 时另提供值班台，启用玩法时另提供该玩法的 `page/` 与 `assets/`，不提供任意仓库文件
 - 静态文本资源按 `Accept-Encoding` 协商 gzip，压缩结果按 ETag 缓存，响应带 `Vary: Accept-Encoding`；不支持 gzip 的客户端仍收到原始字节
 
 **可靠性**
@@ -86,12 +86,20 @@ Pavilo（**Pavilion + Local**）是浏览器即用、默认临时、可自托管
 - YAML 配置使用版本、严格类型、未知键、重复键、别名和交叉容量校验
 - **Protocol v4 only**：`join.protocolVersion` 必须为 `4`。热升级后未刷新的标签页会提示刷新页面
 
+**值班台、网关与玩法（可选，默认关闭）**
+
+- sqlite 且 `operator.token` 至少 16 字符时可打开 `/admin`：总览、房间、聊天频道、人员席位、AI 网关
+- 房间、聊天频道、IP 黑名单可在值班台保存，立即生效；YAML 同段被认领后忽略，可恢复为配置文件。已打开的聊天页需刷新
+- 人员页管理当前进程的临时席位：禁言、请离、IP 黑名单。不是会员名录，也不是宿主身份
+- 模型渠道和 API key 只在值班台「AI 网关」配置，不写进 YAML；聊天核心不依赖 AI
+- 可选 `plays` 与 `channels[].play`（要求 sqlite）：进入玩法频道打开独立玩法页。仓库内 `echo` 是契约夹具，默认不要启用；官方狼人杀仍由协作者开发
+
 **当前只读边界**
 
 - 消息发出后不可编辑或删除，只能通过表情回应参与
 - 默认无历史持久化（可在 Config Schema v2 中可选启用 SQLite，默认留存 30 天）；无私聊、搜索、账号或角色权限
 - `enabled: false` 的频道完全不可加入；`readOnly: true` 的频道可以加入、浏览历史、使用表情回应，但所有人都不能发消息（没有例外，也没有管理员豁免）
-- 只读频道适合公告、规则等由部署者在配置中维护的内容；改完需要重启服务
+- 只读频道适合公告、规则等由部署者维护的内容；改 YAML 后需重启，值班台保存聊天频道后立即生效（已打开的页面需刷新）
 
 **提醒（渐进式）**
 
@@ -269,9 +277,10 @@ PAVILO_PLAYWRIGHT_PATH=/tmp/pavilo-browser-verify/node_modules/playwright npm ru
 - [架构原则](docs/architecture/principles.md) — 核心设计哲学与不变量
 - [架构演进](docs/evolution.md) — 未来扩展边界
 - [集成设计（规划中）](docs/integration.md) — 宿主身份、功能组装与嵌入 SDK 边界
-- [玩法契约](docs/play.md) — 主分支已落地的频道绑定与独立玩法页契约（尚未发布）
+- [玩法契约](docs/play.md) — 频道绑定与独立玩法页契约（v1.3）
 - [架构决策记录](docs/adr/) — 重大技术决策的背景与权衡
 - [产品路线图](ROADMAP.md) — 版本规划与发布门槛
+- [v1.3 收口清单](docs/v1.3-closeout.md) — 把主分支未发布能力收成 v1.3 的工作文档
 
 ## 项目结构
 
@@ -283,12 +292,12 @@ PAVILO_PLAYWRIGHT_PATH=/tmp/pavilo-browser-verify/node_modules/playwright npm ru
 ├── index.html          # 页面骨架、资源引用与启动入口
 ├── chat.css            # 页面样式（深色模式、玻璃态、微交互）
 ├── client/             # 协议、连接、状态、pending 与独立视图模块
-├── admin/              # 值班台页面（主分支已实现，尚未发布）
+├── admin/              # 值班台页面（sqlite + operator.token）
 ├── server.js           # 配置、core/transport 组合与兼容启动入口
 ├── src/core/           # 不依赖网络的房间、会话、命令与领域事件
 ├── src/storage/        # ConversationStore；npm run storage 维护 CLI
 ├── src/transport/      # HTTP 静态白名单、WebSocket 连接与帧协议
-├── src/gateway/        # 进程内 AI 网关（主分支已实现，尚未发布）
+├── src/gateway/        # 进程内 AI 网关（可选，默认关闭）
 ├── src/operator/       # 值班台鉴权、配置覆盖层与人员治理
 ├── src/play/           # Play/Agent 宿主
 ├── plays/              # echo 契约夹具；官方狼人杀目录仍为规划

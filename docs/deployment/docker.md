@@ -36,13 +36,15 @@ nano pavilo.yaml
 nano docker-compose.yml
 ```
 
-取消注释这一行：
+取消注释仓库 `docker-compose.yml` 里默认路径的挂载（工作目录是 `/app`）：
+
 ```yaml
 volumes:
-  - ./pavilo.yaml:/config/pavilo.yaml:ro
+  - ./pavilo.yaml:/app/pavilo.yaml:ro
 ```
 
-然后启动：
+SQLite 还要挂数据目录，并关掉 `read_only`（见下方「数据持久化」）。然后启动：
+
 ```bash
 docker compose up -d
 ```
@@ -269,11 +271,12 @@ services:
 
 默认镜像仍是零编译、纯内存：不挂卷，容器一停记录就没了。
 
-若启用 SQLite，复制留存示例并把数据目录挂出来：
+若启用 SQLite，复制留存示例、写入 `operator.token`（或设 `PAVILO_OPERATOR_TOKEN`），并把数据目录挂出来。**必须关掉 `read_only`**，否则数据库无法写入。
 
 ```bash
 cp pavilo.sqlite.example.yaml pavilo.yaml
 mkdir -p data
+openssl rand -hex 32    # 写入 pavilo.yaml 的 operator.token
 docker run -d \
   --name pavilo \
   -p 4173:4173 \
@@ -281,6 +284,10 @@ docker run -d \
   -v "$PWD/data:/app/data" \
   ghcr.io/caigg188/pavilo:latest
 ```
+
+Compose 等价写法：取消注释 `./pavilo.yaml:/app/pavilo.yaml:ro` 与 `./data:/app/data`，去掉 `read_only: true`。配置落在 `/app/pavilo.yaml` 时不必设 `PAVILO_CONFIG`。若把文件挂到别的路径，必须同时设置 `PAVILO_CONFIG` 指向同一路径。
+
+打开 `http://localhost:4173/admin` 配置模型渠道。sqlite 但没填 token 时聊天仍可用，管理页为 404。
 
 不要让两个 Pavilo 实例共享同一个 db 文件。默认镜像不编译 `better-sqlite3`；Node 22.5+ 走内置 `node:sqlite`。
 
@@ -334,7 +341,8 @@ Pavilo 支持以下环境变量：
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
 | `PORT` | 监听端口 | `4173` |
-| `PAVILO_CONFIG` | 配置文件路径 | 无（使用内置默认值） |
+| `PAVILO_CONFIG` | 配置文件路径 | 无（默认读工作目录 `./pavilo.yaml`，没有则用内置默认值） |
+| `PAVILO_OPERATOR_TOKEN` | 覆盖 `operator.token`；sqlite 下用于打开 `/admin` | 无 |
 
 示例：
 ```bash
@@ -415,7 +423,7 @@ docker compose up -d
 
 ```bash
 docker pull ghcr.io/caigg188/pavilo:latest
-# 或钉死版本：ghcr.io/caigg188/pavilo:1.0.0
+# 或钉死版本：ghcr.io/caigg188/pavilo:1.3.0
 
 # 停止旧容器
 docker stop pavilo
@@ -440,7 +448,7 @@ v1.x 标签会打 `latest`、`{{major}}.{{minor}}` 和主版本 `1`。不要用 
 - [ ] 配置反向代理（HTTPS + WebSocket）
 - [ ] 配置防火墙规则
 - [ ] 监控容器状态和资源使用
-- [ ] 备份配置文件（虽然无需备份数据）
+- [ ] 备份配置文件；sqlite 时另备份 `data/`（停服后 `npm run storage -- backup`）
 
 ---
 

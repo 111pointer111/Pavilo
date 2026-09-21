@@ -7,7 +7,7 @@
 | 状态 | 架构基础 |
 | --- | --- |
 | v1.2.0 已发布 | 无网络聊天 core、HTTP/WS transport、客户端 protocol/connection/state/pending 分层、memory/sqlite ConversationStore、SQLite 运维 |
-| 主分支已实现，未发布 | 进程内 Gateway、operator 后台与配置覆盖层、席位禁言/请离/IP 黑名单、Play/Agent 宿主及 echo 夹具 |
+| v1.3.0 已发布 | 进程内 Gateway、operator 后台与配置覆盖层、席位禁言/请离/IP 黑名单、Play/Agent 宿主及 echo 夹具 |
 | 计划中 | 组装目录、宿主稳定身份与授权、嵌入页/SDK、通用 Policy/Event 扩展、完整基础治理、官方狼人杀 |
 
 当前 `server.js` 组合各模块，导入不会监听端口或注册信号。`createChatServer` 是现有工厂入口，不等于已经交付可安装到任意 Node 应用的后端 SDK。现有前端连接和页面跳转以独立站点为中心，响应禁止 iframe 嵌入；临时会话不能直接承担宿主账号或长期封禁身份。

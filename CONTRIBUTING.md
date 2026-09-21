@@ -36,7 +36,7 @@ Pavilo 致力于为所有贡献者提供友好、尊重的环境。请遵循基�
 ### 重大变更
 
 如果你计划实现重大功能或架构变更，**请先开 Issue 讨论**，并先对照 [路线图](ROADMAP.md) 与 [集成设计（规划中）](docs/integration.md)：
-- 这是当前缺口、主分支未发布能力，还是 v2.0 规划？
+- 这是当前缺口、v1.3 已发布契约，还是 v2.0 规划？
 - 是否落在路线图「明确暂缓」范围？
 - 描述问题和你的解决方案
 - 等待维护者反馈后再投入大量时间编码
@@ -85,7 +85,7 @@ npm run config:check
 │   ├── core/           # 核心逻辑（不依赖网络）
 │   ├── storage/        # ConversationStore（默认 memory）
 │   ├── transport/      # HTTP / WebSocket 适配器
-│   ├── gateway/        # 进程内 AI 网关（主分支，未发布）
+│   ├── gateway/        # 进程内 AI 网关（可选，默认关闭）
 │   ├── operator/       # 值班台鉴权与配置覆盖层
 │   └── play/           # Play/Agent 宿主
 ├── admin/              # 值班台页面
@@ -103,6 +103,7 @@ npm run config:check
 - [集成设计（规划中）](docs/integration.md) — 宿主身份、组装与嵌入 SDK
 - [架构决策记录](docs/adr/) — 重大技术决策的背景
 - [产品路线图](ROADMAP.md) — 已发布 / 主分支已实现 / 计划中
+- [v1.3 收口清单](docs/v1.3-closeout.md) — 把主分支能力收成 v1.3 的工作文档
 
 ## 提交规范
 

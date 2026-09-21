@@ -2,9 +2,9 @@
 
 ## Status
 
-已接受（2026-09-20）；网关在主分支已实现，尚未发布。
+已接受（2026-09-20）；网关已随 v1.3.0 发布。
 
-2026-09-21 补充：下文 v1.4/v1.5 是原阶段背景，现行顺序见 [ADR-0008](0008-embeddable-composable-chat.md) 与路线图。管理页探测和 Play/Agent runtime 已是调用方；“唯一产品调用方”的描述仅记录网关最初落地时的范围。进程内网关、服务端密钥和 core 不依赖厂商的决策继续有效。
+2026-09-21 补充：下文 v1.4/v1.5 是原阶段背景，现行顺序见 [ADR-0008](0008-embeddable-composable-chat.md) 与路线图。当前调用方是管理页探测和 Play/Agent runtime。进程内网关、服务端密钥和 core 不依赖厂商的决策继续有效。
 
 ## Context
 
@@ -30,7 +30,7 @@ src/gateway  (preset · timeout · retry · usage · 密钥解包)
 OpenAI-compatible HTTP
 ```
 
-`server.js` 创建网关并注入到 operator HTTP。core 不知道网关存在。Protocol v4 不增加能力位。v1.3 **没有**聊天侧 Bot / `@mention` 自动回复；唯一产品调用方是管理页的连通性探测。`complete()` 作为给 v1.4/v1.5 的端口先冻结。
+`server.js` 创建网关并注入到 operator HTTP 与 Play runtime。core 不知道网关存在。Protocol v4 不增加能力位。v1.3 **没有**聊天侧 Bot / `@mention` 自动回复。当前调用方是管理页的连通性探测和 Play/Agent runtime。`complete()` 继续作为后续可选审核等端口。
 
 ### 调用口
 
@@ -103,5 +103,5 @@ Authorization: Bearer {apiKey}
 
 ### 未来工作
 
-- v1.4 视觉：messages content 改为 OpenAI 的 array 形状，不改网关边界。
-- v1.5 Play host 只通过网关调模型，不直连供应商。
+- Play/Agent 已通过 `runtime.complete()` 调网关，不直连供应商。
+- 后续可选视觉审核：messages content 改为 OpenAI 的 array 形状，不改网关边界。

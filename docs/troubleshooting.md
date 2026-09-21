@@ -553,6 +553,50 @@ Error: EACCES: permission denied, bind
 
 ---
 
+### 管理后台与网关
+
+#### ❌ 打开 `/admin` 是 404
+
+**原因**：管理页只在 **sqlite 且 `operator.token` 至少 16 字符** 时存在。memory 模式、sqlite 但没填 token、token 过短，都和未知路径一样返回 404。
+
+**解决方案**：
+
+1. 使用留存示例并生成口令：
+   ```bash
+   cp pavilo.sqlite.example.yaml pavilo.yaml
+   mkdir -p data
+   openssl rand -hex 32    # 写入 operator.token
+   # 或：export PAVILO_OPERATOR_TOKEN=$(openssl rand -hex 32)
+   npm run config:check
+   npm start
+   ```
+2. 启动日志若出现「未配置 operator.token，无法打开 /admin」，聊天仍可用，只是没有值班台。
+3. 不要在 `version: 1` 或 memory 的 v2 配置里写 `operator` / `plays`，校验会拒绝。
+
+#### ❌ 能打开登录页但无法登录
+
+**原因**：token 与配置不一致、进程重启后 session 失效、或状态改变请求缺少合法 Origin。
+
+**解决方案**：
+
+1. 确认 YAML `operator.token` 与 `PAVILO_OPERATOR_TOKEN` 的优先级：环境变量会覆盖文件。
+2. 重启过服务必须重新登录；operator session 只在进程内存。
+3. 经反向代理时，浏览器 Origin 必须是页面本身或 `allowedOrigins` 中的来源。
+
+#### ❌ 更换 operator.token 后模型渠道报密钥错误
+
+**原因**：管理页写入的 API key 用当前 token 派生的 AES-256-GCM 密文。换 token 后旧密文解不开。
+
+**解决方案**：在 `/admin` → AI 网关 → 模型渠道里重新填写 API key。只拷走 `.db` 读不出明文。
+
+#### ❌ 聊天页看不到刚在值班台改的房间或频道
+
+**原因**：覆盖层保存后对新加入立即生效，已打开的聊天页不推目录事件，需要刷新。
+
+**解决方案**：刷新聊天页。不要期望热推频道列表；那是后续协议工作，不是故障。
+
+---
+
 ### Docker 问题
 
 #### ❌ 容器无法启动
@@ -813,7 +857,7 @@ fi
 **实际**：
 - 默认使用内存存储（ephemeral mode）
 - 服务停止后数据清空是设计特性
-- 未来版本可选 SQLite 持久化
+- SQLite 留存从 v1.1 起可选；管理页、网关和玩法要求 sqlite，默认部署仍不需要数据库
 
 ### ❌ 误解：只能在局域网使用
 

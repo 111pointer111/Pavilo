@@ -204,7 +204,7 @@ COMMANDS = { JOIN: 'join', MESSAGE: 'message', REACTION: 'reaction',
 服务端事件分为两组（`client/protocol.js`）：
 
 - **同步阶段事件** `SYNC_EVENTS`：`stateStart`、`history`、`historyEnd`；
-- **实时事件** `DEFERRED_EVENTS`：`presence`、`message`、`reaction`、`typing`、`channelOccupancy`、`ack`、`error`。同步进行中到达的这些事件会被当前客户端暂存，收到 `historyEnd` 后再按序处理。
+- **实时事件** `DEFERRED_EVENTS`：`presence`、`message`、`reaction`、`typing`、`channelOccupancy`、`playState`、`ack`、`error`、`moderation`。同步进行中到达的这些事件会被当前客户端暂存，收到 `historyEnd` 后再按序处理。`playState` 仅在当前频道绑定玩法时出现，信封见 [play.md](../play.md)。`moderation` 只发给当事席。
 
 同步期间，除 `leave` 外的客户端命令一律返回 `SYNC_IN_PROGRESS`。
 
@@ -218,7 +218,7 @@ COMMANDS = { JOIN: 'join', MESSAGE: 'message', REACTION: 'reaction',
 {
   "type": "stateStart",
   "protocolVersion": 4,
-  "capabilities": ["ack", "historyChunks", "roomEpoch", "reconnect", "reactions", "typingLease", "mentions", "channelOccupancy"],
+  "capabilities": ["ack", "historyChunks", "roomEpoch", "reconnect", "reactions", "typingLease", "mentions", "channelOccupancy", "historyPage"],
   "roomEpoch": "room-general_4efe0d43ef23052f",
   "roomStartedAt": 1700000000000,
   "latestSeq": 42,
@@ -247,7 +247,7 @@ COMMANDS = { JOIN: 'join', MESSAGE: 'message', REACTION: 'reaction',
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `protocolVersion` | number | 服务端协议版本，v4 |
-| `capabilities` | array | 服务端能力列表，含 `channelOccupancy` |
+| `capabilities` | array | 服务端能力列表，含 `channelOccupancy`、`historyPage`；当前频道绑了玩法时另有 `play` |
 | `roomEpoch` | string | 当前频道的 epoch |
 | `roomStartedAt` | number | 频道创建时间戳 |
 | `latestSeq` | number | 快照时刻的频道序号 |
@@ -506,6 +506,8 @@ v4 专有，向所有已加入的 v4 客户端广播完整摘要；只含频道 
 | `INVALID_REACTION` | `messageId`、`emoji` 或 `active` 不合法 |
 | `MESSAGE_GONE` | 回应目标消息已被淘汰 |
 | `PAYLOAD_TOO_LARGE` | 服务端要发送的负载超过 `maxJsonBytes`，回退为错误帧 |
+| `PLAY_NOT_BOUND` | 当前频道没有绑定玩法时发送了 `playAction` |
+| `PLAY_ACTION_REJECTED` | 玩法拒绝该动作（非法、非当前回合等） |
 
 ---
 
