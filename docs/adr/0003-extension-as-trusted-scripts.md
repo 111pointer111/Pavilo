@@ -2,7 +2,11 @@
 
 ## Status
 
-已接受（2026-09-15）
+已接受（2026-09-15）；2026-09-21 **部分被 [ADR-0008](0008-embeddable-composable-chat.md) 替代**。
+
+可信脚本、无沙箱的加载模型保留。下文版本安排、Extension API/YAML、厂商 SDK 直连和生态推演是历史提案，不能作为当前可运行教程；通用 Policy/Event 装载接口尚未实现。实际 Play 契约见 [docs/play.md](../play.md)，Agent 调用当前进程内网关。
+
+新的身份/授权/审核/事件/Play 边界、SDK 分发和兼容测试要求以 ADR-0008 为准。不建设第三方插件市场，不等于不分发官方 npm 接入 SDK。文中关于 try/catch 或超时的讨论不构成无限循环、恶意系统访问或进程退出的隔离承诺。
 
 ## Context
 

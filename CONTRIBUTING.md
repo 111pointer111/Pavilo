@@ -1,5 +1,7 @@
 # 贡献指南
 
+Pavilo 正从独立临时聊天室演进为可组装、可嵌入的聊天能力。维护者建设基础设施与完整参考，社区按契约开发玩法和扩展；目标用户包括独立使用者、个人开发者和小型社区。先阅读 [路线图](ROADMAP.md) 和 [集成设计（规划中）](docs/integration.md)，区分现有契约与待实现能力。
+
 感谢你对 Pavilo 的关注！本文档将帮助你了解如何为项目做出贡献。
 
 ## 目录
@@ -264,7 +266,7 @@ Pavilo 的测试遵循以下层次（从多到少）：
 npm test
 
 # 运行特定测试文件
-node --test test/room.test.js
+node --test test/core.test.js
 
 # 运行浏览器测试（需要 Playwright）
 npm run test:browser
@@ -301,6 +303,14 @@ src/core
 - ❌ `src/core` → `openai`
 - ❌ `src/transport` → `src/storage`
 
+### 贡献入口与验收
+
+- 聊天内核、身份/权限、配置组装、嵌入 SDK、治理和发布工程按路线图阶段推进；规划中的接口不按旧 ADR 示例直接调用。
+- Play 优先只修改自己的目录。官方狼人杀与基础设施并行，目标 v1.6 完成、v2.0 前交付完整参考；社区照同一契约开发更多玩法。
+- 身份、授权、审核、事件与 Play 分别定义扩展面。新模块需声明依赖、配置与生命周期，补兼容和失败路径测试；暂不做插件市场。
+- 接入改动用普通产品和社区＋玩法两个示例验收；SDK 提供浏览器脚本、npm 分发、类型和原生 JS/React/Vue 最小示例。
+- 本文不会因为新增产品方向就授予所有玩法绕过契约修改内核的权限；真实缺口先讨论，再更新实现、测试和契约文档。
+
 ### 七大不变量
 
 1. **Ephemeral First** — 默认无数据库
@@ -309,22 +319,25 @@ src/core
 4. **Core Before Platform** — 核心保持小而确定
 5. **Compatibility Is a Feature** — 多类版本号独立演进
 6. **Safe by Construction** — 安全默认值
-7. **No Premature Generalization** — 真实需求出现后再抽象；玩法契约只收录狼人杀用到的端口
+7. **No Premature Generalization** — 以真实宿主接入与官方狼人杀验证边界，不提前建设通用平台
 
 详见 [架构原则](docs/architecture/principles.md)。
 
 ### 明确不做的事
 
-以下功能暂不考虑（至少到 v1.x）：
+以下能力不作为 v2.0 目标：
+
+- 无界面 SDK、任意组件替换、Node 后端库嵌入
+- 完整账号系统、宿主动态建频道接口、插件沙箱
 - 私聊
 - 多租户
 - 文件管理（只有图片）
 - 语音/视频
-- 原生 App
+- 原生 SDK 和系统推送（WebView 仅探索）
 - 玩法商店 / 通用游戏引擎
 - 插件市场
 
-如果你的 PR 涉及这些，很可能被拒绝。
+此类需求先在 Issue 说明真实场景，不挤占身份、组装、嵌入与治理主线。
 
 ## 何时写 ADR
 
@@ -341,10 +354,12 @@ ADR 模板和示例见 [docs/adr/README.md](docs/adr/README.md)。
 
 如果你的 PR 涉及以下变更，**必须同步更新文档**：
 
-- 新配置字段 → `pavilo.example.yaml` 与 `pavilo.sqlite.example.yaml` + README
+- 已实现的新配置字段 → 对应可运行示例、配置文档与中英文 README；规划字段只进入设计文档，不提前写入示例
 - Protocol 变更 → `docs/architecture/chat-protocol.md`
 - 新命令/事件 → Protocol 文档
-- 架构变更 → `docs/architecture/overview.md` 或新增 ADR
+- 当前架构变更 → `docs/architecture/overview.md` 与相关 ADR；未来边界 → 演进与集成设计
+- SDK/扩展接口 → 类型、示例、兼容声明、生命周期与失败路径测试
+- 产品阶段变更 → 路线图的“已发布 / 主分支已实现 / 计划中”状态，不改写历史发布记录
 
 ## 问题与讨论
 

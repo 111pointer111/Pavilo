@@ -1,5 +1,7 @@
 # 配置指南
 
+> 本文对应当前主分支配置。v1.2.0 是最新稳定版；operator、Play 和人员治理等主分支新增能力尚未发布。未来的功能组装、宿主身份与嵌入设置见 [集成设计（规划中）](integration.md)，其字段尚未定义，不要写入当前 YAML。
+
 本文档逐项说明 Pavilo 的全部配置项。
 
 > **事实来源**：本文的字段名、默认值与语义均取自 [`pavilo.example.yaml`](../pavilo.example.yaml)、[`pavilo.sqlite.example.yaml`](../pavilo.sqlite.example.yaml) 与配置加载器实现。Pavilo 使用**严格 schema**：未知配置项、重复键、未知 tag、锚点/别名和非对象根节点都会被拒绝并导致启动失败。因此**不要使用本文档之外的字段名**。

@@ -1,6 +1,8 @@
 # 模块边界
 
-本文档记录 Pavilo 当前架构的模块边界与职责划分。基础聊天采用结构化设计，不依赖构建工具、前端框架、数据库或新 WebSocket 库。配置默认值、Protocol v4、CSS 和页面 DOM 保持既有契约。详见 [聊天协议](chat-protocol.md)、[状态模型](state-model.md)。
+> 状态：描述当前主分支代码。最新稳定标签为 v1.2.0；网关、管理后台、人员治理和 Play/Agent 宿主属于未发布实现。功能组装、宿主身份、嵌入 SDK 和完整治理尚在规划，见 [架构演进](../evolution.md) 与 [集成设计](../integration.md)。
+
+本文档记录 Pavilo 当前架构的模块边界与职责划分。基础聊天采用结构化设计，默认内存模式不需要数据库，前端不依赖构建工具或框架；SQLite、网关与玩法按现有配置显式启用。配置默认值、Protocol v4、CSS 和页面 DOM 保持既有契约。详见 [聊天协议](chat-protocol.md)、[状态模型](state-model.md)。
 
 ## 客户端
 
@@ -92,7 +94,7 @@ const result = core.dispatch('peer-1', command);
 - loader：trusted `require`，校验 `play.json` / `host.js` / `page/index.html`
 - runtime：同步状态机 + 异步 Agent 回合（`onEffects`）
 - `createPlayAgent(spec)`：`legalActions` 硬约束
-- 记忆：memory 或 sqlite `play_games` / `play_agent_memory`
+- 记忆：内部有 memory/sqlite 实现；产品配置启用玩法要求 SQLite（`play_games` / `play_agent_memory`），不提供 memory 模式玩法开关
 - HTTP：`/plays/<id>/` 只挂 `page/` 与 `assets/`
 - 契约：[`docs/play.md`](../play.md)、ADR-0006
 
@@ -116,4 +118,4 @@ const result = core.dispatch('peer-1', command);
 - `npm run test:browser`：独立 Google Chrome/Playwright 双页面验收；Playwright 由仓库外安装提供，见 README。
 - `npm run config:check` 与 `node --check`：配置和源码语法检查。
 
-本次未把旧测试强制搬到新目录，避免改变默认发现规则。`test/browser/` 独立执行，不让默认 Node 测试隐式依赖浏览器。CI、Node 版本矩阵、Docker、真实移动输入法/局域网/代理和压力测试仍属于后续阶段；不以本次模块化声称它们已经完成。
+`test/browser/` 独立执行，不让默认 Node 测试隐式依赖浏览器。仓库已有 CI、Node 22/24/26 矩阵、Docker 和发布工作流；当前 Node 24/26 测试与浏览器 job 仍允许失败。v2.0 计划将支持版本矩阵与关键浏览器验收设为发布门槛，实际移动输入法、局域网、代理和容量验收需按发布记录说明，不以工作流存在代替结果。

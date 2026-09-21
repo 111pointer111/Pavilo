@@ -8,7 +8,7 @@
 
 **English** · [简体中文](README.md)
 
-Pavilo (**Pavilion + Local**) is a minimal, self-hosted group chat that runs in the browser and is ephemeral by default. Like a small pavilion you can put up anywhere: start a Node.js process, and anyone on the same local network can open a web page and talk. When the service stops, everything returns to blank.
+Pavilo (**Pavilion + Local**) is a lightweight, self-hosted chat tool that runs in the browser, is ephemeral by default, and is evolving toward composable chat and play capabilities that developers can embed in their products. Like a small pavilion you can put up anywhere: start a Node.js process, and anyone on the same local network can open a web page and talk. In the default memory mode, chat history disappears when the service stops.
 
 <p align="center">
   <img alt="Version" src="https://img.shields.io/badge/version-1.2.0-0f7772">
@@ -23,13 +23,29 @@ Current version: **v1.2.0** — ephemeral group chat by default; optional SQLite
   <img src="docs/screenshots/overview.png" width="880" alt="Pavilo preview: desktop chat, login, and mobile">
 </p>
 
+## Who it serves and where it is going
+
+- **Standalone users**: a browser-ready chat room for a LAN, event, or private team, with no persistence by default and optional SQLite retention.
+- **Independent developers and small community maintainers**: planned integration with existing sign-in, a ready-made chat UI, and optional chat features, governance, and plays.
+- **Play and extension contributors**: contracts for Play, Agent, moderation policies, and event extensions; maintainers provide infrastructure and a complete reference play.
+
+| Status | Capabilities |
+| --- | --- |
+| Released: v1.2.0 | Ephemeral chat, optional SQLite retention, paging, backup, and storage operations |
+| Implemented on main, unreleased | AI gateway, admin console, room/channel configuration, seat mute/kick and IP denylist, Play/Agent host, and echo fixture |
+| Planned for v2.0 | Feature composition, host identity and channel authorization, embedded page and integration SDK, basic governance workflow, and official Werewolf |
+
+**An embedding SDK and host-identity API are not available yet.** The v2.0 target is a standalone service plus a ready-made UI and integration SDK, initially using pre-created channels and brand/layout settings. “Easy integration” means deploying Pavilo, configuring host trust, and adding a small amount of integration code without editing Pavilo source.
+
+The default ephemeral mode remains a first-class mode. Official Werewolf is planned as a complete Play reference, developed alongside the infrastructure and required before v2.0. See the [roadmap](ROADMAP.md) and [integration design (planned)](docs/integration.md) for milestones and boundaries. Configuration and main-branch capabilities below describe the current checkout; stable-tag users should read documentation at that tag.
+
 ## Design principles
 
 - **Works out of the box** — one command after install; participants only need a browser.
-- **Stays lightweight** — the server uses Node.js built-in modules, with `yaml` as the only dependency; all front-end assets are self-hosted.
-- **Ephemeral first** — no database, no chat logs on disk. Stopping the service clears the room.
+- **Stays lightweight** — the server uses Node.js built-in modules, with `yaml` as the only required runtime dependency and `better-sqlite3` as an optional SQLite driver; all front-end assets are self-hosted.
+- **Ephemeral first** — no database or persisted chat content by default; SQLite retention is an explicit choice.
 - **Deployer-controlled** — runs on your own machine or server; no external accounts or cloud services.
-- **Grows on demand** — persistence, permissions, and moderation arrive as optional capabilities later, without making the default deployment heavier.
+- **Grows on demand** — persistence is already optional; permissions, moderation, feature composition, and product integration are being developed without making the default deployment heavier.
 
 ## Features
 
@@ -47,7 +63,7 @@ Current version: **v1.2.0** — ephemeral group chat by default; optional SQLite
 - Randomly generated avatars; click one to see username, IP (shown by default, configurable), and online duration
 - Online member list, join/leave notices, and typing indicators
 - Images open in an in-page viewer: zoom, rotate, reset, download; arrow keys page through multiple images; drag to pan and scroll to zoom on desktop
-- Reactions are fixed to six emoji (👍 ❤️ 😂 🎉  🔥)
+- Reactions are fixed to six emoji (👍 ❤️ 😂 🎉 👀 🔥)
 - Responsive mobile layout, keyboard operation, and reduced-motion support
 
 **Interface and assets**
@@ -58,7 +74,7 @@ Current version: **v1.2.0** — ephemeral group chat by default; optional SQLite
 - A considered color and spacing system — see the [design language doc](docs/design-language.md) (Chinese)
 - Icons from self-hosted [Lucide](https://lucide.dev) (`vendor/lucide`, ISC)
 - Emoji picker from self-hosted `vendor/emoji-picker` (Apache-2.0)
-- The static allowlist serves only the chat page, stylesheet, explicitly listed `client/` modules, and required `vendor/` assets — never arbitrary repository files
+- The static allowlist serves the chat page, stylesheet, explicitly listed `client/` modules, and required `vendor/` assets; main also serves admin and play assets when enabled, never arbitrary repository files
 - Text assets negotiate gzip via `Accept-Encoding`, cache by ETag, and send `Vary: Accept-Encoding`; clients without gzip still receive raw bytes
 
 **Reliability**
@@ -66,7 +82,7 @@ Current version: **v1.2.0** — ephemeral group chat by default; optional SQLite
 - Messages are acknowledged by the server (ACK); unacknowledged or failed content can be retried in the same page
 - Identical message IDs are deduplicated, and brief disconnects or reloads restore your ephemeral identity
 - Images are downsampled in the browser to a 1600 px long edge and encoded at a quality that converges between 0.5–0.82 to fit the size budget; GIFs keep their animation and are never downsampled, but share the same size cap
-- A graceful shutdown returns the page to the login state; an unexpected disconnect keeps reconnecting. A new process produces a new channel epoch, so stale unacknowledged content is never silently delivered into the new room
+- A graceful shutdown returns the page to the login state; an unexpected disconnect keeps reconnecting. A new memory-mode process produces a new channel epoch; SQLite keeps it across normal restarts. When the epoch changes, stale unacknowledged content is never silently delivered into the new room
 - YAML configuration is validated for version, strict types, unknown keys, duplicate keys, aliases, and cross-field capacity relationships
 - **Protocol v4 only**: `join.protocolVersion` must be `4`. An unrefreshed tab after a server upgrade is asked to reload
 
@@ -75,7 +91,7 @@ Current version: **v1.2.0** — ephemeral group chat by default; optional SQLite
 - Messages cannot be edited or deleted after sending; reactions are the only way to respond
 - History persistence is off by default (optional SQLite via Config Schema v2, 30-day retention); no direct messages, search, accounts, or role permissions
 - Channels with `enabled: false` cannot be joined at all; `readOnly: true` channels can be joined, read, and reacted to, but nobody can post (no exceptions, no admin bypass)
-- `config.js`, `pavilo.yaml`, and `index.html` are never served by the app
+- `config.js` and `pavilo.yaml` are never served by the app; `index.html` is the public chat entry point
 
 ## Quick start
 
@@ -198,13 +214,13 @@ Pavilo's HTTP server uses a static allowlist, so `pavilo.yaml`, `pavilo.example.
 
 ## Capacity and ephemeral data boundaries
 
-A message **ACK** means "this service process has accepted it" — not that every member received or read it. Default capacities include up to 300 messages of history per channel, roughly a 32 MB message budget, 300 KB per image, 64 members and 80 connections globally, 12 connections per IP, and a slow-connection write-buffer ceiling; when exceeded, the oldest messages are evicted first.
+A message **ACK** means acceptance by the current process in memory mode and is sent after transaction commit in SQLite mode. Neither means every member received or read it. Default capacities include up to 300 messages of history per channel, roughly a 32 MB message budget, 300 KB per image, 64 members and 80 connections globally, 12 connections per IP, and a slow-connection write-buffer ceiling; when exceeded, the oldest messages are evicted first.
 
 The per-image cap directly determines how many images a channel can hold: at 300 KB, about 79 images; at the old 1.5 MB default, only 16 — a single original photo would consume roughly 5% of a channel's capacity, so raising `limits.maxImageBytes` should be considered together with `limits.maxChannelBytes`. The client downsamples to a 1600 px long edge before upload, so phone photos are usually far below this cap; GIFs are not downsampled and may therefore be rejected.
 
 Validation ensures the largest base64 image / longest text message, the roster JSON at the global member cap, WebSocket frames, and the write buffer can all contain one another. These are conservative lower bounds that prevent self-contradictory configuration, not a memory-usage promise; raising member, image, history, or buffer limits significantly increases memory needs.
 
-**Ephemeral data**: sessions, presence, messages, and reactions exist only in the server process or the current browser page's memory. The browser does not use `localStorage`, Cache Storage, or IndexedDB for chat content. The only exception is the emoji picker's cached emoji data and frequently-used counts, which contain no chat content.
+**Ephemeral data**: sessions and presence remain runtime state. Messages and reactions are also ephemeral in memory mode; SQLite persists them according to retention settings. The browser does not use `localStorage`, Cache Storage, or IndexedDB for chat content. Language preferences use `localStorage`; cached emoji data and frequently-used counts use IndexedDB. Neither contains chat content.
 
 So that a reload stays in the chat, the current tab stores the room-issued random resume token and username in `sessionStorage` — never messages. It disappears when the tab closes, is cleared immediately by "Leave", and becomes invalid after a service restart.
 
@@ -212,7 +228,7 @@ So that a reload stays in the chat, the current tab stores the room-issued rando
 
 ## Running on a server
 
-Pavilo runs on any server that can execute Node.js, but **v0.x targets trusted networks only** (intranets, VPNs, or other private networks with access control). There is no account authentication, TLS, end-to-end encryption, or complete public-internet abuse protection — do not expose the port directly to the public internet.
+Pavilo runs on any server that can execute Node.js, but **the current deployment boundary remains trusted networks** (intranets, VPNs, or other private networks with access control). There is no chat-user authentication, built-in TLS, end-to-end encryption, or complete public-internet abuse protection — do not expose the port directly to the public internet.
 
 Member profiles show the full connection IP to channel participants by default; set `room.exposeMemberIps: false` to hide it. Either way, the service still needs connection IPs to enforce per-IP limits. Use it only in trusted environments.
 
@@ -245,7 +261,8 @@ Architecture decisions and evolution strategy:
 
 - [Architecture principles](docs/architecture/principles.md) — core philosophy and invariants
 - [Architecture evolution](docs/evolution.md) — future extension boundaries
-- [Play contract](docs/play.md) — channel binding and standalone play pages (draft until v1.5)
+- [Integration design (planned)](docs/integration.md) — host identity, feature composition, and embedding SDK boundaries
+- [Play contract](docs/play.md) — channel binding and standalone play pages implemented on main (unreleased)
 - [Architecture decision records](docs/adr/) — context and trade-offs behind major decisions
 - [Roadmap](ROADMAP.md) — version planning and release gates
 

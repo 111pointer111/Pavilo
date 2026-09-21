@@ -1,10 +1,10 @@
 # Play 契约
 
-本文是玩法贡献的冻结契约，不是 SDK。背景见 [ADR-0006](adr/0006-play-contract.md)、[evolution.md §11](evolution.md) 与 [ROADMAP v1.5](../ROADMAP.md)。
+本文是主分支已实现、尚未随稳定标签发布的玩法贡献契约，不是宿主应用接入 SDK。已有契约按冻结约束兼容演进。背景见 [ADR-0006](adr/0006-play-contract.md)、[架构演进](evolution.md) 与 [路线图](../ROADMAP.md)；新增产品方向见 [ADR-0008](adr/0008-embeddable-composable-chat.md)。
 
 > 聊天页是「没有玩法」的默认频道投影。玩法不是在气泡上打补丁。
 
-官方狼人杀尚未实现；契约用仓库内的 `plays/echo/` 夹具跑通。默认配置不启用 echo。
+官方狼人杀尚未实现；契约用仓库内的 `plays/echo/` 夹具跑通。默认配置不启用 echo。狼人杀与身份、组装及集成基础设施并行开发，目标 v1.6 完成，在 v2.0 前必须作为完整参考交付。
 
 ---
 
@@ -219,7 +219,7 @@ Agent 占座但没有 peer，因此 `post()` 不产生 ack，失败时只返回 
 
 `emit()` 里 `visibility: 'private'` 的快照**必须自带 `actorId`**：没有发起者可以回落。
 
-Host 抛错：该频道玩法标记故障，后续 `playAction` 返回 `PLAY_HOST_FAILED`；其它频道与普通聊天不受影响。
+Host 出现可捕获异常：该频道玩法标记故障，后续 `playAction` 返回 `PLAY_HOST_FAILED`；其它频道与普通聊天不受该失败路径影响。这不隔离无限循环、`process.exit` 或其它进程级故障，玩法仍是可信代码。
 
 Actor 形状：`{ id, username, kind: 'human'|'agent', role?, channelId }`。Agent 占频道座位，不占 WebSocket 连接数。
 
@@ -280,3 +280,12 @@ module.exports = createPlayAgent({
 - 不要做通用组件平台或规则 DSL；
 - 不要为尚未存在的玩法预留主题引擎；
 - 不要把 echo 当成给最终用户的游戏。
+
+
+## 11. 面向 v2.0 的贡献方向（规划中）
+
+当前独立玩法页、Protocol v4 和本页函数仍是实现依据。未来嵌入宿主将让聊天与玩法在同一嵌入区域切换，不跳走宿主页面；这不要求把玩法 UI 搬入聊天气泡，也不是玩法 iframe 市场。
+
+身份演进需验证稳定宿主用户与临时演员席位的关系、断线恢复、身份切换和私密视图；不要仅凭昵称恢复局内身份。公开发言继续使用主线命令路径，让人和 Agent 统一接受后续权限、限额与审核。上述宿主身份和审核接口尚未实现，勿据此调用虚构 API。
+
+新增真实缺口先在 Issue 说明并补契约测试；不能把已冻结的函数当作任意可破坏的内部代码。v2.0 的整体接入与扩展稳定化不重置既有兼容承诺。完整范围见 [集成设计](integration.md)。

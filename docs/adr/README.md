@@ -24,13 +24,14 @@ ADR 不是"所有技术选择的流水账"，而是**会影响未来 1-3 年架�
 |-----|------|------|------|
 | [0001](0001-protocol-v4-only-for-v1.md) | v1.0 只承诺 Protocol v4 | 已接受 | 2026-09-15 |
 | [0002](0002-sqlite-pragmatic-hybrid.md) | SQLite 驱动：node:sqlite 优先的实用主义方案 | 已接受 | 2026-09-15 |
-| [0003](0003-extension-as-trusted-scripts.md) | Extension 作为可信脚本，而非沙箱插件系统 | 已接受 | 2026-09-15 |
+| [0003](0003-extension-as-trusted-scripts.md) | Extension 作为可信脚本，而非沙箱插件系统 | 部分被 0008 替代，可信代码模型保留 | 2026-09-15 |
 | [0004](0004-operator-config-dual-source.md) | Operator 配置双源（YAML 启动 + SQLite 管理页） | 已接受 | 2026-09-20 |
 | [0005](0005-in-process-ai-gateway.md) | 进程内 AI 网关（preset、用量、非微服务） | 已接受 | 2026-09-20 |
 | [0006](0006-play-contract.md) | Play 契约（频道绑定、独立玩法页、Agent 基座） | 已接受 | 2026-09-20 |
 | [0007](0007-pavilion-config-overlay.md) | 房间与聊天频道的管理页覆盖层 | 已接受 | 2026-09-20 |
+| [0008](0008-embeddable-composable-chat.md) | 独立与嵌入共用的可组装聊天能力 | 已接受，待实施 | 2026-09-21 |
 
-ADR-0003 仍是加载模型：trusted script，不是沙箱。官方维护基础设施（网关、Play 契约）和参考实现（狼人杀）；其他玩法按 0006 的契约贡献，不另开商店。
+ADR-0003 的 trusted script 加载模型仍有效，旧版本安排与示意 API 不代表当前实现。ADR-0008 确立独立与嵌入双重定位、组装/身份/治理主线及狼人杀并行交付；0006 的已落地 Play 契约继续兼容维护，不另开商店。ADR 的“已接受”表示决策状态，不表示其所有接口都已发布；当前阶段以路线图为准。
 
 ## 编写指南
 

@@ -6,7 +6,7 @@ Pavilo 的重要变更都记在这份文件里。
 
 ## [Unreleased]
 
-进程内 AI 网关、Play 宿主与 Agent 基座。配置对外仍是两种部署：`version: 1` 内存、`version: 2` SQLite 家族。默认关闭。聊天核心不依赖 AI 或玩法。v1.4 内容审核不阻塞本期。官方狼人杀尚未实现。
+进程内 AI 网关、Play 宿主与 Agent 基座。配置对外仍是两种部署：`version: 1` 内存、`version: 2` SQLite 家族。默认关闭。聊天核心不依赖 AI 或玩法。内容审核不阻塞本期；后续阶段按更新后的路线图推进。官方狼人杀尚未实现。
 
 ### Added
 - Config Schema v2 放宽：sqlite 家族可写 `operator` 与 `plays`（不另开 v3/v4）。v1 继续合法
@@ -16,7 +16,7 @@ Pavilo 的重要变更都记在这份文件里。
 - SQLite migration 002：`gateway_channels` / `gateway_usage`；管理页写入的 API key 为 AES-256-GCM 密文
 - 网关 hang 时聊天 message 仍 ACK；`/healthz` 在网关启用时附加 `{ enabled, channels, degraded }`，不含密钥
 - `/admin`：operator token 登录、渠道编辑、密钥只写/掩码、连通性探测、近 7 日用量
-- [`docs/gateway.md`](docs/gateway.md)：密钥红线、`complete()` 给 v1.4/v1.5 的调用口
+- [`docs/gateway.md`](docs/gateway.md)：密钥红线、`complete()` 给 Play/Agent 与后续审核的调用口
 - [`docs/admin.md`](docs/admin.md)：语亭管理后台为壳、AI 网关为模块
 - ADR-0007：房间与聊天频道按段认领；默认跟 YAML，管理页保存后 SQLite 为准
 - SQLite migration 004：`operator_config`（`room` / `channels` JSON 覆盖层）
@@ -39,10 +39,11 @@ Pavilo 的重要变更都记在这份文件里。
 - `version: 1` 出现 `storage` / `operator` / `plays` 会拒绝；memory 下的 v2 写 `operator`/`plays` 会拒绝。任何版本出现 `gateway:` 都会被拒绝。`version: 3` 当作 v2 读入。模型渠道只在 `/admin` 写入 SQLite
 - sqlite 引擎由 composition 打开一次，聊天 store 与网关 store 共享连接
 - `/admin` 房间 / 聊天频道不再是预留页；`config:check` 与启动横幅标明每段真源
-- v1.4 内容审核不挡 Play 宿主开工；玩法公开发言仍走现有 `message`
+- 内容审核不挡 Play 宿主开工；玩法公开发言仍走现有 `message`
+- 更新产品与规划文档：独立聊天室与可嵌入聊天能力共用主线；v1.3–v2.0 按组装、宿主身份、嵌入与治理推进，官方狼人杀并行开发。新增集成设计和 ADR-0008；本次不实现未来功能或修改版本
 
 ### Tests
-- 总测试数：369 个（367 通过，2 跳过；浏览器契约测试需要本机 Playwright）
+- 2026-09-21 文档梳理基线：381 个 Node 测试，379 通过、2 跳过；本次未执行浏览器验收
 
 ## [1.2.0] - 2026-09-20
 

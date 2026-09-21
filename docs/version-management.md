@@ -1,569 +1,132 @@
 # 版本号管理流程
 
-本文档定义 Pavilo 的版本号管理规范和发布流程。
+本文规定版本兼容与发布流程；产品阶段以 [路线图](../ROADMAP.md) 为准。2026-09-21 的最新稳定标签是 v1.2.0，主分支有未发布能力。产品规划和纯文档更新不自动触发改版本、打标签或发布。
 
 ## 版本号规则
 
-Pavilo 从 v1.0.0 开始遵循 [语义化版本 2.0.0](https://semver.org/lang/zh-CN/)。
+Pavilo 从 v1.0 起采用语义化版本，格式为 `v{MAJOR}.{MINOR}.{PATCH}`，需要时使用预发布后缀：
 
-### 版本号格式
+- **PATCH**：兼容修复；文档变更可以随下一版本发布，不要求每次单独发版。
+- **MINOR**：兼容新能力或弃用提示；旧部署仍可运行。
+- **MAJOR**：允许需要迁移的不兼容变化，必须有明确变更、迁移和回滚说明。
 
-```
-v{MAJOR}.{MINOR}.{PATCH}[-{PRERELEASE}]
-```
+v2.0 是稳定集成能力的产品里程碑，允许集中调整身份、配置和公共边界。功能验收与兼容性审查共同决定发布，不能只有一次 breaking change 就宣称里程碑达标；也不为了主版本号人为制造破坏。决策见 [ADR-0008](adr/0008-embeddable-composable-chat.md)。
 
-### 版本号含义
+## 独立的版本维度
 
-- **MAJOR（主版本号）**：不兼容的 API 变更
-- **MINOR（次版本号）**：向后兼容的新功能
-- **PATCH（修订号）**：向后兼容的问题修复
+| 维度 | 当前基线或状态 | 演进规则 |
+| --- | --- | --- |
+| App | 1.2.0 最新稳定，主分支有未发布功能 | 每次实际发布记录版本与范围 |
+| Config Schema | 1 / 2，当前代码将 3 按 2 读取 | 保持已有合法配置的兼容承诺，字段以配置文档为准 |
+| WebSocket Protocol | 只接受 4 | v1.x 保持 Protocol v4；可选能力不等于新协议号 |
+| Database Schema | 当前主分支迁移文件独立编号 | 数据迁移与 App 版本分离，测试旧库升级 |
+| SDK | 规划中，尚无发布包 | 预览期标注实验状态；稳定后公布服务端兼容范围 |
+| 扩展契约 | 已有 Play 契约；通用扩展面规划中 | 已冻结 Play 继续兼容维护，新扩展面明确版本与测试 |
 
-### v1.0 之前的版本（Alpha/Beta）
+应用升主版本不要求所有维度同时升版。SQLite 已在 v1.1 作为兼容可选能力发布；不能再拿它作为未来 v2 的升级理由。v1–v3 WebSocket 已在 v1.0 前移除，不属于 v2 待移除内容。
 
-- `v0.x.y`：开发阶段，API 可能不稳定
-- `v1.0.0`：第一个稳定版本
+## 弃用、预览与迁移
 
-## 何时升级版本号
+- v1.x 保持既有 Protocol v4 和配置承诺。需要删除或重定义公共行为的变更进入 v2，先给弃用提示和迁移方案；通常至少保留 1–2 个 minor 的过渡期。
+- SDK 预览明确实验状态、适用服务版本和更新风险；新增预览标记不能撤销已有 Play 等契约的兼容承诺。
+- 身份迁移区分旧匿名作者、稳定用户、会话和 Agent 席位，不按相同昵称自动合并身份。
+- 每项 breaking change 记录旧行为、新行为、触发条件、配置/数据/客户端影响、升级步骤和回滚条件。
+- 数据库升级前验证备份；回滚使用兼容数据格式或升级前备份，不默认把新库交给旧进程。
+- 当前没有 `pavilo-migrate` 工具、已确定的新协议号或通用 v1→v2 配置迁移器；不得在教程中给出虚构可执行命令。
 
-### 升级 PATCH（修订号）
-
-**触发条件**：
-- Bug 修复
-- 安全漏洞修复
-- 性能优化（不改变 API）
-- 文档更新（不涉及功能变更）
-
-**示例**：
-- `v1.2.3` → `v1.2.4`：修复消息发送失败问题
-- `v1.2.4` → `v1.2.5`：修复安全漏洞 CVE-2024-XXXX
-
-**注意事项**：
-- 不应包含新功能
-- 不应改变现有行为（除非是修复 Bug）
-- 不应更改 API
-
-### 升级 MINOR（次版本号）
-
-**触发条件**：
-- 添加新功能（向后兼容）
-- 标记已有功能为 deprecated（但不移除）
-- 内部实现大幅改进
-- 添加新的配置选项（有默认值）
-
-**示例**：
-- `v1.2.5` → `v1.3.0`：添加 SQLite 持久化支持
-- `v1.3.0` → `v1.4.0`：添加用户认证功能
-
-**注意事项**：
-- PATCH 重置为 0
-- 旧功能必须继续工作
-- 新功能可选，不影响现有用户
-
-### 升级 MAJOR（主版本号）
-
-**触发条件**：
-- 移除已 deprecated 的功能
-- 更改现有 API 行为
-- 配置文件格式不兼容
-- 需要用户手动迁移
-
-**示例**：
-- `v1.9.0` → `v2.0.0`：移除 Protocol v1/v2/v3 支持
-- `v2.5.0` → `v3.0.0`：配置文件格式改为 TOML
-
-**注意事项**：
-- MINOR 和 PATCH 重置为 0
-- 必须提供迁移指南
-- 充分的废弃期（至少 1-2 个 MINOR 版本）
-
-## Pavilo 的四类版本
-
-Pavilo 同时维护四类版本号，各自独立演进：
-
-| 版本类型 | 示例 | 位置 | 说明 |
-|---------|------|------|------|
-| App Version | `1.2.3` | `package.json` | 发布版本 |
-| Config Schema | `1` / `2` | YAML `version:` | 配置文件格式 |
-| WebSocket Protocol | `4` / `5` | 握手时协商 | 客户端-服务端协议 |
-| Database Schema | `1` / `2` | 迁移脚本 | SQLite 内部版本 |
-
-### 版本关系示例
-
-```
-App v1.5.0
-├─ Config Schema v1 (兼容)
-├─ WebSocket Protocol v4 (支持 v3 向后兼容)
-└─ Database Schema v2 (从 v1 自动迁移)
-
-App v2.0.0
-├─ Config Schema v2 (不兼容，需迁移)
-├─ WebSocket Protocol v5 (移除 v3 支持)
-└─ Database Schema v3 (从 v1/v2 自动迁移)
-```
-
-### 重要原则
-
-- **SQLite 本身不等于 v2.0**
-  - 如果默认行为仍为 memory mode
-  - 如果旧配置继续可运行
-  - 那么加入 SQLite 适合作为 `v1.1.0`
-
-- **Protocol 升级不强制 MAJOR**
-  - 如果向后兼容（支持旧协议）
-  - 那么 Protocol v5 可以在 `v1.x.0` 中引入
+未来可使用 beta/rc 验证 SDK 和 v2 迁移。**当前 GHCR 工作流的 `latest` 条件只排除 v0，并未排除带预发布后缀的 v1/v2 标签**；正式采用预发布前必须先修正并验证镜像标签规则，避免覆盖稳定入口。本次文档更新不改工作流、不创建预发布。
 
 ## 发布流程
 
-### 1. 准备发布
+### 1. 确认范围与版本
 
-#### 1.1 确认版本号
-
-根据变更内容确定版本号：
+读取最新稳定标签、CHANGELOG 的 Unreleased、实际 diff 和路线图门槛。下列命令仅查看状态：
 
 ```bash
-# 查看自上次发布以来的变更
-git log v0.5.0..HEAD --oneline
-
-# 确定版本号类型
-# - 只有 fix/docs/test？→ PATCH
-# - 有 feat？→ MINOR
-# - 有 breaking change？→ MAJOR
+git describe --tags --abbrev=0
+git log --oneline --decorate -20
+git status --short
 ```
 
-#### 1.2 更新 CHANGELOG
+确认每项是已发布、主分支已实现还是计划中。模块已合并不等于版本已发布，不用路线图勾选替代标签/Release 事实。
 
-在 `CHANGELOG.md` 中：
-
-```markdown
-## [Unreleased]
-
-## [0.6.0] - 2024-12-19
-
-### Added
-- 功能 A
-- 功能 B
-
-### Changed
-- 变更 A
-
-### Fixed
-- 修复 A (#123)
-- 修复 B (#456)
-
-### Security
-- 安全修复 A
-
-### Deprecated
-- 废弃 API A（将在 v0.8.0 移除）
-```
-
-**分类说明**：
-- `Added` - 新功能
-- `Changed` - 功能变更
-- `Deprecated` - 即将废弃
-- `Removed` - 已移除功能
-- `Fixed` - Bug 修复
-- `Security` - 安全修复
-
-#### 1.3 更新 package.json
+### 2. 完成验证
 
 ```bash
-# 手动编辑 package.json
-vim package.json
-
-# 或使用 npm version（自动创建 commit 和 tag）
-npm version minor -m "chore: release v%s"
+npm ci
+npm run config:check
+npm test
+node --check config.js
+node --check server.js
+npm audit --audit-level=high
 ```
 
-#### 1.4 更新 ROADMAP.md
-
-标记当前版本为已完成：
-
-```markdown
-## v0.6.0 — Quality Assurance（已完成）
-
-### 发布门槛（✅ 全部满足）
-
-- ✅ Issue 模板完善
-- ✅ Bug 修复流程文档化
-- ✅ 版本号管理流程明确
-```
-
-### 2. 提交和打标签
-
-#### 2.1 提交版本变更
+浏览器验收单独运行，按 [README](../README.md) 准备 Playwright 与 Chrome：
 
 ```bash
-# 添加所有版本相关文件
-git add CHANGELOG.md package.json ROADMAP.md
-
-# 提交（使用规范格式）
-git commit -m "chore(release): v0.6.0
-
-- 新增 Issue 模板
-- 新增 Bug 分类和修复流程文档
-- 新增版本号管理流程文档
-
-详见 CHANGELOG.md"
+npm run test:browser
 ```
 
-#### 2.2 创建 Git 标签
+按变更范围验证可运行示例配置、SQLite 升级与备份恢复、源码与 Docker 启停。SDK 交付后，额外验证发布产物、类型声明、干净环境示例和兼容服务版本。
 
-```bash
-# 创建带注释的标签
-git tag -a v0.6.0 -m "Release v0.6.0: Quality Assurance
+不能把跳过的测试写成通过；发布说明记录环境、通过/失败/跳过和未执行项。测试数量会变化，不将历史总数作为门槛。
 
-主要更新：
-- Issue 模板（Bug 报告、功能请求、安全问题）
-- Bug 分类和优先级标准
-- Bug 修复 Checklist
-- 版本号管理流程
+### 3. 更新发布材料
 
-详见 CHANGELOG.md"
+- 将真正交付的 Unreleased 条目整理成对应版本的 Added/Changed/Fixed/Security/Deprecated/Removed；计划中功能继续留在路线图。
+- 同步 `package.json`、锁文件版本、README 徽章与当前版本说明；只在实际准备发布时改版本。
+- 路线图区分“代码已完成，待发布”和“已发布”，中英文 README 同步。
+- 记录配置、协议、数据、SDK 与扩展的兼容范围和迁移步骤。
+- 新功能的文档和示例指向实际可用接口，旧版本发布记录不改写。
 
-# 查看标签
-git tag -n9 v0.6.0
-```
+### 4. 提交、打标签与验证产物
 
-#### 2.3 推送到远程
+提交前审查 diff，只提交本次发布相关变更。确定最终版本号后，在经过检查的提交上创建同名 annotated tag 并推送；推送标签会触发外部发布，应属于明确的发布任务。
 
-```bash
-# 推送代码
-git push origin main
+当前自动化：
 
-# 推送标签
-git push origin v0.6.0
-```
+- [Release](../.github/workflows/release.yml)：`v*.*.*` 标签触发，Node 22 安装、audit、测试后创建 GitHub Release。
+- [GHCR](../.github/workflows/ghcr.yml)：标签触发独立镜像构建/推送，支持 amd64/arm64；目前并不等待 Release job 的测试结果。
+- [CI](../.github/workflows/ci.yml)：Node 22/24/26 矩阵；24/26 测试和浏览器 job 当前允许失败。
 
-### 3. 自动发布
+所以“已有工作流”不等于“所有产物均受完整门槛保护”。发布前人工核对检查与标签条件，发布后验证 Release、镜像标签与拉取启动；v2 前将检查和产物发布顺序改成实际阻塞关系。
 
-推送标签后，GitHub Actions 会自动：
+### 5. 发布后处理
 
-1. 触发 `.github/workflows/release.yml`
-2. 运行测试
-3. 创建 GitHub Release
-4. 附加 CHANGELOG 内容
+稳定发布后更新路线图状态和下期优先级。发现已发布产物有误，优先通过补丁版本和更正说明修复，不静默重写公共标签或历史记录。未发布标签错误可在确认没有外部消费者后另行处理。
 
-### 4. 验证发布
+## v2.0 发布门槛（待建设）
 
-```bash
-# 检查 GitHub Release
-gh release list
-
-# 查看最新 Release
-gh release view v0.6.0
-
-# 或访问
-# https://github.com/{user}/{repo}/releases/tag/v0.6.0
-```
-
-### 5. 宣布发布
-
-- [ ] 更新 README（如果有重要变更）
-- [ ] 在 Discussions 发布公告
-- [ ] 更新官方文档
-- [ ] 通知重要用户（如果是重大版本）
-
-## Release Checklist
-
-打标签前：
-
-- [ ] `package.json` 版本号与 CHANGELOG 标题一致
-- [ ] ROADMAP 对应版本已标记完成
-- [ ] `npm ci && npm test && npm run config:check` 通过
-- [ ] `npm audit --audit-level=high` 无高危
-- [ ] README / README.en.md 版本号与协议说明已更新
-- [ ] 协议、`/room-info`、`/healthz` 文档与实现一致
-- [ ] SECURITY.md 联系方式不是占位符
-- [ ] breaking change 写在 CHANGELOG 的 Removed/Changed，并有迁移说明
-
-打标签后：
-
-- [ ] GitHub Release 已创建（v0.x 为 pre-release）
-- [ ] GHCR 镜像标签符合策略：SemVer 发布带 `{{version}}`、`{{major}}.{{minor}}` 和 `latest`；`{{major}}`（如 `1`）从 v1.0 起打
-- [ ] 手工更新 GitHub Description / Topics（不进代码仓库）
-
-v1.0 额外：
-
-- [ ] GitHub Release 标记为 stable（非 pre-release）
-- [ ] GHCR 打上 `1` 主版本标签
-
-不要求生产观察期。测试、文档和发布流程过关即可打稳定标签。
+- 支持的 Node 版本与关键浏览器测试阻塞全部正式产物发布，预发布不覆盖稳定镜像标签。
+- 默认临时模式、SQLite、协议 ACK/幂等/重连、旧配置和数据迁移回归通过。
+- SDK 跨来源、禁用第三方 Cookie、重复挂载/销毁、退出/切换身份、频道与历史授权验收通过。
+- 服务端功能开关和模块依赖校验、审核失败、举报/移除/封禁闭环及 Agent 统一治理通过。
+- 官方狼人杀完整对局、私密状态、断线恢复和模型失败通过。
+- 普通产品、社区＋玩法两个示例可从干净环境独立复现，分发脚本/npm 包/类型均已验证。
+- 对每项不兼容变更完成迁移、备份恢复和回滚演练，文档与实际发布版本一致。
 
 ## Git 提交规范
 
-### Commit Message 格式
-
-```
-<type>(<scope>): <subject>
-
-<body>
-
-<footer>
-```
-
-### Type 类型
-
-- `feat` - 新功能
-- `fix` - Bug 修复
-- `docs` - 文档变更
-- `style` - 代码格式（不影响功能）
-- `refactor` - 重构（不是 fix 也不是 feat）
-- `perf` - 性能优化
-- `test` - 测试相关
-- `chore` - 构建过程或辅助工具变动
-- `revert` - 回退之前的 commit
-
-### Scope 范围
-
-- `core` - 核心业务逻辑
-- `transport` - HTTP/WebSocket 传输层
-- `client` - 客户端代码
-- `config` - 配置相关
-- `docker` - Docker 相关
-- `deps` - 依赖更新
-- `release` - 发布相关
-
-### Subject 规范
-
-- 使用中文或英文（保持一致）
-- 使用祈使句，现在时
-- 首字母小写
-- 结尾不加句号
-- 不超过 50 字符
-
-### Body 规范
-
-- 详细说明变更的动机
-- 对比变更前后的行为
-- 每行不超过 72 字符
-
-### Footer 规范
-
-- 关联 Issue：`Closes #123` 或 `Fixes #456`
-- 不兼容变更：`BREAKING CHANGE: 说明`
-- 多个 Issue：`Closes #123, #456, #789`
-
-### 示例
-
-```
-feat(client): 添加离线消息缓存功能
-
-当网络离线时，将未发送的消息缓存到 localStorage，
-在网络恢复后自动重新发送。
-
-- 添加 OfflineQueue 模块
-- 在 connection 模块中集成
-- 添加相关测试
-
-Closes #234
-```
-
-```
-fix(transport): 修复 WebSocket 连接泄露问题
-
-在频繁重连的场景下，旧连接没有正确关闭，
-导致连接数累积最终耗尽资源。
-
-修复方案：
-- 在创建新连接前关闭旧连接
-- 添加连接清理逻辑
-- 增强连接状态追踪
-
-Closes #567
-```
-
-```
-chore(release): v0.6.0
-
-- 新增 Issue 模板
-- 新增 Bug 分类和修复流程文档
-- 新增版本号管理流程文档
-
-详见 CHANGELOG.md
-```
-
-## 版本分支策略
-
-### 主分支（Main Branch）
-
-- `main` - 稳定分支，每次 commit 都应该可发布
-- 所有功能和修复最终合并到 `main`
-- 发布时从 `main` 打标签
-
-### 功能分支（Feature Branches）
-
-```
-feature/issue-123-user-authentication
-feature/sqlite-integration
-```
-
-### 修复分支（Fix Branches）
-
-```
-fix/issue-456-message-send-failure
-fix/security-xss-vulnerability
-```
-
-### 发布分支（Release Branches）
-
-通常不需要，但如果需要维护旧版本：
-
-```
-release/v1.x
-release/v2.x
-```
-
-## 热修复流程
-
-针对生产环境的紧急 Bug：
-
-### 1. 创建热修复分支
-
-```bash
-# 从最新发布标签创建分支
-git checkout -b hotfix/v1.2.4 v1.2.3
-```
-
-### 2. 修复问题
-
-```bash
-# 修复代码
-# 添加测试
-# 更新 CHANGELOG
-```
-
-### 3. 发布热修复版本
-
-```bash
-# 提交修复
-git commit -m "fix: 修复关键问题"
-
-# 更新版本号
-npm version patch -m "chore: release v1.2.4"
-
-# 合并回 main
-git checkout main
-git merge --no-ff hotfix/v1.2.4
-
-# 推送
-git push origin main
-git push origin v1.2.4
-
-# 删除分支
-git branch -d hotfix/v1.2.4
-```
-
-## 版本废弃策略
-
-### 废弃流程
-
-1. **标记废弃**（在 MINOR 版本中）
-   ```javascript
-   // DEPRECATED: 此 API 将在 v2.0.0 中移除，请使用 newApi 代替
-   function oldApi() { ... }
-   ```
-
-2. **文档说明**（更新 CHANGELOG）
-   ```markdown
-   ### Deprecated
-   - `oldApi()` 已废弃，将在 v2.0.0 中移除。请使用 `newApi()` 代替。
-   ```
-
-3. **保持至少 1-2 个 MINOR 版本**
-   - v1.5.0: 标记废弃
-   - v1.6.0: 继续保留
-   - v1.7.0: 继续保留（可选）
-   - v2.0.0: 移除
-
-4. **移除**（在 MAJOR 版本中）
-   ```markdown
-   ### Removed
-   - `oldApi()` 已移除。请使用 `newApi()` 代替。
-   ```
-
-### 迁移指南
-
-每次 MAJOR 版本发布时，提供迁移指南：
-
-```markdown
-# 从 v1.x 迁移到 v2.0
-
-## Breaking Changes
-
-### API 变更
-
-**oldApi() 已移除**
-
-旧代码：
-\`\`\`javascript
-oldApi(param);
-\`\`\`
-
-新代码：
-\`\`\`javascript
-newApi({ param });
-\`\`\`
-
-### 配置变更
-
-**配置格式改为 version: 2**
-
-旧配置：
-\`\`\`yaml
-version: 1
-setting: value
-\`\`\`
-
-新配置：
-\`\`\`yaml
-version: 2
-settings:
-  key: value
-\`\`\`
-
-## 自动迁移工具
-
-提供迁移脚本：
-\`\`\`bash
-npx pavilo-migrate v1-to-v2 config.yaml
-\`\`\`
-```
-
-## 常见问题
-
-### Q: 忘记更新 CHANGELOG 怎么办？
-
-A: 在下一个 PATCH 版本中补充，并在 commit message 中说明。
-
-### Q: 打错标签怎么办？
-
-A: 删除本地和远程标签，重新打标签：
-
-```bash
-# 删除本地标签
-git tag -d v0.6.0
-
-# 删除远程标签
-git push origin :refs/tags/v0.6.0
-
-# 重新打标签
-git tag -a v0.6.0 -m "..."
-git push origin v0.6.0
-```
-
-### Q: 需要修改已发布版本的 CHANGELOG 怎么办？
-
-A: 不要修改已发布版本的内容。在下一个版本的 CHANGELOG 中添加说明。
-
-### Q: 何时使用预发布版本（prerelease）？
-
-A: Pavilo 目前不使用预发布版本。v1.0 之前的 v0.x.y 版本本身就是 alpha/beta 阶段。
-
-## 参考资源
-
-- [语义化版本 2.0.0](https://semver.org/lang/zh-CN/)
-- [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)
-- [Conventional Commits](https://www.conventionalcommits.org/zh-hans/)
+使用 `<type>(<scope>): <subject>`，正文说明问题、变更与验证，必要时使用 `BREAKING CHANGE:` 和 Issue 关联。
+
+| Type | 用途 |
+| --- | --- |
+| feat | 新能力 |
+| fix | 修复 |
+| docs | 文档 |
+| refactor | 不改变外部行为的重构 |
+| perf | 性能 |
+| test | 测试 |
+| chore | 依赖、工具与发布工程 |
+| revert | 回退 |
+
+scope 使用实际模块，例如 core、transport、client、config、storage、play、gateway、operator、release。不要在提交说明中把规划能力描述为实现。
+
+`main` 是集成分支，可含未发布能力；稳定用户按已发布标签或镜像使用。功能和修复分支最终合并主线；需要维护已发布旧版时从相应标签开修复分支并将修复同步主线。
+
+## 参考
+
+- [语义化版本](https://semver.org/lang/zh-CN/)
+- [Keep a Changelog](https://keepachangelog.com/zh-CN/)
+- [贡献指南](../CONTRIBUTING.md)
 - [Bug 修复 Checklist](bug-fix-checklist.md)
-- [CONTRIBUTING.md](../CONTRIBUTING.md)

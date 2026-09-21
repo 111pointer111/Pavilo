@@ -1,5 +1,7 @@
 # Pavilo 测试策略
 
+> 产品与发布阶段补充（2026-09-21）：当前最新稳定版 v1.2.0，主分支有未发布网关/后台/Play。以下既有测试策略继续适用，v2.0 另需覆盖身份与频道/历史授权、服务端能力开关、审核竞态和治理闭环、SDK 跨来源与生命周期、第三方 Cookie 禁用、完整狼人杀与迁移回滚。当前 Node 24/26 和浏览器 CI 允许失败，v2.0 目标是支持矩阵与关键浏览器检查阻塞正式产物发布。完整门槛见 [路线图](../ROADMAP.md) 和 [版本管理](version-management.md)，不能用旧测试数量代替当次结果。
+
 ## 概述
 
 本文档定义 Pavilo 的测试组织、范围和维护策略，确保测试套件保持高质量、可维护且不产生遗留问题。
@@ -128,50 +130,20 @@ _注：以上统计为时间点快照，运行 `npm test` 查看当前实际状�
 - 使用 Playwright 驱动真实 Chrome
 - 启动生产模式服务器
 - 超时 180 秒
-- 仅在 CI 的 browser-test job 执行
+- 通过 `npm run test:browser` 本地执行，也在 CI 的独立 browser-test job 执行
 
 ## CI 策略
 
-### GitHub Actions 工作流
+### 当前 GitHub Actions 工作流
 
-#### 主测试流水线（`.github/workflows/ci.yml`）
+以 [CI](../.github/workflows/ci.yml)、[Release](../.github/workflows/release.yml)、[GHCR](../.github/workflows/ghcr.yml) 为准，以下描述为 2026-09-21 核对结果：
 
-```yaml
-jobs:
-  test:
-    strategy:
-      matrix:
-        node-version: [22, 24, 26]
-    steps:
-      - npm test  # 单元 + 组件 + 集成测试（228 用例）
-  
-  browser-test:
-    needs: test  # 只在核心测试通过后执行
-    steps:
-      - npm install --no-save playwright
-      - npm run test:browser  # E2E 测试（15 子场景）
-```
+- CI 在 main push 和 PR 时运行 Node 22/24/26 矩阵；Node 22 测试失败阻塞，24/26 的测试步骤允许失败。
+- browser-test 是独立 job，不依赖 test job，当前允许失败；它安装 Playwright 并执行浏览器验收。
+- Release 在 `v*.*.*` 标签触发，Node 22 的安装、audit、测试失败会阻塞 GitHub Release；v0 或含预发布后缀的版本标为 prerelease。
+- GHCR 是独立工作流，目前不等待 Release 测试结果，其稳定标签与预发布行为必须单独检查。
 
-**运行条件**:
-- 每次 push 到 main
-- 每次 pull request
-- 矩阵测试 Node 22/24/26
-
-#### 发布流水线（`.github/workflows/release.yml`）
-
-```yaml
-on:
-  push:
-    tags:
-      - 'v*'
-steps:
-  - npm test  # 确保版本可发布
-  - 创建 GitHub Release
-```
-
-**特点**:
-- 测试失败不阻塞发布（`continue-on-error: true`）
-- 自动标记 v0.x 为 pre-release
+v2.0 目标是支持版本矩阵和关键浏览器验收阻塞所有正式产物发布，并确保预发布不覆盖稳定镜像标签。当前检查不等于该目标已经实现，具体发布步骤见 [版本管理](version-management.md)。
 
 ### 本地开发流程
 
@@ -242,7 +214,7 @@ test.skip('a client is told to wait rather than losing events while its history 
 
 ### 目标
 
-- **通过率**: ≥ 99% （跳过测试不计入分母）
+- **通过条件**: 阻塞检查无失败；跳过项说明理由，不把跳过视为通过
 - **执行速度**: 
   - 单元测试 < 500ms 总计
   - 集成测试 < 5s 总计
@@ -250,50 +222,17 @@ test.skip('a client is told to wait rather than losing events while its history 
 - **覆盖率**: 不强制要求数字，但关键路径必须覆盖
 - **CI 稳定性**: 主分支 CI 通过率 ≥ 95%
 
-### 当前状态
+### 本次基线（2026-09-21）
 
-- ✅ 通过率: 285 通过 / 1 跳过（SYNC_IN_PROGRESS 集成窗口）
-- ✅ 执行速度: 单元+集成 ~0.5s
-- ✅ CI 稳定性: 最近 5 次 CI 全部成功
+- `npm test`：381 个，379 通过、2 跳过、0 失败。
+- 本次为文档更新，未执行浏览器验收，也未重新核实远端 CI 最近运行记录。
+- 本文前面的 2026-09-15 统计仅保留为历史快照，不能当作当前发布证明。
 
-## 重构计划
+## 后续建设
 
-### 立即执行（v0.2.1）
+按路线图推进能力开关、身份/权限、异步审核、SDK 跨来源、完整玩法和升级回归；不再把早期 v0.2/v0.3 重构待办作为当前优先级。
 
-1. **删除空文件**
-   ```bash
-   rm test/client-server-contract.test.js
-   ```
-   理由: 契约测试已在其他文件充分覆盖
-
-2. **更新 package.json 测试脚本**
-   ```json
-   {
-     "scripts": {
-       "test": "node --test test/*.test.js",
-       "test:browser": "node --test test/browser/*.test.cjs"
-     }
-   }
-   ```
-
-### 中期（v0.3.0）
-
-3. **修复跳过的同步测试**
-   - 重构 Core 和 WebSocket Transport 的同步状态传递
-   - 确保 SYNC_IN_PROGRESS 错误能正确发送
-   - 取消 `test.skip`
-
-4. **添加性能基准测试**
-   - 消息吞吐量
-   - 并发连接数
-   - 内存占用
-
-### 长期（v1.x）
-
-5. **SYNC_IN_PROGRESS 集成测试**：需要可注入的背压/慢写时再启，不挡稳定标签
-
-6. **考虑快照测试**
-   - 对于复杂的客户端状态转换，使用快照减少断言代码
+SYNC_IN_PROGRESS 集成窗口仍是有原因的跳过项，核心规则另有测试。新增可注入背压测试条件时再补集成覆盖；跳过项需要随每次发布检查，不因旧版本曾允许而永久豁免。
 
 ## 参考资料
 

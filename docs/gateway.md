@@ -1,5 +1,7 @@
 # AI 网关与管理页
 
+> 状态：进程内网关和管理后台在主分支已实现，尚未发布。Agent 宿主已经可调用网关；视觉内容审核仍为规划，见 [路线图](../ROADMAP.md)。
+
 v1.3 提供进程内 AI 网关。它是 **语亭管理后台里的一个模块**，不是另一套登录。后台壳子见 [admin.md](admin.md)。聊天核心不依赖网关。
 
 **模型渠道和 API key 只在「AI 网关」模块配置**，不写进 YAML，也不是聊天频道（`general` / `project`）。YAML 只负责怎么启动。
@@ -54,7 +56,7 @@ const result = await gateway.complete({
 });
 ```
 
-`src/core` 不 import 网关。v1.3 没有聊天 Bot；值班台上的「探测」是唯一产品调用方。
+`src/core` 不 import 网关；主分支的管理页探测和 Play/Agent runtime 已调用该接口。当前没有通用聊天 Bot 插件入口。未来可选视觉审核复用同一网关，不要求普通聊天依赖 AI。
 
 网关 hang 或失败时，join / message / ACK 不受影响。
 
