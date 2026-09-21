@@ -264,6 +264,15 @@ function createChatCore(config, runtime = {}) {
     }
     return session;
   }
+  // A play host speaking for an agent seat: the agent has no peer, so this
+  // goes through the command handler's agent path rather than handleMessage.
+  function postAsAgent(actorId, text) {
+    const session = sessionStore.findById(actorId);
+    if (!session) return { ok: false, code: 'PLAY_POST_REJECTED' };
+    const result = handleCommand.postAsSession(session, text);
+    if (runtime.onEffects) runtime.onEffects(takeEffects());
+    return result;
+  }
   function deliverPlayEffects(playEffects) {
     for (const effect of playEffects || []) {
       const payload = { ...effect.payload };
@@ -281,7 +290,7 @@ function createChatCore(config, runtime = {}) {
   return {
     connect, dispatch, disconnect, connectionStatus, completeSync, markClosing, shutdown,
     state, health, roomInfo, storageInfo, roomEpoch: rooms.epoch, pruneDedupe: store.pruneDedupe,
-    drainEffects: takeEffects, attachPlayRuntime, roster, seatAgent, unseatAgent, deliverPlayEffects
+    drainEffects: takeEffects, attachPlayRuntime, roster, seatAgent, unseatAgent, deliverPlayEffects, postAsAgent
   };
 }
 module.exports = { createChatCore };

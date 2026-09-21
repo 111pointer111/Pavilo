@@ -195,11 +195,13 @@ module.exports = {
 
 | 成员 | 作用 |
 | --- | --- |
-| `now()` / `randomId()` / `schedule` / `cancel` | 可注入 |
+| `now()` / `randomId()` / `schedule` | 可注入。没有 `cancel`：定时器请用代际计数自检失效 |
 | `channel` | `{ id, playId }` |
 | `actors()` | 当前桌 human + agent |
 | `seatAgent({ username, spec, role })` | 占座；失败返回 `{ error }` |
 | `requestTurn(actor, { legalActions })` | 异步 Agent 回合 |
+| `emit(snapshots)` | 主动推送快照，用于 deadline 驱动的阶段推进；返回送出条数 |
+| `post(actorId, text)` | 以某个 **agent** 座位的身份公开发言；human 请用 `onAction` 的 `post` 返回值 |
 | `complete(req)` | `gateway.complete` 的包装；未启用时 `{ ok: false, code: 'GATEWAY_DISABLED' }` |
 | `memory.read/append/clear(actorId)` | 局内记忆 |
 | `load()` / `save(state)` | 不透明对局 blob |
@@ -209,6 +211,13 @@ module.exports = {
 
 - `snapshots`：`{ visibility: 'private'|'channel', actorId?, state }`
 - `post: { text }`：以该 actor 的身份发一条公开文字消息（走 Command API）
+
+`emit()` 与 `post()` 面向「没有 `onAction` 可搭便车」的场景：阶段靠 deadline
+推进时，host 必须能主动把新状态发出去；Agent 回合结束时，它的发言也要落到频道里。
+Agent 占座但没有 peer，因此 `post()` 不产生 ack，失败时只返回 `{ ok: false, code }`，
+不会中断对局。两者在 host 已故障时都是空操作。
+
+`emit()` 里 `visibility: 'private'` 的快照**必须自带 `actorId`**：没有发起者可以回落。
 
 Host 抛错：该频道玩法标记故障，后续 `playAction` 返回 `PLAY_HOST_FAILED`；其它频道与普通聊天不受影响。
 
