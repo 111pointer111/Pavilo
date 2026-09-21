@@ -494,3 +494,92 @@ if (isNodeSqliteAvailable()) {
     assert.equal(health.messages, 1);
   });
 }
+
+test('core lists seats, counts this-visit messages, and mutes a member', () => {
+  const { core } = createHarness();
+  const start = join(core, 'alice-peer', 'Alice', 'session-alice-0001');
+  const aliceId = start.self.id;
+  assert.equal(core.listSeats().length, 1);
+  assert.equal(core.listSeats()[0].messageCount, 0);
+  assert.equal(core.listSeats()[0].muted, false);
+  core.dispatch('alice-peer', { type: 'message', clientMessageId: 'seat-msg-0001', kind: 'text', text: 'hi' });
+  const after = core.getSeat(aliceId);
+  assert.equal(after.messageCount, 1);
+  assert.ok(after.lastSpokenAt);
+
+  const muted = core.mute(aliceId, true);
+  assert.equal(muted.ok, true);
+  assert.equal(muted.seat.muted, true);
+  const denied = core.dispatch('alice-peer', { type: 'message', clientMessageId: 'seat-msg-0002', kind: 'text', text: 'nope' });
+  assert.equal(denied.error.code, 'MUTED');
+  const typing = core.dispatch('alice-peer', { type: 'typing', active: true });
+  assert.equal(typing.effects.some((effect) => effect.payload?.type === 'typing'), false);
+
+  core.mute(aliceId, false);
+  const sent = core.dispatch('alice-peer', { type: 'message', clientMessageId: 'seat-msg-0003', kind: 'text', text: 'ok' });
+  assert.equal(sent.accepted, true);
+  assert.equal(core.getSeat(aliceId).messageCount, 2);
+});
+
+test('core kick ends a seat without a lease and does not tell the room it was a kick', () => {
+  const { core } = createHarness({ sessionLeaseMs: 50 });
+  const alice = join(core, 'alice-peer', 'Alice', 'session-alice-0001');
+  join(core, 'bob-peer', 'Bob', 'session-bob-0001');
+  const kicked = core.kick(alice.self.id);
+  assert.equal(kicked.ok, true);
+  const close = kicked.effects.find((effect) => effect.kind === 'close');
+  assert.equal(close.code, 4008);
+  assert.equal(close.reason, 'kicked');
+  assert.equal(kicked.effects.find((effect) => effect.payload?.type === 'moderation')?.payload.action, 'kicked');
+  const presence = kicked.effects.find((effect) => effect.payload?.type === 'presence');
+  assert.equal(presence.payload.action, 'leave');
+  assert.equal(core.listSeats().some((seat) => seat.id === alice.self.id), false);
+  core.disconnect('alice-peer');
+});
+
+test('core kick of a leased seat frees the name immediately', () => {
+  const { core, advance } = createHarness({ sessionLeaseMs: 5_000 });
+  const alice = join(core, 'alice-peer', 'Alice', 'session-alice-0001');
+  core.disconnect('alice-peer');
+  assert.equal(core.listSeats()[0].status, 'leased');
+  const kicked = core.kick(alice.self.id);
+  assert.equal(kicked.ok, true);
+  assert.equal(core.listSeats().length, 0);
+  advance(1);
+  const bob = join(core, 'bob-peer', 'Alice', 'session-bob-0001');
+  assert.equal(bob.self.username, 'Alice');
+});
+
+test('core refuses to mute or kick a play agent', () => {
+  const { core } = createHarness();
+  const seated = core.seatAgent({ channelId: 'general', username: '主持', id: 'u_agent_host_0001' });
+  assert.ok(seated.session);
+  assert.equal(core.mute(seated.session.id, true).error, 'AGENT_SEAT');
+  assert.equal(core.kick(seated.session.id).error, 'AGENT_SEAT');
+  assert.equal(core.listSeats()[0].kind, 'agent');
+});
+
+test('core rejects join from a denied IP and closes 4009', () => {
+  const { core } = createHarness({ ipDenyList: ['192.0.2.10'] });
+  assert.equal(core.connect('alice-peer', '192.0.2.10'), true);
+  const result = core.dispatch('alice-peer', {
+    type: 'join',
+    protocolVersion: 4,
+    username: 'Alice',
+    clientSessionId: 'session-alice-0001'
+  });
+  assert.equal(result.error.code, 'IP_DENIED');
+  const close = result.effects.find((effect) => effect.kind === 'close');
+  assert.equal(close.code, 4009);
+  assert.equal(close.reason, 'ip_denied');
+});
+
+test('applying a moderation overlay kicks matching live seats', () => {
+  const { core } = createHarness();
+  join(core, 'alice-peer', 'Alice', 'session-alice-0001');
+  core.applyPavilionConfig({ moderation: { ipDenyList: ['192.0.2.10'] } });
+  const peer = core.connectionStatus('alice-peer');
+  assert.equal(peer.closing, true);
+  core.disconnect('alice-peer');
+  assert.equal(core.listSeats().length, 0);
+});

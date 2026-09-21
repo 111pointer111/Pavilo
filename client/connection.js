@@ -11,6 +11,13 @@
   const RECONNECT_CAP = 30_000;
   const MAX_RECONNECT_ATTEMPTS = 3;
 
+  function terminalClose(code, reason) {
+    if (code === 1001 && reason === 'server stopped') return 'stopped';
+    if (code === 4008 && reason === 'kicked') return 'kicked';
+    if (code === 4009 && reason === 'ip_denied') return 'denied';
+    return null;
+  }
+
   function defaultStorage() {
     try { return globalThis.sessionStorage; } catch { return null; }
   }
@@ -264,8 +271,8 @@
         const wasJoined = joined;
         socket = null;
         joined = false;
-        const serviceStopped = event.code === 1001 && event.reason === 'server stopped';
-        if (serviceStopped) {
+        const terminal = terminalClose(event.code, event.reason);
+        if (terminal) {
           stopped = true;
           intentional = true;
           identity = null;
@@ -273,9 +280,13 @@
           clearSession(storage);
           clearChannelId(storage);
         }
-        emit({ type: 'close', event, code: event.code, reason: event.reason, intentional, wasJoined });
-        if (serviceStopped) {
+        emit({ type: 'close', event, code: event.code, reason: event.reason, intentional, wasJoined, terminal });
+        if (terminal === 'stopped') {
           emit({ type: 'serviceStopped', event, code: event.code, reason: event.reason });
+          return;
+        }
+        if (terminal) {
+          emit({ type: 'moderationClose', reason: terminal, event, code: event.code });
           return;
         }
         scheduleReconnect();

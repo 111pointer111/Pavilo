@@ -26,6 +26,7 @@ ADR-0004 把启动配置留给 YAML，把模型渠道留给 `/admin` + SQLite。
 | `version` / `server.host|port|origins` / `storage` / `operator.token` / `plays` | YAML | 仍是 YAML，页面不能改 |
 | 房间：标题、语言、默认频道、暴露 IP/LAN、全站人数上限（`server.maxUsers`） | YAML | `operator_config.section='room'` |
 | 聊天频道目录 | YAML `channels` | `operator_config.section='channels'` |
+| IP 黑名单 | YAML `moderation.ipDenyList`（可空） | `operator_config.section='moderation'` |
 | 模型渠道 | 非法出现在 YAML | `gateway_channels`（ADR-0004 / 0005） |
 
 认领是整段，不是逐字段。保存房间只接管房间；保存聊天频道（含增删）接管整个目录。第一次保存写入当时的有效快照，不是空白覆盖。
@@ -40,7 +41,7 @@ YAML 在认领之后仍必须能通过严格校验。启动时若文件与 overl
 
 ```sql
 CREATE TABLE operator_config (
-  section TEXT PRIMARY KEY CHECK (section IN ('room', 'channels')),
+  section TEXT PRIMARY KEY CHECK (section IN ('room', 'channels', 'moderation')),
   payload TEXT NOT NULL,
   updated_at INTEGER NOT NULL
 );

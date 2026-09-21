@@ -82,6 +82,37 @@ function createSessionStore(config, rooms, { now, randomResumeToken, schedule, c
     return null;
   }
 
+  function listSeats() {
+    const timestamp = now();
+    const result = [];
+    const seen = new Set();
+    for (const session of sessions.values()) {
+      result.push({ session, status: 'connected' });
+      seen.add(session.token);
+    }
+    for (const [token, lease] of leasedSessions) {
+      if (lease.expiresAt > timestamp && !seen.has(token)) {
+        result.push({ session: lease.session, status: 'leased' });
+      }
+    }
+    return result;
+  }
+
+  function evict(session) {
+    if (!session) return;
+    const lease = leasedSessions.get(session.token);
+    if (lease) {
+      cancel(lease.timer);
+      leasedSessions.delete(session.token);
+    }
+    sessions.delete(session.token);
+    if (session.client) {
+      session.client.session = null;
+      session.client.joined = false;
+    }
+    session.client = null;
+  }
+
   function seatAgent({ channelId, username, avatarSeed, id, role }) {
     const channel = rooms.get(channelId);
     if (!channel?.config.enabled) return { error: 'CHANNEL_UNAVAILABLE' };
@@ -104,7 +135,10 @@ function createSessionStore(config, rooms, { now, randomResumeToken, schedule, c
       kind: 'agent',
       role: typeof role === 'string' ? role : '',
       client: null,
-      rates: Object.create(null)
+      rates: Object.create(null),
+      messageCount: 0,
+      lastSpokenAt: null,
+      muted: false
     };
     sessions.set(token, session);
     return { session };
@@ -141,6 +175,6 @@ function createSessionStore(config, rooms, { now, randomResumeToken, schedule, c
     leasedSessions.clear();
     sessions.clear();
   }
-  return { activeMembers, rosterUsers, nameIsFree, resolveJoin, attach, detach, findById, seatAgent, unseatAgent, clear, size: () => sessions.size };
+  return { activeMembers, rosterUsers, nameIsFree, resolveJoin, attach, detach, findById, listSeats, evict, seatAgent, unseatAgent, clear, size: () => sessions.size };
 }
 module.exports = { createSessionStore, cleanUsername, validateClientId };

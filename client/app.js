@@ -774,6 +774,13 @@
       connection.close({ intentional: true });
       return;
     }
+    if (event.code === 'IP_DENIED' || event.code === 'KICKED') {
+      returnToLoginForError(event);
+      errorController.showErrorOverlay(event.code === 'KICKED' ? 'KICKED' : 'IP_DENIED', {
+        onAction: () => errorController.hideErrorOverlay(),
+      });
+      return;
+    }
     if (event.clientMessageId) {
       pendingQueue.markError(event.clientMessageId, event.message);
       notificationsController.toast(event.message, 'error');
@@ -859,6 +866,10 @@
       handleProtocolError(event, before);
       return;
     }
+    if (event.type === 'moderation') {
+      composerController.update();
+      return;
+    }
     if (event.type === 'presence') handlePresence(event, before);
   }
 
@@ -892,11 +903,26 @@
       return;
     }
     if (event.type === 'close') {
-      reconnectingAfterClose = Boolean(event.wasJoined);
+      reconnectingAfterClose = Boolean(event.wasJoined) && !event.terminal;
       pendingQueue.disconnect();
-      store.dispatch({ type: 'connection/close', code: event.code, reason: event.reason, intentional: event.intentional, wasJoined: event.wasJoined });
-      if (event.wasJoined && !event.intentional && !(event.code === 1001 && event.reason === 'server stopped')) {
+      store.dispatch({ type: 'connection/close', code: event.code, reason: event.reason, intentional: event.intentional, wasJoined: event.wasJoined, terminal: event.terminal });
+      if (event.wasJoined && !event.intentional && !event.terminal) {
         notificationsController.toast(t('toast.disconnectedKeep'), 'error');
+      }
+      return;
+    }
+    if (event.type === 'moderationClose') {
+      pendingQueue.clear();
+      connection.clearSession();
+      connection.clearChannelId();
+      resumeToken = null;
+      identity = null;
+      composerController.clearReply();
+      composerController.clearAttachment();
+      showLogin();
+      const type = event.reason === 'denied' ? 'IP_DENIED' : 'KICKED';
+      if (errorController.getCurrentError() !== type) {
+        errorController.showErrorOverlay(type, { onAction: () => errorController.hideErrorOverlay() });
       }
       return;
     }

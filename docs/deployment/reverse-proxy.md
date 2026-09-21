@@ -182,6 +182,8 @@ server:
   # exposeMemberIps: false
 ```
 
+当前版本**不信任** `X-Forwarded-For` / `X-Real-IP`。值班台人员页和 IP 黑名单看到的是 socket 对端，反向代理后通常是代理自己的地址。拉黑该地址会挡住所有走同一出口的人。可信代理配置不在本期值班台里改。
+
 ### 5. 缓冲
 
 WebSocket 不应该被缓冲：

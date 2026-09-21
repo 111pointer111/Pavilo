@@ -3,6 +3,7 @@
 const { cleanUsername, validateClientId } = require('./session');
 const { cleanText } = require('./messages');
 const { PROTOCOL_VERSION, REACTION_EMOJIS, publicMessage } = require('./events');
+const { ipDenied } = require('../ip');
 const serialize = (payload) => Buffer.from(JSON.stringify(payload));
 function createCommandHandler(config, rooms, sessionStore, messageStore, peerEffects, { now, randomId, randomAvatarSeed, cancel, store, playSlot }) {
   const { resolveJoin, rosterUsers, nameIsFree, activeMembers, findById } = sessionStore;
@@ -27,6 +28,11 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     }
     if (!username) {
       sendError(client, 'INVALID_NAME', '请输入 1–24 个字符的用户名。');
+      return;
+    }
+    if (ipDenied(config.ipDenyList, client.ip)) {
+      sendError(client, 'IP_DENIED', '这个网络不能进亭。');
+      closeClient(client, 4009, 'ip_denied');
       return;
     }
     client.protocolVersion = PROTOCOL_VERSION;
@@ -62,8 +68,14 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       ip: client.ip,
       avatarSeed: requestedSeed ?? randomAvatarSeed(),
       joinedAt: now(),
-      token: resolution.token
+      token: resolution.token,
+      messageCount: 0,
+      lastSpokenAt: null,
+      muted: false
     };
+    if (session.messageCount == null) session.messageCount = 0;
+    if (session.lastSpokenAt === undefined) session.lastSpokenAt = null;
+    if (session.muted == null) session.muted = false;
     session.username = username;
     session.channelId = resolution.channelId;
     handOffSession(session);
@@ -81,6 +93,11 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
 
   function handleMessage(client, command) {
     const channel = rooms.get(client.session.channelId);
+    if (client.session.muted) {
+      sendError(client, 'MUTED', '现在不能发言。',
+        typeof command.clientMessageId === 'string' ? command.clientMessageId : undefined);
+      return;
+    }
     if (channel.config.readOnly) {
       sendError(client, 'CHANNEL_READ_ONLY', '这个频道是只读频道，不能发送消息。',
         typeof command.clientMessageId === 'string' ? command.clientMessageId : undefined);
@@ -166,11 +183,14 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       return;
     }
     store.pruneDedupe();
+    client.session.messageCount = (client.session.messageCount || 0) + 1;
+    client.session.lastSpokenAt = message.createdAt;
     sendJson(client, ack);
     broadcast(channelId, { type: 'message', roomEpoch: channel.epoch, message: publicMessage(message), removedIds });
   }
 
   function handleReaction(client, command) {
+    if (client.session.muted) return;
     const channel = rooms.get(client.session.channelId);
     const channelId = channel.config.id;
     if (!rateAllows(client, 'reaction', config.reactionRateLimit, config.rateLimitWindowMs)) {
@@ -332,6 +352,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       return;
     }
     if (command.type === 'typing') {
+      if (client.session.muted) return;
       if (rooms.get(client.session.channelId).config.readOnly) return;
       if (!rateAllows(client, 'typing', config.typingRateLimit, config.rateLimitWindowMs)) return;
       if (command.active) activateTyping(client);

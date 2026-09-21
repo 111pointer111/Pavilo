@@ -96,6 +96,30 @@ function createMemoryStore(config, runtime = {}) {
     return { message: removedIds.includes(message.id) ? null : message, removedIds };
   }
 
+  function listMessagesByAuthor(authorId, { beforeCreatedAt, beforeChannelId, beforeId, limit = 50 } = {}) {
+    const cap = Math.min(Math.max(1, Number(limit) || 50), 100);
+    const rows = [];
+    for (const channel of channels.values()) {
+      for (const message of channel.messages) {
+        if (message.author?.id !== authorId) continue;
+        if (Number.isFinite(beforeCreatedAt)) {
+          if (message.createdAt > beforeCreatedAt) continue;
+          if (message.createdAt === beforeCreatedAt) {
+            if (beforeChannelId && channel.id > beforeChannelId) continue;
+            if (beforeChannelId && channel.id === beforeChannelId && beforeId && message.id >= beforeId) continue;
+            if (!beforeChannelId && beforeId && message.id >= beforeId) continue;
+          }
+        }
+        rows.push({ channelId: channel.id, message });
+      }
+    }
+    rows.sort((left, right) => (right.message.createdAt - left.message.createdAt)
+      || right.channelId.localeCompare(left.channelId)
+      || right.message.id.localeCompare(left.message.id));
+    const page = rows.slice(0, cap + 1);
+    return { messages: page.slice(0, cap), exhausted: page.length <= cap };
+  }
+
   function loadHistoryPage(channelId, { beforeSeq, limit = 50 } = {}) {
     const cap = Math.min(Math.max(1, Number(limit) || 50), 100);
     const channel = requireChannel(channelId);
@@ -156,6 +180,7 @@ function createMemoryStore(config, runtime = {}) {
     appendMessage,
     updateReactions,
     loadHistoryPage,
+    listMessagesByAuthor,
     pruneDedupe,
     pruneExpired,
     stats,

@@ -194,6 +194,7 @@ ACK 形状为：
 | `channelOccupancy` | 所有频道的在线人数摘要（包含有效 lease） | 可通过下一次 `stateStart` 恢复；不包含成员身份 |
 | `typing` | 即时展示的租约提示，服务端默认 4 秒自动撤销 | **临时、允许丢失、不进历史**；客户端还以本地到期兜底 |
 | `ack` / `error` | 仅发给命令发起者的结果 | 不广播、不进历史；重复消息可在去重窗口内重得 ACK |
+| `moderation` | 仅发给当事席：`muted` / `unmuted` / `kicked` | 不广播、不进历史；禁言挂在 session 上，重连后会再发 `muted` |
 
 WebSocket 本身没有应用层重放保证。`message`、`reaction`、`prune`、roster 是服务端权威事实，但单个实时事件仍可能因断线丢失；客户端通过下一次完整同步收敛，不能把 typing 或 presence 提示伪装成持久历史。
 
@@ -202,7 +203,7 @@ WebSocket 本身没有应用层重放保证。`message`、`reaction`、`prune`�
 ## 9. 停止、断线与重启
 
 - `stop()` 停止心跳、清空 lease、所有频道历史/字节/序号、sessions 和去重表，再以 `1001 / server stopped` 关闭客户端并停止 HTTP 服务。
-- 当前浏览器只把这个**精确 close code/reason** 识别为权威停服：停止自动重连，清空消息、成员、pending、未读和 `sessionStorage` 中恢复/频道信息，返回登录页并显示临时数据已清空。
+- 当前浏览器把下列关闭识别为不要自动重连的终态，并清空 `sessionStorage` 中的恢复信息：`1001 / server stopped`（停服）、`4008 / kicked`（请离）、`4009 / ip_denied`（IP 黑名单）。
 - 普通网络断线会保留草稿和 pending，标记发送中的项目为未确认，并指数退避（带抖动，最高约 30 秒基数）重连。
 - 异常进程退出可能来不及发送停服 reason。客户端会重连；新服务实例的 epoch 不同，旧 pending 被标为“房间已经重启”，不得自动提交。旧 token 在新实例中只是未知 token，不能证明旧身份或恢复旧历史。
 

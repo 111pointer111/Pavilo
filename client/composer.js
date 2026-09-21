@@ -78,6 +78,10 @@
       return Boolean(currentChannel(state)?.readOnly);
     }
 
+    function isMuted(state = getState()) {
+      return Boolean(state.selfMuted);
+    }
+
     function isReady(state = getState()) {
       return Boolean(state.connection?.joined && (!connection.isReady || connection.isReady()));
     }
@@ -205,24 +209,40 @@
       const state = getState();
       const switching = Boolean(state.channel?.switching);
       const readOnly = isReadOnly(state);
+      const muted = isMuted(state);
+      const blocked = readOnly || muted;
       const ready = isReady(state);
       const sendingText = [...pending.values()].some((item) => item.kind === 'text' && item.status === 'sending');
       const sendingCaption = [...pending.values()].some((item) => item.kind === 'image' && item.status === 'sending' && item.text && item.text === composerText.value.trim());
       const hasText = Boolean(composerText.value.trim());
       const attachmentReady = attachment?.status === 'ready';
       const preparing = attachment?.status === 'preparing';
-      const canSendImage = attachmentReady && !switching && !readOnly && ready;
-      const canSendText = hasText && !switching && !readOnly && ready && !sendingText && !sendingCaption;
-      if (sendButton) sendButton.disabled = switching || readOnly || !ready || preparing || !(canSendImage || (!attachmentReady && canSendText));
-      composerText.disabled = switching || readOnly;
-      if (emojiButton) emojiButton.disabled = switching || readOnly;
-      if (attachmentButton) attachmentButton.disabled = switching || readOnly || !ready;
-      if (elements.mentionButton) elements.mentionButton.disabled = switching || readOnly;
+      const canSendImage = attachmentReady && !switching && !blocked && ready;
+      const canSendText = hasText && !switching && !blocked && ready && !sendingText && !sendingCaption;
+      if (sendButton) sendButton.disabled = switching || blocked || !ready || preparing || !(canSendImage || (!attachmentReady && canSendText));
+      composerText.disabled = switching || blocked;
+      if (emojiButton) emojiButton.disabled = switching || blocked;
+      if (attachmentButton) attachmentButton.disabled = switching || blocked || !ready;
+      if (elements.mentionButton) elements.mentionButton.disabled = switching || blocked;
       composer.hidden = readOnly;
-      if (elements.composerHint) elements.composerHint.hidden = readOnly;
-      if (elements.composerWrap) elements.composerWrap.classList.toggle('is-readonly', readOnly);
-      if (elements.channelReadonlyNotice) elements.channelReadonlyNotice.hidden = !readOnly;
-      if (readOnly) {
+      if (elements.composerHint) elements.composerHint.hidden = blocked;
+      if (elements.composerWrap) elements.composerWrap.classList.toggle('is-readonly', blocked);
+      if (elements.channelReadonlyNotice) {
+        elements.channelReadonlyNotice.hidden = !blocked;
+        const query = elements.channelReadonlyNotice.querySelector;
+        if (typeof query === 'function') {
+          const title = query.call(elements.channelReadonlyNotice, 'strong');
+          const copy = query.call(elements.channelReadonlyNotice, '.channel-readonly-copy > span');
+          if (muted && !readOnly) {
+            if (title) title.textContent = t('muted.title');
+            if (copy) copy.textContent = t('muted.notice');
+          } else {
+            if (title) title.textContent = t('readonly.title');
+            if (copy) copy.textContent = t('readonly.notice');
+          }
+        }
+      }
+      if (blocked) {
         paintDrop(false);
         dragDepth = 0;
         mentions?.close();

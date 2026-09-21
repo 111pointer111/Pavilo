@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const YAML = require('yaml');
+const { normalizeIp, isIpAddress, MAX_IP_DENY_LIST } = require('./src/ip');
 
 const ROOT = __dirname;
 const CONFIG_VERSION = 2;
@@ -68,6 +69,7 @@ const DEFAULTS = deepFreeze({
     maxInFlight: 4
   },
   plays: [],
+  ipDenyList: [],
   channels: [{
     id: 'general',
     name: '闲聊',
@@ -88,7 +90,8 @@ const DEFAULTS = deepFreeze({
 });
 
 const ROOT_KEYS_V1 = new Set(['version', 'server', 'room', 'channels', 'limits', 'timeouts', 'rateLimits']);
-const ROOT_KEYS_V2 = new Set([...ROOT_KEYS_V1, 'storage', 'operator', 'plays']);
+const ROOT_KEYS_V2 = new Set([...ROOT_KEYS_V1, 'storage', 'operator', 'plays', 'moderation']);
+const MODERATION_KEYS = new Set(['ipDenyList']);
 const STORAGE_KEYS = new Set(['driver', 'sqlite']);
 const OPERATOR_KEYS = new Set(['token']);
 const SQLITE_KEYS = new Set(['path', 'engine', 'retentionDays']);
@@ -316,6 +319,47 @@ function applyChannelsOverlay(config, channels) {
   return config.channels;
 }
 
+function parseIpDenyList(value, field) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) fail(field, '必须是数组');
+  if (value.length > MAX_IP_DENY_LIST) fail(field, `最多 ${MAX_IP_DENY_LIST} 条`);
+  const seen = new Set();
+  const list = [];
+  value.forEach((entry, index) => {
+    if (typeof entry !== 'string') fail(`${field}[${index}]`, '必须是字符串');
+    const ip = normalizeIp(entry);
+    if (!isIpAddress(ip)) fail(`${field}[${index}]`, '必须是 IPv4 或 IPv6 地址');
+    if (seen.has(ip)) return;
+    seen.add(ip);
+    list.push(ip);
+  });
+  return list;
+}
+
+function snapshotModerationSection(config) {
+  return { ipDenyList: [...(config.ipDenyList || [])] };
+}
+
+function parseModerationOverlay(input) {
+  const moderation = record(input, 'moderation');
+  knownKeys(moderation, MODERATION_KEYS, 'moderation');
+  if (moderation.ipDenyList === undefined) fail('moderation.ipDenyList', '管理页覆盖层缺少字段');
+  return { ipDenyList: parseIpDenyList(moderation.ipDenyList, 'moderation.ipDenyList') };
+}
+
+function applyModerationOverlay(config, moderation) {
+  const parsed = moderation && Object.hasOwn(moderation, 'ipDenyList')
+    && Object.keys(moderation).every((key) => MODERATION_KEYS.has(key))
+    ? { ipDenyList: parseIpDenyList(moderation.ipDenyList, 'moderation.ipDenyList') }
+    : parseModerationOverlay(moderation);
+  config.ipDenyList = parsed.ipDenyList;
+  return parsed;
+}
+
+function moderationSectionsEqual(left, right) {
+  return JSON.stringify(left?.ipDenyList || []) === JSON.stringify(right?.ipDenyList || []);
+}
+
 function validateDefaultChannel(config) {
   const defaultChannel = config.channels.find((channel) => channel.id === config.defaultChannelId);
   if (!defaultChannel) fail('room.defaultChannel', `找不到频道 “${config.defaultChannelId}”`);
@@ -343,9 +387,10 @@ function channelsEqual(left, right) {
 
 function mergePavilionOverlay(config, overlay = {}) {
   const warnings = [];
-  const sources = { room: 'yaml', channels: 'yaml' };
+  const sources = { room: 'yaml', channels: 'yaml', moderation: 'yaml' };
   const yamlRoom = snapshotRoomSection(config);
   const yamlChannels = snapshotChannelsSection(config);
+  const yamlModeration = snapshotModerationSection(config);
   if (overlay.room) {
     const room = parseRoomOverlay(overlay.room);
     if (!roomSectionsEqual(yamlRoom, room)) {
@@ -361,6 +406,14 @@ function mergePavilionOverlay(config, overlay = {}) {
     }
     applyChannelsOverlay(config, channels);
     sources.channels = 'operator';
+  }
+  if (overlay.moderation) {
+    const moderation = parseModerationOverlay(overlay.moderation);
+    if (!moderationSectionsEqual(yamlModeration, moderation)) {
+      warnings.push('IP 黑名单已由管理页接管，忽略配置文件中的 moderation');
+    }
+    applyModerationOverlay(config, moderation);
+    sources.moderation = 'operator';
   }
   if (overlay.room || overlay.channels) validatePavilionConfig(config);
   return { sources, warnings };
@@ -571,6 +624,11 @@ function normalizeConfig(document = {}, { requireVersion = false, baseDir = ROOT
   config.storage = schemaVersion >= 2 ? parseStorage(root.storage, baseDir) : { driver: 'memory' };
   if (schemaVersion >= 2) config.operator = parseOperator(root.operator);
   if (root.operator !== undefined) config._operatorDeclared = true;
+  if (schemaVersion >= 2 && root.moderation !== undefined) {
+    const moderation = record(root.moderation, 'moderation');
+    knownKeys(moderation, MODERATION_KEYS, 'moderation');
+    config.ipDenyList = parseIpDenyList(moderation.ipDenyList, 'moderation.ipDenyList');
+  }
   finalizeOperator(config);
   validateCrossConstraints(config);
   delete config._operatorDeclared;
@@ -659,7 +717,7 @@ function loadConfig({ env = process.env, configPath } = {}) {
 }
 
 function inspectPavilionSources(config) {
-  const sources = { room: 'yaml', channels: 'yaml' };
+  const sources = { room: 'yaml', channels: 'yaml', moderation: 'yaml' };
   const filePath = config.storage?.sqlite?.path;
   if (config.storage?.driver !== 'sqlite' || !filePath || !fs.existsSync(filePath)) return sources;
   const { openSqliteEngine } = require('./src/storage/sqlite-engine');
@@ -671,6 +729,7 @@ function inspectPavilionSources(config) {
     const overlay = createOperatorConfigStore(engine).load();
     if (overlay.room) sources.room = 'operator';
     if (overlay.channels) sources.channels = 'operator';
+    if (overlay.moderation) sources.moderation = 'operator';
     return sources;
   } finally {
     engine.close();
@@ -685,6 +744,7 @@ function checkConfig() {
     const overlaySources = inspectPavilionSources(loaded.config);
     process.stdout.write(`房间真源：${overlaySources.room}\n`);
     process.stdout.write(`聊天频道真源：${overlaySources.channels}\n`);
+    process.stdout.write(`门禁真源：${overlaySources.moderation}\n`);
     const notice = sqliteOperatorNotice(loaded.config);
     if (notice) process.stderr.write(`提示：${notice}\n`);
   } catch (error) {
@@ -707,12 +767,16 @@ module.exports = {
   inspectPavilionSources,
   snapshotRoomSection,
   snapshotChannelsSection,
+  snapshotModerationSection,
   parseRoomOverlay,
   parseChannelsOverlay,
+  parseModerationOverlay,
   applyRoomOverlay,
   applyChannelsOverlay,
+  applyModerationOverlay,
   validatePavilionConfig,
-  mergePavilionOverlay
+  mergePavilionOverlay,
+  normalizeIp
 };
 
 if (require.main === module) checkConfig();

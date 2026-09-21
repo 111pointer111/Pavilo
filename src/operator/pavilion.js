@@ -3,8 +3,10 @@
 const {
   snapshotRoomSection,
   snapshotChannelsSection,
+  snapshotModerationSection,
   parseRoomOverlay,
   parseChannelsOverlay,
+  parseModerationOverlay,
   applyRoomOverlay,
   validatePavilionConfig
 } = require('../../config');
@@ -13,7 +15,8 @@ function createPavilionController({ config, baseline, store, core }) {
   function sourcesFrom(overlay) {
     return {
       room: overlay.room ? 'operator' : 'yaml',
-      channels: overlay.channels ? 'operator' : 'yaml'
+      channels: overlay.channels ? 'operator' : 'yaml',
+      moderation: overlay.moderation ? 'operator' : 'yaml'
     };
   }
 
@@ -23,10 +26,12 @@ function createPavilionController({ config, baseline, store, core }) {
       sources: sourcesFrom(overlay),
       updatedAt: {
         room: overlay.meta.room?.updatedAt || null,
-        channels: overlay.meta.channels?.updatedAt || null
+        channels: overlay.meta.channels?.updatedAt || null,
+        moderation: overlay.meta.moderation?.updatedAt || null
       },
       room: snapshotRoomSection(config),
       channels: snapshotChannelsSection(config),
+      moderation: snapshotModerationSection(config),
       plays: [...(config.plays || [])],
       occupancy: core.occupancy(),
       maxUsersCap: config.maxClients
@@ -75,7 +80,20 @@ function createPavilionController({ config, baseline, store, core }) {
     return snapshot();
   }
 
-  return { snapshot, saveRoom, saveChannels, revertRoom, revertChannels };
+  function saveModeration(input) {
+    const moderation = parseModerationOverlay(input);
+    core.applyPavilionConfig({ moderation });
+    store.save('moderation', snapshotModerationSection(config));
+    return snapshot();
+  }
+
+  function revertModeration() {
+    core.applyPavilionConfig({ moderation: baseline.moderation || { ipDenyList: [] } });
+    store.remove('moderation');
+    return snapshot();
+  }
+
+  return { snapshot, saveRoom, saveChannels, revertRoom, revertChannels, saveModeration, revertModeration };
 }
 
 module.exports = { createPavilionController };

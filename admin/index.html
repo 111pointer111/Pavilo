@@ -61,6 +61,7 @@
         <nav class="rail-nav" aria-label="pavilo">
           <a href="#/overview" data-nav="overview" data-i18n="nav.overview">总览</a>
           <a href="#/room" data-nav="room" data-i18n="nav.room">房间</a>
+          <a href="#/people" data-nav="people" data-i18n="nav.people">人员</a>
           <a href="#/chat" data-nav="chat" data-i18n="nav.chat">聊天频道</a>
         </nav>
       </div>
@@ -145,6 +146,39 @@
               <button type="button" id="roomRevertButton" class="ghost" data-i18n="room.revert">恢复为配置文件</button>
             </div>
           </form>
+        </section>
+
+        <section class="view" id="viewPeople" hidden>
+          <p class="error" id="peopleLoadError" hidden></p>
+          <p class="log-strip" id="peopleLog" hidden></p>
+          <div class="people-toolbar" id="peopleToolbar"></div>
+          <div id="peopleList"></div>
+          <form class="editor paper deny-paper" id="denyForm">
+            <fieldset>
+              <legend>
+                <span data-i18n="people.denyTitle">进不来的 IP</span>
+                <span class="source-badge" id="denySource" hidden></span>
+              </legend>
+              <p class="hint" data-i18n="people.denyHint">反向代理后看到的可能是代理 IP。拉黑一条等于拉黑所有走同一出口的人。</p>
+              <div id="denyList"></div>
+              <div class="deny-add">
+                <label>
+                  <span data-i18n="people.denyIp">IP</span>
+                  <input name="ip" autocomplete="off" maxlength="45" spellcheck="false">
+                </label>
+                <button type="submit" id="denyAddButton" data-i18n="people.denyAdd">加入</button>
+              </div>
+              <div class="actions">
+                <button type="button" class="ghost" id="denyRevertButton" data-i18n="people.denyRevert">恢复为配置文件</button>
+              </div>
+            </fieldset>
+          </form>
+        </section>
+
+        <section class="view" id="viewSeat" hidden>
+          <p><a class="back" href="#/people" data-i18n="people.back">返回人员</a></p>
+          <p class="error" id="seatLoadError" hidden></p>
+          <div id="seatPaper"></div>
         </section>
 
         <section class="view" id="viewChat" hidden>

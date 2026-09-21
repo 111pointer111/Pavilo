@@ -491,6 +491,9 @@ v4 专有，向所有已加入的 v4 客户端广播完整摘要；只含频道 
 | `CHANNEL_FULL` | 频道人数已达 `maxUsers` |
 | `SERVER_FULL` | 全局人数已达 `server.maxUsers` |
 | `CHANNEL_READ_ONLY` | 只读频道不能发消息 |
+| `MUTED` | 这一席被值班台禁言，不能发消息 |
+| `KICKED` | 这一席被请离（随后连接以 `4008 / kicked` 关闭） |
+| `IP_DENIED` | 连接 IP 在黑名单中（随后以 `4009 / ip_denied` 关闭） |
 | `INVALID_MESSAGE_ID` | `clientMessageId` 不是 `[A-Za-z0-9_-]{8,96}` |
 | `INVALID_KIND` | `kind` 不是 `text` 或 `image` |
 | `EMPTY_MESSAGE` | 文本清洗后为空 |
@@ -534,8 +537,16 @@ v4 专有，向所有已加入的 v4 客户端广播完整摘要；只含频道 
 | `1008` | `sync timeout` / `sync overflow` | 初始同步超时或积压超过写缓冲 |
 | `1008` | `too many frames` | 单次数据块内解析出超过 128 帧 |
 | `1009` | `payload too large` | 超过 `maxJsonBytes` 或 `maxWsFrameBytes` |
+| `4008` | `kicked` | 值班台结束了这一席 |
+| `4009` | `ip_denied` | 连接 IP 在黑名单中 |
 
-客户端应只把 **`1001` + reason `server stopped`** 这一精确组合当作权威停服信号（此时清空恢复信息与临时数据）；其余断线按普通重连处理。
+客户端应把下列关闭当作**不要自动重连**的终态，并清空恢复信息：
+
+- **`1001` + reason `server stopped`**：权威停服
+- **`4008` + reason `kicked`**：被请离，回到进亭页
+- **`4009` + reason `ip_denied`**：这个网络不能进亭
+
+其余断线按普通重连处理。请离前服务端会先发 `{ "type": "moderation", "action": "kicked" }`；禁言是 `{ "type": "moderation", "action": "muted" | "unmuted" }`，不关连接。其他人只看到普通 `presence / leave`，没有公开的踢人广播。
 
 ---
 

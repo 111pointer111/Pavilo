@@ -10,11 +10,12 @@
   const EVENTS = Object.freeze({ STATE_START: 'stateStart', HISTORY: 'history', HISTORY_END: 'historyEnd',
     HISTORY_PAGE_END: 'historyPageEnd',
     STATE: 'state', PRESENCE: 'presence', MESSAGE: 'message', REACTION: 'reaction', PRUNE: 'prune',
-    TYPING: 'typing', CHANNEL_OCCUPANCY: 'channelOccupancy', PLAY_STATE: 'playState', ACK: 'ack', ERROR: 'error' });
+    TYPING: 'typing', CHANNEL_OCCUPANCY: 'channelOccupancy', PLAY_STATE: 'playState', ACK: 'ack', ERROR: 'error',
+    MODERATION: 'moderation' });
   const ACK_FIELDS = Object.freeze(['clientMessageId', 'messageId', 'seq', 'createdAt']);
   const ERROR_FIELDS = Object.freeze(['code', 'message', 'clientMessageId']);
   const SYNC_EVENTS = Object.freeze(['stateStart', 'history', 'historyEnd']);
-  const DEFERRED_EVENTS = Object.freeze(['presence', 'message', 'reaction', 'typing', 'channelOccupancy', 'playState', 'ack', 'error']);
+  const DEFERRED_EVENTS = Object.freeze(['presence', 'message', 'reaction', 'typing', 'channelOccupancy', 'playState', 'ack', 'error', 'moderation']);
   const REACTION_EMOJIS = Object.freeze(['👍', '❤️', '😂', '🎉', '👀', '🔥']);
 
   function isRecord(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
@@ -81,7 +82,8 @@
           && optional(event.capabilities, (value) => Array.isArray(value) && value.every((item) => typeof item === 'string'))
           && optional(event.resumeToken, (value) => value === null || isClientMessageId(value))
           && optional(event.occupancy, isOccupancy)
-          && optional(event.play, (value) => isRecord(value) && typeof value.id === 'string' && typeof value.page === 'string');
+          && optional(event.play, (value) => isRecord(value) && typeof value.id === 'string' && typeof value.page === 'string')
+          && optional(event.selfMuted, (value) => typeof value === 'boolean');
         break;
       case EVENTS.HISTORY: valid = isMessages(event.messages); break;
       case EVENTS.HISTORY_END: valid = isSequence(event.latestSeq); break;
@@ -117,6 +119,9 @@
         // INVALID_MESSAGE_ID deliberately echoes invalid IDs, so correlation here is a string, not a valid submission ID.
         valid = typeof event.code === 'string' && /^[A-Z][A-Z0-9_]*$/.test(event.code)
           && typeof event.message === 'string' && optional(event.clientMessageId, (value) => typeof value === 'string');
+        break;
+      case EVENTS.MODERATION:
+        valid = event.action === 'muted' || event.action === 'unmuted' || event.action === 'kicked';
         break;
     }
     return valid ? event : null;

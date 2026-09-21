@@ -57,6 +57,8 @@
   const views = {
     overview: document.getElementById('viewOverview'),
     room: document.getElementById('viewRoom'),
+    people: document.getElementById('viewPeople'),
+    seat: document.getElementById('viewSeat'),
     chat: document.getElementById('viewChat'),
     chatForm: document.getElementById('viewChatForm'),
     gateway: document.getElementById('viewGateway'),
@@ -64,6 +66,14 @@
     form: document.getElementById('viewChannelForm'),
     usage: document.getElementById('viewUsage')
   };
+  const peopleList = document.getElementById('peopleList');
+  const peopleToolbar = document.getElementById('peopleToolbar');
+  const peopleLog = document.getElementById('peopleLog');
+  const denyForm = document.getElementById('denyForm');
+  const denyList = document.getElementById('denyList');
+  const denySource = document.getElementById('denySource');
+  const denyRevertButton = document.getElementById('denyRevertButton');
+  const seatPaper = document.getElementById('seatPaper');
   const DEEPSEEK_BASE = 'https://api.deepseek.com/v1';
   const DEEPSEEK_MODEL = 'deepseek-chat';
 
@@ -80,11 +90,15 @@
   let dirty = false;
   let lastHash = location.hash;
   let ignoreHash = false;
+  let peopleState = { seats: [], moderation: { ipDenyList: [] }, sources: {}, log: [], online: 0, leased: 0 };
+  let peopleFilter = { channel: '', leased: false };
+  let peopleTimer = 0;
+  let seatHistory = { messages: [], exhausted: true };
 
   function emptyPavilion() {
     return {
-      sources: { room: 'yaml', channels: 'yaml' },
-      updatedAt: { room: null, channels: null },
+      sources: { room: 'yaml', channels: 'yaml', moderation: 'yaml' },
+      updatedAt: { room: null, channels: null, moderation: null },
       room: {},
       channels: [],
       plays: [],
@@ -95,8 +109,8 @@
 
   function acceptPavilion(payload) {
     pavilion = {
-      sources: payload.sources || { room: 'yaml', channels: 'yaml' },
-      updatedAt: payload.updatedAt || { room: null, channels: null },
+      sources: payload.sources || { room: 'yaml', channels: 'yaml', moderation: 'yaml' },
+      updatedAt: payload.updatedAt || { room: null, channels: null, moderation: null },
       room: payload.room || {},
       channels: Array.isArray(payload.channels) ? payload.channels : [],
       plays: Array.isArray(payload.plays) ? payload.plays : [],
@@ -265,7 +279,9 @@
 
   function parseRoute() {
     const raw = (location.hash || '#/overview').replace(/^#/, '') || '/overview';
-    let parts = raw.split('/').filter(Boolean);
+    const [pathOnly, queryString] = raw.split('?');
+    const query = new URLSearchParams(queryString || '');
+    let parts = pathOnly.split('/').filter(Boolean);
     let path = `/${parts.join('/')}`;
     if (parts[0] === 'usage') path = '/gateway/usage';
     else if (parts[0] === 'channels') path = `/gateway/${parts.join('/')}`;
@@ -274,6 +290,8 @@
       parts = path.split('/').filter(Boolean);
     }
     if (parts[0] === 'room') return { view: 'room' };
+    if (parts[0] === 'people' && parts[1]) return { view: 'seat', id: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'people') return { view: 'people', channel: query.get('channel') || '' };
     if (parts[0] === 'chat' && parts[1] === 'new') return { view: 'chatForm', id: '' };
     if (parts[0] === 'chat' && parts[1]) return { view: 'chatForm', id: parts[1] };
     if (parts[0] === 'chat') return { view: 'chat' };
@@ -325,6 +343,7 @@
       trackedForm = null;
       dirty = false;
     }
+    if (name !== 'people') stopPeoplePoll();
   }
 
   function el(tag, className, text) {
@@ -350,6 +369,64 @@
 
   function sourceLabel(source) {
     return t(source === 'operator' ? 'overview.sourceOperator' : 'overview.sourceYaml');
+  }
+
+  function stopPeoplePoll() {
+    if (peopleTimer) {
+      clearInterval(peopleTimer);
+      peopleTimer = 0;
+    }
+  }
+
+  function startPeoplePoll() {
+    stopPeoplePoll();
+    peopleTimer = setInterval(() => {
+      if (document.hidden) return;
+      refreshPeople().then(() => {
+        if (parseRoute().view === 'people') renderPeopleList();
+      }).catch(() => {});
+    }, 5000);
+  }
+
+  function formatDuration(from, clock = Date.now()) {
+    if (!from) return t('people.never');
+    const minutes = Math.floor(Math.max(0, clock - from) / 60000);
+    if (minutes < 1) return t('people.durationNow');
+    if (minutes < 60) return t('people.durationMin', { count: minutes });
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return t('people.durationHour', { hours, minutes: minutes % 60 });
+    return t('people.durationDay', { days: Math.floor(hours / 24), hours: hours % 24 });
+  }
+
+  function formatClock(ts) {
+    if (!ts) return t('people.never');
+    try {
+      return new Date(ts).toLocaleString(i18n.language() === 'en' ? 'en' : 'zh-CN', { hour12: false });
+    } catch {
+      return t('people.never');
+    }
+  }
+
+  function acceptPeople(payload) {
+    peopleState = {
+      seats: Array.isArray(payload.seats) ? payload.seats : [],
+      moderation: payload.moderation || { ipDenyList: [] },
+      sources: payload.sources || {},
+      updatedAt: payload.updatedAt || {},
+      log: Array.isArray(payload.log) ? payload.log : [],
+      online: payload.online || 0,
+      leased: payload.leased || 0
+    };
+  }
+
+  async function refreshPeople() {
+    acceptPeople(await api('/admin/api/people'));
+  }
+
+  function peopleLogLine(entry) {
+    const key = `people.log.${entry.action}`;
+    const text = t(key, entry);
+    return text === key ? entry.action : text;
   }
 
   function renderOverview() {
@@ -397,7 +474,15 @@
       el('p', '', `${t('overview.missingKey', { count: missing })} · ${t('overview.errors', { count: errors })}`)
     );
 
-    overviewSheets.replaceChildren(duty, chat, gateway);
+    const people = el('a', 'sheet');
+    people.href = '#/people';
+    people.append(
+      el('p', 'kicker', t('nav.people')),
+      el('strong', '', t('overview.online', { count: room.users ?? 0 })),
+      el('p', '', t('people.overviewHint'))
+    );
+
+    overviewSheets.replaceChildren(duty, people, chat, gateway);
   }
 
   function modelChannelRow(channel) {
@@ -641,6 +726,287 @@
     usageBox.append(wrap);
   }
 
+  function filteredSeats() {
+    return peopleState.seats.filter((seat) => {
+      if (peopleFilter.channel && seat.channelId !== peopleFilter.channel) return false;
+      if (peopleFilter.leased && seat.status !== 'leased') return false;
+      return true;
+    });
+  }
+
+  function seatStatusLabel(seat) {
+    if (seat.kind === 'agent') return t('people.agent');
+    if (seat.muted) return t('people.muted');
+    if (seat.status === 'leased') return t('people.leased');
+    return t('people.connected');
+  }
+
+  function renderPeopleList() {
+    const log = peopleState.log[0];
+    if (log) {
+      peopleLog.hidden = false;
+      peopleLog.textContent = `${formatClock(log.at)} · ${peopleLogLine(log)}`;
+    } else {
+      peopleLog.hidden = true;
+      peopleLog.textContent = '';
+    }
+
+    peopleToolbar.replaceChildren();
+    const channelSelect = document.createElement('select');
+    channelSelect.setAttribute('aria-label', t('people.filterAll'));
+    const all = document.createElement('option');
+    all.value = '';
+    all.textContent = t('people.filterAll');
+    channelSelect.append(all);
+    const channelIds = [...new Set((pavilion.channels || []).map((channel) => channel.id)
+      .concat(peopleState.seats.map((seat) => seat.channelId)))];
+    for (const id of channelIds) {
+      const option = document.createElement('option');
+      option.value = id;
+      const named = (pavilion.channels || []).find((channel) => channel.id === id);
+      option.textContent = named ? `${named.name} · ${id}` : id;
+      channelSelect.append(option);
+    }
+    channelSelect.value = peopleFilter.channel;
+    channelSelect.addEventListener('change', () => {
+      peopleFilter.channel = channelSelect.value;
+      renderPeopleList();
+    });
+    const leasedLabel = el('label', 'check');
+    const leasedBox = document.createElement('input');
+    leasedBox.type = 'checkbox';
+    leasedBox.checked = peopleFilter.leased;
+    leasedBox.addEventListener('change', () => {
+      peopleFilter.leased = leasedBox.checked;
+      renderPeopleList();
+    });
+    leasedLabel.append(leasedBox, document.createTextNode(t('people.filterLeased')));
+    peopleToolbar.append(channelSelect, leasedLabel);
+
+    const seats = filteredSeats();
+    peopleList.replaceChildren();
+    if (!seats.length) {
+      const empty = el('div', 'empty paper');
+      empty.append(el('h2', '', t('people.empty')));
+      peopleList.append(empty);
+    } else {
+      const list = el('div', 'ledger');
+      for (const seat of seats) {
+        const row = el('a', 'ledger-row');
+        row.href = `#/people/${encodeURIComponent(seat.id)}`;
+        const identity = el('div');
+        identity.append(el('div', 'ledger-name', seat.username));
+        const meta = el('div', 'ledger-meta');
+        meta.append(document.createTextNode([
+          seat.channelId,
+          seat.ip || t('people.never'),
+          t('people.messages', { count: seat.messageCount || 0 }),
+          formatDuration(seat.joinedAt)
+        ].join(' · ')));
+        identity.append(meta);
+        const status = el('div', 'ledger-status');
+        const badgeClass = seat.kind === 'agent' || seat.muted || seat.status === 'leased' ? 'badge warn' : 'badge';
+        status.append(el('span', badgeClass, seatStatusLabel(seat)));
+        row.append(identity, status);
+        list.append(row);
+      }
+      peopleList.append(list);
+    }
+
+    const source = peopleState.sources.moderation;
+    if (source) {
+      denySource.hidden = false;
+      paintSource(denySource, source);
+    } else {
+      denySource.hidden = true;
+    }
+    const ips = peopleState.moderation.ipDenyList || [];
+    denyList.replaceChildren();
+    if (!ips.length) {
+      denyList.append(el('p', 'hint', t('people.denyEmpty')));
+    } else {
+      for (const ip of ips) {
+        const row = el('div', 'deny-row');
+        row.append(el('code', '', ip));
+        const remove = el('button', 'ghost', t('channel.delete'));
+        remove.type = 'button';
+        remove.addEventListener('click', async () => {
+          try {
+            const next = ips.filter((item) => item !== ip);
+            acceptPeople(await api('/admin/api/moderation', {
+              method: 'PUT',
+              body: JSON.stringify({ ipDenyList: next })
+            }));
+            showToast(t('people.denyRemoved'));
+            renderPeopleList();
+          } catch (error) {
+            showToast(error.message, 'err');
+          }
+        });
+        row.append(remove);
+        denyList.append(row);
+      }
+    }
+    denyRevertButton.hidden = source !== 'operator' || !writable();
+    denyForm.querySelector('[name=ip]').disabled = !writable();
+    document.getElementById('denyAddButton').disabled = !writable();
+  }
+
+  function seatField(label, value) {
+    const wrap = document.createDocumentFragment();
+    wrap.append(el('dt', '', label), el('dd', '', value));
+    return wrap;
+  }
+
+  async function renderSeat(id) {
+    const errorNode = document.getElementById('seatLoadError');
+    errorNode.hidden = true;
+    seatPaper.replaceChildren();
+    let payload;
+    try {
+      payload = await api(`/admin/api/people/${encodeURIComponent(id)}`);
+      acceptPeople(payload);
+    } catch (error) {
+      errorNode.hidden = false;
+      errorNode.textContent = error.code === 'NOT_FOUND' ? t('people.gone') : error.message;
+      return;
+    }
+    const seat = payload.seat;
+    const paper = el('div', 'editor paper');
+    const identity = document.createElement('fieldset');
+    identity.append(el('legend', '', t('people.groupSeat')));
+    const dl = el('dl', 'seat-dl');
+    dl.append(
+      seatField(t('people.fieldId'), seat.id),
+      seatField(t('people.fieldChannel'), seat.channelId),
+      seatField(t('people.fieldIp'), seat.ip || t('people.never')),
+      seatField(t('people.fieldJoined'), formatClock(seat.joinedAt)),
+      seatField(t('people.fieldDuration'), formatDuration(seat.joinedAt)),
+      seatField(t('people.fieldCount'), String(seat.messageCount || 0)),
+      seatField(t('people.fieldLast'), formatClock(seat.lastSpokenAt))
+    );
+    identity.append(dl);
+    paper.append(identity);
+
+    const history = document.createElement('fieldset');
+    history.append(el('legend', '', t('people.groupHistory')));
+    const historyBox = el('div', 'history-list');
+    history.append(historyBox);
+    paper.append(history);
+
+    const danger = document.createElement('fieldset');
+    danger.className = 'danger-zone';
+    danger.append(el('legend', '', t('people.danger')));
+    const actions = el('div', 'actions');
+    if (seat.kind === 'agent') {
+      actions.append(el('p', 'hint', t('people.agentLocked')));
+    } else {
+      const muteBtn = el('button', 'ghost', seat.muted ? t('people.unmute') : t('people.mute'));
+      muteBtn.type = 'button';
+      muteBtn.disabled = !writable();
+      muteBtn.addEventListener('click', async () => {
+        try {
+          await withBusy(muteBtn, null, async () => {
+            const next = await api(`/admin/api/people/${encodeURIComponent(seat.id)}/mute`, {
+              method: 'POST',
+              body: JSON.stringify({ active: !seat.muted })
+            });
+            showToast(next.seat.muted ? t('people.mutedOn') : t('people.mutedOff'));
+            await renderSeat(seat.id);
+          });
+        } catch (error) {
+          showToast(error.message, 'err');
+        }
+      });
+      const kickBtn = el('button', 'ghost danger', t('people.kick'));
+      kickBtn.type = 'button';
+      kickBtn.disabled = !writable();
+      kickBtn.addEventListener('click', async () => {
+        const ok = await confirmDialog({
+          title: t('people.kickTitle'),
+          copy: t('people.kickCopy', { name: seat.username }),
+          ok: t('people.kick'),
+          danger: true
+        });
+        if (!ok) return;
+        try {
+          await api(`/admin/api/people/${encodeURIComponent(seat.id)}/kick`, {
+            method: 'POST',
+            body: JSON.stringify({ denyIp: false })
+          });
+          showToast(t('people.kicked'));
+          location.hash = '#/people';
+        } catch (error) {
+          showToast(error.message, 'err');
+        }
+      });
+      const kickDenyBtn = el('button', 'danger fill', t('people.kickDeny'));
+      kickDenyBtn.type = 'button';
+      kickDenyBtn.disabled = !writable() || !seat.ip;
+      kickDenyBtn.addEventListener('click', async () => {
+        const ok = await confirmDialog({
+          title: t('people.kickTitle'),
+          copy: t('people.kickDenyCopy', { name: seat.username, ip: seat.ip }),
+          ok: t('people.kickDeny'),
+          danger: true
+        });
+        if (!ok) return;
+        try {
+          await api(`/admin/api/people/${encodeURIComponent(seat.id)}/kick`, {
+            method: 'POST',
+            body: JSON.stringify({ denyIp: true })
+          });
+          showToast(t('people.kicked'));
+          location.hash = '#/people';
+        } catch (error) {
+          showToast(error.message, 'err');
+        }
+      });
+      actions.append(muteBtn, kickBtn, kickDenyBtn);
+    }
+    danger.append(actions);
+    paper.append(danger);
+    seatPaper.append(paper);
+
+    try {
+      const page = await api(`/admin/api/people/${encodeURIComponent(id)}/messages?limit=50`);
+      seatHistory = page;
+      if (!page.messages.length) {
+        historyBox.append(el('p', 'hint', t('people.historyEmpty')));
+      } else {
+        for (const message of page.messages) {
+          const row = el('div', 'history-row');
+          row.append(el('div', 'history-meta', `${formatClock(message.createdAt)} · ${message.channelId}`));
+          const body = el('div', 'history-text', message.kind === 'image'
+            ? `${t('people.image')}${message.text ? ` · ${message.text}` : ''}`
+            : (message.text || ''));
+          row.append(body);
+          historyBox.append(row);
+        }
+        if (!page.exhausted && page.messages.length) {
+          const more = el('button', 'ghost', t('people.historyMore'));
+          more.type = 'button';
+          more.addEventListener('click', async () => {
+            const last = page.messages[page.messages.length - 1];
+            const next = await api(`/admin/api/people/${encodeURIComponent(id)}/messages?limit=50&beforeCreatedAt=${last.createdAt}&beforeChannelId=${encodeURIComponent(last.channelId)}&beforeId=${encodeURIComponent(last.id)}`);
+            more.remove();
+            for (const message of next.messages) {
+              const row = el('div', 'history-row');
+              row.append(el('div', 'history-meta', `${formatClock(message.createdAt)} · ${message.channelId}`));
+              row.append(el('div', 'history-text', message.kind === 'image'
+                ? `${t('people.image')}${message.text ? ` · ${message.text}` : ''}`
+                : (message.text || '')));
+              historyBox.append(row);
+            }
+          });
+          historyBox.append(more);
+        }
+      }
+    } catch (error) {
+      historyBox.append(el('p', 'hint', error.message));
+    }
+  }
+
   function addAction(href, label) {
     const link = el('a', 'button', label);
     link.href = href;
@@ -674,6 +1040,52 @@
       });
       showView('room');
       fillRoomForm();
+      return;
+    }
+    if (route.view === 'people') {
+      markNav('people');
+      if (route.channel) peopleFilter.channel = route.channel;
+      setHead({
+        title: t('people.title'),
+        lead: t('people.lead'),
+        crumb: t('nav.groupPavilo'),
+        source: peopleState.sources.moderation,
+        status: t('people.status', { online: peopleState.online, leased: peopleState.leased })
+      });
+      showView('people');
+      refreshPeople().then(() => {
+        setHead({
+          title: t('people.title'),
+          lead: t('people.lead'),
+          crumb: t('nav.groupPavilo'),
+          source: peopleState.sources.moderation,
+          status: t('people.status', { online: peopleState.online, leased: peopleState.leased })
+        });
+        renderPeopleList();
+        startPeoplePoll();
+      }).catch((error) => {
+        const node = document.getElementById('peopleLoadError');
+        node.hidden = false;
+        node.textContent = error.message;
+      });
+      return;
+    }
+    if (route.view === 'seat') {
+      markNav('people');
+      setHead({
+        title: t('people.title'),
+        lead: t('people.seatLead'),
+        crumb: `${t('nav.groupPavilo')} / ${t('nav.people')}`
+      });
+      showView('seat');
+      renderSeat(route.id).then(() => {
+        const seat = peopleState.seats.find((item) => item.id === route.id) || {};
+        setHead({
+          title: t('people.seatTitle', { name: seat.username || t('people.title') }),
+          lead: t('people.seatLead'),
+          crumb: `${t('nav.groupPavilo')} / ${t('nav.people')}`
+        });
+      });
       return;
     }
     if (route.view === 'chat') {
@@ -785,6 +1197,41 @@
 
   bindReveal(tokenReveal, tokenInput);
   bindReveal(keyReveal, form.apiKey);
+
+  denyForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const ip = denyForm.ip.value.trim();
+    if (!ip) return;
+    const list = [...(peopleState.moderation.ipDenyList || [])];
+    if (!list.includes(ip)) list.push(ip);
+    try {
+      acceptPeople(await api('/admin/api/moderation', {
+        method: 'PUT',
+        body: JSON.stringify({ ipDenyList: list })
+      }));
+      denyForm.ip.value = '';
+      showToast(t('people.denyAdded'));
+      renderPeopleList();
+    } catch (error) {
+      showToast(error.message, 'err');
+    }
+  });
+
+  denyRevertButton.addEventListener('click', async () => {
+    const ok = await confirmDialog({
+      title: t('room.revert'),
+      copy: t('people.denyHint'),
+      ok: t('people.denyRevert')
+    });
+    if (!ok) return;
+    try {
+      acceptPeople(await api('/admin/api/moderation', { method: 'DELETE' }));
+      showToast(t('people.denyReverted'));
+      renderPeopleList();
+    } catch (error) {
+      showToast(error.message, 'err');
+    }
+  });
 
   loginForm.addEventListener('submit', async (event) => {
     event.preventDefault();

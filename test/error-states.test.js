@@ -9,6 +9,8 @@ const { createI18n } = require('../client/i18n');
 test('error-states exports the known type keys', () => {
   assert.ok(ErrorStates.ERROR_TYPE_KEYS.includes('OFFLINE'));
   assert.ok(ErrorStates.ERROR_TYPE_KEYS.includes('PROTOCOL_NOT_SUPPORTED'));
+  assert.ok(ErrorStates.ERROR_TYPE_KEYS.includes('KICKED'));
+  assert.ok(ErrorStates.ERROR_TYPE_KEYS.includes('IP_DENIED'));
 });
 
 test('createErrorStates returns API', () => {

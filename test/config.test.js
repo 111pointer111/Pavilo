@@ -120,6 +120,7 @@ test('normalization defaults programmatic input, while files require a version a
   throwsMatch(() => parseConfig('version: 2\noperator:\n  token: "' + 'a'.repeat(16) + '"\n'), /operator.*sqlite/);
   throwsMatch(() => parseConfig('version: 2\nplays:\n  - echo\n'), /plays.*sqlite/);
   throwsMatch(() => parseConfig('version: 2\ngateway:\n  enabled: true\n'), /config\.gateway.*未知配置项/);
+  throwsMatch(() => parseConfig('version: 1\nmoderation:\n  ipDenyList: []\n'), /config\.moderation.*未知配置项/);
   throwsMatch(() => parseConfig('version: 1\nserver:\n  maxUserz: 4\n'), /server\.maxUserz.*未知配置项/);
   throwsMatch(() => parseConfig('version: 1\nserver:\n  maxUsers: "4"\n'), /server\.maxUsers.*整数/);
   throwsMatch(() => parseConfig('version: 1\nroom:\n  exposeMemberIps: yes\n'), /room\.exposeMemberIps.*true 或 false/);
@@ -623,4 +624,18 @@ server:
   assert.notEqual(yamlTitle, config.roomTitle);
   assert.match(merged.warnings.join('\n'), /房间设置已由管理页接管/);
   assert.equal(snapshotRoomSection(config).title, '管理页标题');
+  assert.equal(merged.sources.moderation, 'yaml');
+});
+
+test('schema v2 moderation.ipDenyList is optional and validated', () => {
+  const config = parseConfig(`
+version: 2
+moderation:
+  ipDenyList:
+    - 192.0.2.8
+    - "::1"
+`);
+  assert.deepEqual(config.ipDenyList, ['192.0.2.8', '::1']);
+  throwsMatch(() => parseConfig('version: 2\nmoderation:\n  ipDenyList: 1\n'), /必须是数组/);
+  throwsMatch(() => parseConfig('version: 2\nmoderation:\n  ipDenyList: ["not-an-ip"]\n'), /IPv4 或 IPv6/);
 });

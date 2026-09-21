@@ -78,6 +78,7 @@ test('operator pages are served only when enabled, and traversal stays 404', asy
   assert.match(html, /chatForm/);
   assert.match(html, /#\/overview/);
   assert.match(html, /#\/room/);
+  assert.match(html, /#\/people/);
   assert.match(html, /#\/chat/);
   assert.match(html, /#\/gateway/);
   assert.match(html, /#\/gateway\/channels/);

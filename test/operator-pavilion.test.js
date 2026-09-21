@@ -223,3 +223,58 @@ test('adding a channel applies immediately and revert restores YAML', async (t) 
   assert.deepEqual(revertedBody.channels.map((channel) => channel.id), ['general', 'project']);
   assert.equal(app.pavilionSources.channels, 'yaml');
 });
+
+test('operator people list, mute, kick, and IP deny list', async (t) => {
+  const { origin, port } = await start(t);
+  const { headers } = await login(origin);
+  const empty = await (await fetch(`${origin}/admin/api/people`, { headers })).json();
+  assert.equal(empty.ok, true);
+  assert.deepEqual(empty.seats, []);
+  assert.deepEqual(empty.moderation.ipDenyList, []);
+  assert.equal(empty.sources.moderation, 'yaml');
+
+  const client = await openWebSocket({ port });
+  t.after(() => client.close());
+  client.sendJson({
+    type: 'join',
+    protocolVersion: 4,
+    username: '北岸的猫',
+    clientSessionId: 'session-people-0001',
+    channelId: 'general'
+  });
+  await client.nextJson((payload) => payload.type === 'stateStart');
+
+  const listing = await (await fetch(`${origin}/admin/api/people`, { headers })).json();
+  assert.equal(listing.seats.length, 1);
+  assert.equal(listing.seats[0].username, '北岸的猫');
+  assert.equal(listing.seats[0].status, 'connected');
+  const id = listing.seats[0].id;
+  const ip = listing.seats[0].ip;
+
+  const muted = await fetch(`${origin}/admin/api/people/${encodeURIComponent(id)}/mute`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ active: true })
+  });
+  assert.equal(muted.status, 200);
+  assert.equal((await muted.json()).seat.muted, true);
+  assert.equal((await client.nextJson((payload) => payload.type === 'moderation')).action, 'muted');
+
+  const kicked = await fetch(`${origin}/admin/api/people/${encodeURIComponent(id)}/kick`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ denyIp: true })
+  });
+  assert.equal(kicked.status, 200);
+  const kickedBody = await kicked.json();
+  assert.equal(kickedBody.seats.length, 0);
+  assert.ok(kickedBody.moderation.ipDenyList.includes(ip));
+  assert.equal(kickedBody.sources.moderation, 'operator');
+  assert.ok(kickedBody.log.some((entry) => entry.action === 'kick-deny'));
+
+  const reverted = await fetch(`${origin}/admin/api/moderation`, { method: 'DELETE', headers });
+  assert.equal(reverted.status, 200);
+  const revertedBody = await reverted.json();
+  assert.equal(revertedBody.sources.moderation, 'yaml');
+  assert.deepEqual(revertedBody.moderation.ipDenyList, []);
+});

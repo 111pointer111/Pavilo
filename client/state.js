@@ -4,7 +4,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const DEFERRED_EVENTS = new Set(['presence', 'message', 'reaction', 'typing', 'channelOccupancy', 'playState', 'ack', 'error']);
+  const DEFERRED_EVENTS = new Set(['presence', 'message', 'reaction', 'typing', 'channelOccupancy', 'playState', 'ack', 'error', 'moderation']);
   const EPOCH_ERROR = 'pending.epochRestarted';
   const TYPING_EXPIRY = 4_500;
   // Tombstones stay non-enumerable so the public sync shape remains backwards
@@ -48,7 +48,7 @@
     return {
       connection: { status: 'idle', joined: false, attempt: 0, intentionalLeave: false },
       room: { epoch: null, startedAt: null, latestSeq: 0, resumeToken: null, capabilities: [] },
-      self: null, channelId: null, channel: { switching: false, requestedId: null }, channels: [], channelOccupancy: {},
+      self: null, selfMuted: false, channelId: null, channel: { switching: false, requestedId: null }, channels: [], channelOccupancy: {},
       users: [], messages: [], pending: {}, sync: emptySync(), typing: {}, unread: 0,
       historyPage: { loading: false, exhausted: true, hasPaged: false },
       error: null, maxMessages: cap(options.maxMessages),
@@ -121,7 +121,7 @@
       case 'stateStart': {
         const channelId = event.channelId || state.channelId || event.defaultChannelId || null;
         const switched = state.channel.switching && channelId === state.channel.requestedId;
-        return { ...state, self: event.self, users: event.users || [], channelId,
+        return { ...state, self: event.self, selfMuted: Boolean(event.selfMuted), users: event.users || [], channelId,
           channelOccupancy: occupancyMap(event.occupancy),
           messages: switched ? [] : state.messages, typing: switched ? {} : state.typing,
           unread: switched ? 0 : state.unread,
@@ -299,8 +299,23 @@
         return { ...state, connection: { ...state.connection, status: 'failed' }, error: { code: 'CONNECTION_FAILED', message: '无法连接到服务' } };
       case 'connection/error':
         return { ...state, error: event };
+      case 'moderation': {
+        if (event.action === 'muted') return { ...state, selfMuted: true };
+        if (event.action === 'unmuted') return { ...state, selfMuted: false };
+        if (event.action === 'kicked') {
+          return { ...state, selfMuted: false, connection: { ...state.connection, intentionalLeave: true } };
+        }
+        return state;
+      }
       case 'connection/close': {
         if (event.code === 1001 && event.reason === 'server stopped') return reduce(state, { type: 'serviceStopped' });
+        if (event.terminal === 'kicked' || event.terminal === 'denied' || event.code === 4008 || event.code === 4009) {
+          return { ...state, users: [], pending: {}, typing: {}, unread: 0, sync: emptySync(), channelOccupancy: {},
+            channel: { switching: false, requestedId: null },
+            selfMuted: false,
+            room: { ...state.room, resumeToken: null },
+            connection: { ...state.connection, status: 'idle', joined: false, intentionalLeave: true } };
+        }
         const pending = {};
         for (const [id, item] of Object.entries(state.pending)) Object.defineProperty(pending, id, {
           value: item.status === 'sending' ? { ...item, status: 'unconfirmed' } : item,

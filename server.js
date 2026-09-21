@@ -1,7 +1,7 @@
 'use strict';
 
 const http = require('node:http');
-const { DEFAULTS, loadConfig, sqliteOperatorNotice, operatorConsoleEnabled, snapshotRoomSection, snapshotChannelsSection, mergePavilionOverlay } = require('./config');
+const { DEFAULTS, loadConfig, sqliteOperatorNotice, operatorConsoleEnabled, snapshotRoomSection, snapshotChannelsSection, snapshotModerationSection, mergePavilionOverlay } = require('./config');
 const { createChatCore } = require('./src/core');
 const { PROTOCOL_VERSION, REACTION_EMOJIS } = require('./src/core/events');
 const { createHttpHandler } = require('./src/transport/http');
@@ -19,15 +19,17 @@ function createChatServer(options = {}) {
   config.operator = { ...DEFAULTS.operator, ...(options.operator || {}) };
   config.gateway = { ...structuredClone(DEFAULTS.gateway), ...(options.gateway || {}) };
   config.plays = [...(options.plays || DEFAULTS.plays || [])];
+  config.ipDenyList = [...(options.ipDenyList || DEFAULTS.ipDenyList || [])];
   config.operator.enabled = operatorConsoleEnabled(config);
   const sqliteEngine = config.storage?.driver === 'sqlite' && config.storage.sqlite?.path
     ? openSqliteEngine(config.storage.sqlite)
     : undefined;
   const baseline = {
     room: snapshotRoomSection(config),
-    channels: snapshotChannelsSection(config)
+    channels: snapshotChannelsSection(config),
+    moderation: snapshotModerationSection(config)
   };
-  let pavilionSources = { room: 'yaml', channels: 'yaml' };
+  let pavilionSources = { room: 'yaml', channels: 'yaml', moderation: 'yaml' };
   let pavilionWarnings = [];
   let operatorConfigStore;
   if (sqliteEngine) {

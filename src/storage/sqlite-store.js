@@ -45,6 +45,22 @@ function createSqliteStore(config, runtime = {}) {
   const deleteExpiredIdempotency = engine.prepare('DELETE FROM idempotency WHERE created_at < ?');
   const deleteExpiredIdempotencyBatch = engine.prepare('DELETE FROM idempotency WHERE rowid IN (SELECT rowid FROM idempotency WHERE created_at < ? LIMIT ?)');
   const countMessages = engine.prepare('SELECT COUNT(*) AS count FROM messages WHERE channel_id = ?');
+  const selectAuthorFirst = engine.prepare(`
+    SELECT channel_id AS channelId, payload FROM messages
+    WHERE json_extract(payload, '$.author.id') = ?
+    ORDER BY created_at DESC, channel_id DESC, id DESC
+    LIMIT ?
+  `);
+  const selectAuthorPage = engine.prepare(`
+    SELECT channel_id AS channelId, payload FROM messages
+    WHERE json_extract(payload, '$.author.id') = ?
+      AND (
+        created_at < ?
+        OR (created_at = ? AND (channel_id < ? OR (channel_id = ? AND id < ?)))
+      )
+    ORDER BY created_at DESC, channel_id DESC, id DESC
+    LIMIT ?
+  `);
   const inventoryQuery = engine.prepare('SELECT channel_id AS id, COUNT(*) AS messages, MIN(created_at) AS earliest, MAX(created_at) AS latest FROM messages GROUP BY channel_id');
 
   const channels = new Map();
@@ -171,6 +187,17 @@ function createSqliteStore(config, runtime = {}) {
     return { message: removedIds.includes(message.id) ? null : message, removedIds };
   }
 
+  function listMessagesByAuthor(authorId, { beforeCreatedAt, beforeChannelId, beforeId, limit = 50 } = {}) {
+    const cap = Math.min(Math.max(1, Number(limit) || 50), 100);
+    const rows = Number.isFinite(beforeCreatedAt)
+      ? selectAuthorPage.all(authorId, beforeCreatedAt, beforeCreatedAt, beforeChannelId || '', beforeChannelId || '', beforeId || '', cap + 1)
+      : selectAuthorFirst.all(authorId, cap + 1);
+    return {
+      messages: rows.slice(0, cap).map((row) => ({ channelId: row.channelId, message: deserializeMessage(row.payload) })),
+      exhausted: rows.length <= cap
+    };
+  }
+
   function loadHistoryPage(channelId, { beforeSeq, limit = 50 } = {}) {
     requireChannel(channelId);
     const cap = Math.min(Math.max(1, Number(limit) || 50), 100);
@@ -262,6 +289,7 @@ function createSqliteStore(config, runtime = {}) {
     appendMessage,
     updateReactions,
     loadHistoryPage,
+    listMessagesByAuthor,
     pruneDedupe,
     pruneExpired,
     stats,

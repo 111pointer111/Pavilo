@@ -13,6 +13,7 @@ test('admin i18n interpolates and keeps catalogs aligned', () => {
   assert.equal(i18n.t('channel.delete'), '删除');
   assert.equal(i18n.t('channel.deleted'), '已删除');
   assert.equal(i18n.t('nav.overview'), '总览');
+  assert.equal(i18n.t('nav.people'), '人员');
   assert.equal(i18n.t('nav.groupGateway'), 'AI 网关');
   assert.equal(i18n.t('room.pageTitle'), '房间');
   assert.equal(i18n.t('chat.pageTitle'), '聊天频道');

@@ -326,6 +326,26 @@ test('server stopped clears persistence, disables reconnect and emits lifecycle'
   assert.equal(sockets.length, 2);
 });
 
+test('kicked and ip_denied closes do not reconnect', () => {
+  for (const [code, reason, eventType] of [
+    [4008, 'kicked', 'moderationClose'],
+    [4009, 'ip_denied', 'moderationClose'],
+  ]) {
+    const { connection, sockets, events, timers, storageData } = harness();
+    connection.setSession({ token: 'resume-token', username: '北岸' });
+    connection.connect();
+    sockets[0].open();
+    connection.markJoined();
+    sockets[0].serverClose(code, reason);
+    assert.equal(storageData.size, 0, reason);
+    assert.equal(timers.size, 0, reason);
+    assert.equal(events.at(-1).type, eventType, reason);
+    assert.equal(events.at(-1).reason === 'kicked' || events.at(-1).reason === 'denied' || events.at(-2).terminal, true);
+    assert.equal(connection.connect(), false, reason);
+    assert.equal(connection.retry(), true, reason);
+  }
+});
+
 test('persistence methods preserve legacy keys and tolerate invalid or failing storage', () => {
   const data = new Map();
   const storage = {

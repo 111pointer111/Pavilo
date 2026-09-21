@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { createOperatorAuth, originAllowed } = require('./auth');
+const { createPeopleController } = require('./people');
 
 const ADMIN_FILES = new Map([
   ['/admin', 'index.html'],
@@ -60,6 +61,8 @@ function errorJson(response, error) {
       || error.code === 'CHANNEL_BUSY' || error.code === 'PLAY_BOUND' ? 409
       : error.code === 'OPERATOR_UNAUTHORIZED' ? 401
         : error.code === 'OPERATOR_FORBIDDEN' ? 403
+          : error.code === 'NOT_FOUND' ? 404
+            : error.code === 'AGENT_SEAT' ? 409
           : error.code === 'PAYLOAD_TOO_LARGE' ? 413
             : error.code === 'BAD_JSON' || error.code === 'OPERATOR_BAD_REQUEST' ? 400
               : 400;
@@ -105,6 +108,7 @@ function requireOrigin(request, config) {
 
 function createOperatorHttp(config, { gateway, core, pavilion, root }) {
   const auth = createOperatorAuth(config);
+  const people = pavilion ? createPeopleController({ core, pavilion }) : null;
 
   async function serveAdminFile(request, response, filename, headOnly) {
     let target;
@@ -211,6 +215,60 @@ function createOperatorHttp(config, { gateway, core, pavilion, root }) {
       }
       if (request.method === 'DELETE') {
         sendJson(response, 200, { ok: true, ...pavilion.revertRoom() });
+        return;
+      }
+    }
+
+    if (people && request.method === 'GET' && pathname === '/admin/api/people') {
+      sendJson(response, 200, people.listing());
+      return;
+    }
+
+    const seatMessagesMatch = pathname.match(/^\/admin\/api\/people\/([^/]+)\/messages$/);
+    if (people && seatMessagesMatch && request.method === 'GET') {
+      const query = new URL(request.url, 'http://localhost').searchParams;
+      const beforeCreatedAt = Number(query.get('beforeCreatedAt'));
+      sendJson(response, 200, people.messages(decodeURIComponent(seatMessagesMatch[1]), {
+        beforeCreatedAt: Number.isFinite(beforeCreatedAt) ? beforeCreatedAt : undefined,
+        beforeChannelId: query.get('beforeChannelId') || undefined,
+        beforeId: query.get('beforeId') || undefined,
+        limit: Number(query.get('limit') || 50)
+      }));
+      return;
+    }
+
+    const muteMatch = pathname.match(/^\/admin\/api\/people\/([^/]+)\/mute$/);
+    if (people && muteMatch && request.method === 'POST') {
+      requireOrigin(request, config);
+      const body = await readJson(request);
+      sendJson(response, 200, people.mute(decodeURIComponent(muteMatch[1]), body.active !== false));
+      return;
+    }
+
+    const kickMatch = pathname.match(/^\/admin\/api\/people\/([^/]+)\/kick$/);
+    if (people && kickMatch && request.method === 'POST') {
+      requireOrigin(request, config);
+      const body = await readJson(request);
+      sendJson(response, 200, people.kick(decodeURIComponent(kickMatch[1]), { denyIp: Boolean(body.denyIp) }));
+      return;
+    }
+
+    const seatMatch = pathname.match(/^\/admin\/api\/people\/([^/]+)$/);
+    if (people && seatMatch && request.method === 'GET') {
+      const seat = people.requireSeat(decodeURIComponent(seatMatch[1]));
+      sendJson(response, 200, { ok: true, seat, ...people.listing() });
+      return;
+    }
+
+    if (people && pathname === '/admin/api/moderation') {
+      requireOrigin(request, config);
+      if (request.method === 'PUT') {
+        const body = await readJson(request);
+        sendJson(response, 200, people.saveModeration(body));
+        return;
+      }
+      if (request.method === 'DELETE') {
+        sendJson(response, 200, people.revertModeration());
         return;
       }
     }

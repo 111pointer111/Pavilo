@@ -343,6 +343,20 @@ room:
   - 必须 `enabled: true`
   - **不能**是 `readOnly: true` 的频道
 
+#### `moderation.ipDenyList`
+
+```yaml
+version: 2
+moderation:
+  ipDenyList:
+    - 192.0.2.8
+```
+
+- **默认值**：`[]`
+- **类型**：字符串数组，最多 64 条精确 IPv4 / IPv6（不做 CIDR）
+- **说明**：这些地址不能 `join`。已在亭里的匹配连接会被请离。Schema v1 不能写这一段。
+- **注意**：IP 取自 socket 对端，当前版本不信任 `X-Forwarded-For`。反向代理后拉黑一条可能挡住所有走同一出口的人。值班台人员页保存后认领 `moderation` 段，规则见 [admin.md](admin.md)。
+
 #### `room.exposeMemberIps`
 
 ```yaml

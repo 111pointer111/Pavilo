@@ -7,7 +7,8 @@ const { createSessionStore } = require('./session');
 const { createMessageStore } = require('./messages');
 const { createCommandHandler } = require('./commands');
 const events = require('./events');
-const { applyRoomOverlay, applyChannelsOverlay, validatePavilionConfig } = require('../../config');
+const { applyRoomOverlay, applyChannelsOverlay, applyModerationOverlay, validatePavilionConfig } = require('../../config');
+const { ipDenied } = require('../ip');
 
 function pavilionError(code, message) {
   const error = new Error(message);
@@ -110,10 +111,12 @@ function createChatCore(config, runtime = {}) {
       self: publicUser(session), users: sessionStore.rosterUsers(session.channelId), channelId: channel.config.id,
       occupancy: occupancySnapshot()
     };
+    if (session.muted) start.selfMuted = true;
     if (playId) start.play = { id: playId, page: `/plays/${playId}/` };
     const payloads = [start];
     for (const chunk of rooms.historyChunks(channel, snapshot)) payloads.push({ type: 'history', roomEpoch: channel.epoch, messages: chunk });
     payloads.push({ type: 'historyEnd', roomEpoch: channel.epoch, latestSeq });
+    if (session.muted) payloads.push({ type: 'moderation', action: 'muted' });
     if (playId && playSlot.runtime) {
       const joined = playSlot.runtime.onJoin(session, channel.epoch);
       for (const snap of joined.snapshots || []) {
@@ -254,15 +257,17 @@ function createChatCore(config, runtime = {}) {
     return occupancySnapshot();
   }
 
-  function applyPavilionConfig({ room, channels } = {}) {
+  function applyPavilionConfig({ room, channels, moderation } = {}) {
     const trial = {
       ...config,
       channels: config.channels.map((channel) => ({ ...channel })),
       plays: [...(config.plays || [])],
-      operator: config.operator ? { ...config.operator } : config.operator
+      operator: config.operator ? { ...config.operator } : config.operator,
+      ipDenyList: [...(config.ipDenyList || [])]
     };
     if (room) applyRoomOverlay(trial, room);
     if (channels) applyChannelsOverlay(trial, channels);
+    if (moderation) applyModerationOverlay(trial, moderation);
     validatePavilionConfig(trial);
     assertCatalogTransition(config.channels, trial.channels, {
       occupancy: occupancySnapshot(),
@@ -276,7 +281,119 @@ function createChatCore(config, runtime = {}) {
     config.exposeLanUrls = trial.exposeLanUrls;
     config.maxUsers = trial.maxUsers;
     config.channels = trial.channels;
+    config.ipDenyList = [...(trial.ipDenyList || [])];
     rooms.replaceCatalog(trial.channels);
+    if (moderation) {
+      evictDeniedSeats();
+      flushEffects();
+    }
+  }
+
+  function seatStatus(session) {
+    if (session.kind === 'agent') return 'connected';
+    return session.client ? 'connected' : 'leased';
+  }
+
+  function publicSeat(session, status) {
+    return {
+      id: session.id,
+      username: session.username,
+      channelId: session.channelId,
+      ip: session.ip || '',
+      joinedAt: session.joinedAt,
+      lastSpokenAt: session.lastSpokenAt || null,
+      messageCount: session.messageCount || 0,
+      muted: Boolean(session.muted),
+      kind: session.kind === 'agent' ? 'agent' : 'member',
+      status: status || seatStatus(session),
+      avatarSeed: session.avatarSeed
+    };
+  }
+
+  function flushEffects() {
+    const result = takeEffects();
+    if (runtime.onEffects && result.length) runtime.onEffects(result);
+    return result;
+  }
+
+  function kickSeat(session) {
+    if (!session || session.kind === 'agent') return false;
+    const peer = session.client;
+    const channelId = session.channelId;
+    const userId = session.id;
+    const username = session.username;
+    if (peer) {
+      sendJson(peer, { type: 'moderation', action: 'kicked' });
+      peer.intentionalLeave = true;
+      closeClient(peer, 4008, 'kicked');
+    }
+    playSlot.runtime?.onLeave(session);
+    sessionStore.evict(session);
+    broadcast(channelId, { type: 'presence', action: 'leave', userId, username, users: sessionStore.rosterUsers(channelId) });
+    broadcastOccupancy();
+    return true;
+  }
+
+  function evictDeniedSeats() {
+    for (const { session } of sessionStore.listSeats()) {
+      if (session.kind === 'agent') continue;
+      if (ipDenied(config.ipDenyList, session.ip)) kickSeat(session);
+    }
+  }
+
+  function listSeats() {
+    return sessionStore.listSeats()
+      .map(({ session, status }) => publicSeat(session, status))
+      .sort((left, right) => (right.joinedAt || 0) - (left.joinedAt || 0) || left.username.localeCompare(right.username));
+  }
+
+  function getSeat(id) {
+    const session = sessionStore.findById(id);
+    if (!session) return null;
+    const listed = sessionStore.listSeats().find((entry) => entry.session === session);
+    return publicSeat(session, listed?.status);
+  }
+
+  function mute(id, active) {
+    const session = sessionStore.findById(id);
+    if (!session) return { ok: false, error: 'NOT_FOUND' };
+    if (session.kind === 'agent') return { ok: false, error: 'AGENT_SEAT' };
+    session.muted = Boolean(active);
+    if (session.client) sendJson(session.client, { type: 'moderation', action: session.muted ? 'muted' : 'unmuted' });
+    return { ok: true, seat: publicSeat(session), effects: flushEffects() };
+  }
+
+  function kick(id) {
+    const session = sessionStore.findById(id);
+    if (!session) return { ok: false, error: 'NOT_FOUND' };
+    if (session.kind === 'agent') return { ok: false, error: 'AGENT_SEAT' };
+    const seat = publicSeat(session);
+    kickSeat(session);
+    return { ok: true, seat, effects: flushEffects() };
+  }
+
+  function listSeatMessages(id, query = {}) {
+    const session = sessionStore.findById(id);
+    if (!session) return { ok: false, error: 'NOT_FOUND' };
+    if (typeof store.listMessagesByAuthor !== 'function') {
+      return { ok: true, messages: [], exhausted: true };
+    }
+    const page = store.listMessagesByAuthor(session.id, query);
+    return {
+      ok: true,
+      exhausted: page.exhausted,
+      messages: (page.messages || []).map((entry) => ({
+        id: entry.message.id,
+        seq: entry.message.seq,
+        channelId: entry.channelId,
+        createdAt: entry.message.createdAt,
+        kind: entry.message.kind,
+        text: typeof entry.message.text === 'string' ? entry.message.text : '',
+        image: entry.message.kind === 'image' && entry.message.image
+          ? { width: entry.message.image.width, height: entry.message.image.height }
+          : null
+      }))
+    };
   }
 
   function attachPlayRuntime(playRuntime) {
@@ -335,7 +452,7 @@ function createChatCore(config, runtime = {}) {
     connect, dispatch, disconnect, connectionStatus, completeSync, markClosing, shutdown,
     state, health, roomInfo, storageInfo, pruneDedupe: store.pruneDedupe,
     drainEffects: takeEffects, attachPlayRuntime, roster, seatAgent, unseatAgent, deliverPlayEffects,
-    occupancy, applyPavilionConfig
+    occupancy, applyPavilionConfig, listSeats, getSeat, mute, kick, listSeatMessages
   };
   Object.defineProperty(api, 'roomEpoch', { enumerable: true, get: () => rooms.epoch });
   return api;

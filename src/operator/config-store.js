@@ -1,6 +1,6 @@
 'use strict';
 
-const SECTIONS = new Set(['room', 'channels']);
+const SECTIONS = new Set(['room', 'channels', 'moderation']);
 
 function configStoreError(code, message) {
   const error = new Error(message);
@@ -12,7 +12,7 @@ function createMemoryOperatorConfigStore() {
   return {
     writable: false,
     load() {
-      return { room: null, channels: null, meta: { room: null, channels: null } };
+      return { room: null, channels: null, moderation: null, meta: { room: null, channels: null, moderation: null } };
     },
     save() {
       throw configStoreError('OPERATOR_READONLY', '管理页编辑房间和聊天频道需要 sqlite');
@@ -32,14 +32,14 @@ function createSqliteOperatorConfigStore(engine, runtime = {}) {
   const removeRow = engine.prepare('DELETE FROM operator_config WHERE section = ?');
 
   function load() {
-    const result = { room: null, channels: null, meta: { room: null, channels: null } };
+    const result = { room: null, channels: null, moderation: null, meta: { room: null, channels: null, moderation: null } };
     for (const row of selectAll.all()) {
       let payload;
       try { payload = JSON.parse(row.payload); }
       catch {
         throw configStoreError('OPERATOR_BAD_REQUEST', `operator_config.${row.section}: JSON 无效`);
       }
-      if (row.section === 'room' || row.section === 'channels') {
+      if (row.section === 'room' || row.section === 'channels' || row.section === 'moderation') {
         result[row.section] = payload;
         result.meta[row.section] = { updatedAt: row.updated_at };
       }
