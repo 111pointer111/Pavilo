@@ -337,6 +337,25 @@ function createMachine(options = {}) {
       state.lobby = state.lobby.filter((entry) => entry.id !== actorId);
       return OK();
     },
+    // 占座由宿主完成（machine 保持纯粹），成功后回填到候补名单。
+    addAgent() {
+      if (state.phase !== PHASES.LOBBY) return reject(ERR.PHASE);
+      if (state.lobby.length >= seatLimit) return reject(ERR.FULL, '座位已满。');
+      if (typeof options.seatAgent !== 'function') return reject(ERR.NOT_READY, '这个房间不能添加 AI。');
+      const taken = new Set(state.lobby.map((entry) => entry.username));
+      let index = 1;
+      while (taken.has(`AI-${index}`)) index += 1;
+      const seated = options.seatAgent({ username: `AI-${index}` });
+      if (!seated || seated.error || !seated.actor) {
+        return reject(seated?.error || ERR.FULL, '没能添加 AI。');
+      }
+      state.lobby = [...state.lobby, {
+        id: seated.actor.id,
+        username: seated.actor.username,
+        kind: 'agent'
+      }];
+      return OK();
+    },
     setBoard(actorId, payload) {
       if (state.phase !== PHASES.LOBBY) return reject(ERR.PHASE);
       const next = getBoard(payload?.boardId);
@@ -521,17 +540,22 @@ function createMachine(options = {}) {
 
   // 给 Agent 与 UI 的提示。权威校验仍在上面的 handlers 里，这里只是收窄选项。
   function legalActionsFor(actorId) {
-    const self = seatOf(actorId);
-    if (!self) {
-      return state.phase === PHASES.LOBBY ? [{ name: 'sit' }] : [];
+    // lobby 阶段还没发牌，state.seats 是空的，身份要看候补名单。
+    if (state.phase === PHASES.LOBBY) {
+      const seated = state.lobby.some((entry) => entry.id === actorId);
+      if (!seated) return state.lobby.length < seatLimit ? [{ name: 'sit' }, { name: 'addAgent' }] : [];
+      const actions = [{ name: 'stand' }];
+      if (state.lobby.length < seatLimit) actions.push({ name: 'addAgent' });
+      if (state.lobby.length === board.seats) actions.push({ name: 'start' });
+      return actions;
     }
+    const self = seatOf(actorId);
+    if (!self) return [];
     if (!self.alive) {
       return state.currentSpeaker === actorId ? [{ name: 'speak' }, { name: 'endSpeech' }] : [];
     }
     const targets = alive().filter((seat) => seat.id !== actorId).map((seat) => seat.id);
     switch (state.phase) {
-      case PHASES.LOBBY:
-        return [{ name: 'stand' }, { name: 'start' }];
       case PHASES.NIGHT_ACTIONS: {
         if (isWolf(self.role)) {
           return [

@@ -53,6 +53,8 @@ function channelView(state) {
     boardId: state.boardId,
     phase: publicPhase(state),
     seats: state.seats.map((seat) => (over ? revealedSeat(seat) : publicSeat(seat))),
+    // 开局前的候补名单。只有 id/名字/人机，没有身份可泄漏。
+    lobby: (state.lobby || []).map((entry) => ({ id: entry.id, username: entry.username, kind: entry.kind })),
     log: state.publicLog || [],
     ...(over ? { result: state.result || null } : {})
   };
@@ -104,11 +106,13 @@ function wolfPrivate(state, self) {
   };
 }
 
-// 该 actor 的私密视图。actorId 不在座位上（旁观者）时只给公开信息。
+// 该 actor 的私密视图。actorId 不在座位上（lobby 候补或旁观者）时只给公开信息，
+// 但仍要带 legalActions —— 否则 lobby 阶段没人拿得到「坐下」。
 function viewFor(state, actorId, board) {
   const base = channelView(state);
+  const legalActions = state.legalActionsFor ? state.legalActionsFor(actorId) : [];
   const self = findSeat(state, actorId);
-  if (!self) return { ...base, self: null, spectator: true };
+  if (!self) return { ...base, self: null, spectator: true, legalActions };
 
   const over = state.phase === PHASES.GAME_OVER;
   const view = {
@@ -125,7 +129,7 @@ function viewFor(state, actorId, board) {
       deathNight: self.deathNight
     },
     // host 校验的权威来源仍是 host 自己；这里只是给 UI 和 Agent 的提示。
-    legalActions: state.legalActionsFor ? state.legalActionsFor(actorId) : []
+    legalActions
   };
 
   // 死者进入观战：公开日志 + 自己的身份，不给上帝视角。
