@@ -34,6 +34,7 @@ Pavilo 的重要变更都记在这份文件里。
 
 ### Fixed
 - `/admin` 房间和聊天频道打开时带出当前有效配置；`/admin/api/pavilion` 失败时不再显示空白表，也不再把 404 正文当成空目录
+- `/admin` 标签页补上与聊天页相同的 Pavilo favicon；此前管理页没有 `<link rel="icon">`，浏览器会落到返回 204 的 `/favicon.ico`
 
 ### Changed
 - `version: 1` 出现 `storage` / `operator` / `plays` 会拒绝；memory 下的 v2 写 `operator`/`plays` 会拒绝。任何版本出现 `gateway:` 都会被拒绝。`version: 3` 当作 v2 读入。模型渠道只在 `/admin` 写入 SQLite

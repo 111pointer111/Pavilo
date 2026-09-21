@@ -73,6 +73,7 @@ test('operator pages are served only when enabled, and traversal stays 404', asy
   assert.equal(page.status, 200);
   assert.match(page.headers.get('content-type'), /text\/html/);
   const html = await page.text();
+  assert.match(html, /rel="icon"/);
   assert.match(html, /channelForm/);
   assert.match(html, /roomForm/);
   assert.match(html, /chatForm/);
