@@ -17,6 +17,9 @@ test('admin i18n interpolates and keeps catalogs aligned', () => {
   assert.equal(i18n.t('room.pageTitle'), '房间');
   assert.equal(i18n.t('chat.pageTitle'), '聊天频道');
   assert.equal(i18n.t('pavilion.loadError'), '无法载入当前配置。');
+  assert.equal(i18n.t('form.unsavedTitle'), '放弃未保存的修改？');
+  assert.match(i18n.t('overview.lead'), /这座亭/);
+  assert.equal(catalogs.en['chat.lead'].includes('model channels'), true);
 });
 
 test('gateway copy does not describe YAML as a model-channel source', () => {

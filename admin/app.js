@@ -11,36 +11,49 @@
   const desk = document.getElementById('desk');
   const loginForm = document.getElementById('loginForm');
   const tokenInput = document.getElementById('tokenInput');
+  const tokenReveal = document.getElementById('tokenReveal');
+  const loginSubmit = document.getElementById('loginSubmit');
   const loginError = document.getElementById('loginError');
   const pageTitle = document.getElementById('pageTitle');
   const pageLead = document.getElementById('pageLead');
   const pageCrumb = document.getElementById('pageCrumb');
-  const overviewCards = document.getElementById('overviewCards');
-  const overviewNext = document.getElementById('overviewNext');
-  const gatewayCards = document.getElementById('gatewayCards');
-  const gatewayNext = document.getElementById('gatewayNext');
+  const pageSource = document.getElementById('pageSource');
+  const pageStatus = document.getElementById('pageStatus');
+  const headActions = document.getElementById('headActions');
+  const mobileTitle = document.getElementById('mobileTitle');
+  const menuButton = document.getElementById('menuButton');
+  const railBackdrop = document.getElementById('railBackdrop');
+  const overviewSheets = document.getElementById('overviewSheets');
+  const gatewaySheets = document.getElementById('gatewaySheets');
+  const gatewayLedger = document.getElementById('gatewayLedger');
   const channelList = document.getElementById('channelList');
   const usageBox = document.getElementById('usageBox');
   const form = document.getElementById('channelForm');
   const keyHelp = document.getElementById('keyHelp');
+  const keyReveal = document.getElementById('keyReveal');
   const saveButton = document.getElementById('saveButton');
   const probeButton = document.getElementById('probeButton');
+  const probeResult = document.getElementById('probeResult');
   const deleteButton = document.getElementById('deleteButton');
+  const channelDanger = document.getElementById('channelDanger');
   const roomForm = document.getElementById('roomForm');
-  const roomSource = document.getElementById('roomSource');
   const roomDefaultChannel = document.getElementById('roomDefaultChannel');
   const roomMaxUsersHint = document.getElementById('roomMaxUsersHint');
   const roomSaveButton = document.getElementById('roomSaveButton');
   const roomRevertButton = document.getElementById('roomRevertButton');
   const chatList = document.getElementById('chatList');
-  const chatSource = document.getElementById('chatSource');
   const chatForm = document.getElementById('chatForm');
   const chatPlayRow = document.getElementById('chatPlayRow');
   const chatPlay = document.getElementById('chatPlay');
   const chatSaveButton = document.getElementById('chatSaveButton');
   const chatDeleteButton = document.getElementById('chatDeleteButton');
-  const chatRevertButton = document.getElementById('chatRevertButton');
+  const chatDanger = document.getElementById('chatDanger');
   const toast = document.getElementById('toast');
+  const dialog = document.getElementById('dialog');
+  const dialogTitle = document.getElementById('dialogTitle');
+  const dialogCopy = document.getElementById('dialogCopy');
+  const dialogCancel = document.getElementById('dialogCancel');
+  const dialogOk = document.getElementById('dialogOk');
   const views = {
     overview: document.getElementById('viewOverview'),
     room: document.getElementById('viewRoom'),
@@ -61,6 +74,12 @@
   let pavilion = emptyPavilion();
   let usage = { tracking: true, rows: [] };
   let toastTimer = 0;
+  let dialogResolve = null;
+  let trackedForm = null;
+  let formSnapshotValue = '';
+  let dirty = false;
+  let lastHash = location.hash;
+  let ignoreHash = false;
 
   function emptyPavilion() {
     return {
@@ -89,15 +108,112 @@
 
   function t(key, vars) { return i18n.t(key, vars); }
 
-  function paintI18n() {
-    i18n.apply(document);
+  function paintLang() {
+    const current = i18n.language();
+    document.querySelectorAll('.lang').forEach((button) => {
+      button.setAttribute('aria-pressed', button.getAttribute('data-lang') === current ? 'true' : 'false');
+    });
   }
 
-  function showToast(message) {
+  function paintReveal(button, input) {
+    if (!button || !input) return;
+    button.textContent = t(input.type === 'password' ? 'reveal.show' : 'reveal.hide');
+  }
+
+  function paintI18n() {
+    i18n.apply(document);
+    paintLang();
+    paintReveal(tokenReveal, tokenInput);
+    paintReveal(keyReveal, form.apiKey);
+  }
+
+  function showToast(message, kind) {
     toast.textContent = message;
+    toast.className = kind === 'err' ? 'toast err' : 'toast';
     toast.hidden = false;
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { toast.hidden = true; }, 3200);
+  }
+
+  function closeDialog(result) {
+    dialog.hidden = true;
+    const resolve = dialogResolve;
+    dialogResolve = null;
+    if (resolve) resolve(Boolean(result));
+  }
+
+  function confirmDialog({ title, copy, ok, danger }) {
+    return new Promise((resolve) => {
+      if (dialogResolve) dialogResolve(false);
+      dialogResolve = resolve;
+      dialogTitle.textContent = title;
+      dialogCopy.textContent = copy;
+      dialogOk.textContent = ok || t('dialog.ok');
+      dialogOk.className = danger ? 'danger fill' : '';
+      dialog.hidden = false;
+      dialogOk.focus();
+    });
+  }
+
+  function snapshotOf(node) {
+    if (!node) return '';
+    const data = {};
+    for (const field of node.elements) {
+      if (!field.name) continue;
+      data[field.name] = field.type === 'checkbox' ? field.checked : field.value;
+    }
+    return JSON.stringify(data);
+  }
+
+  function trackForm(node) {
+    trackedForm = node;
+    formSnapshotValue = snapshotOf(node);
+    dirty = false;
+  }
+
+  function clearDirty() {
+    dirty = false;
+    formSnapshotValue = trackedForm ? snapshotOf(trackedForm) : '';
+  }
+
+  function refreshDirty() {
+    if (!trackedForm) {
+      dirty = false;
+      return;
+    }
+    dirty = snapshotOf(trackedForm) !== formSnapshotValue;
+  }
+
+  async function guardLeave() {
+    refreshDirty();
+    if (!dirty) return true;
+    const ok = await confirmDialog({
+      title: t('form.unsavedTitle'),
+      copy: t('form.unsavedCopy'),
+      ok: t('form.leave')
+    });
+    if (ok) {
+      dirty = false;
+      trackedForm = null;
+      formSnapshotValue = '';
+    }
+    return ok;
+  }
+
+  async function withBusy(button, labelKey, work) {
+    if (!button) return work();
+    const original = button.textContent;
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    if (labelKey) button.textContent = t(labelKey);
+    try {
+      return await work();
+    } finally {
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+      if (button.hasAttribute('data-i18n')) button.textContent = t(button.getAttribute('data-i18n'));
+      else button.textContent = original;
+    }
   }
 
   async function api(pathname, options = {}) {
@@ -123,15 +239,28 @@
     return payload;
   }
 
+  function setNavOpen(open) {
+    desk.classList.toggle('nav-open', open);
+    menuButton.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+
   function showLogin() {
     desk.hidden = true;
     loginScreen.hidden = false;
+    loginScreen.setAttribute('aria-hidden', 'false');
+    desk.setAttribute('aria-hidden', 'true');
     session = null;
+    dirty = false;
+    trackedForm = null;
+    setNavOpen(false);
+    closeDialog(false);
   }
 
   function showDesk() {
     loginScreen.hidden = true;
     desk.hidden = false;
+    loginScreen.setAttribute('aria-hidden', 'true');
+    desk.setAttribute('aria-hidden', 'false');
   }
 
   function parseRoute() {
@@ -156,10 +285,29 @@
     return { view: 'overview' };
   }
 
-  function setHead(title, lead, crumb) {
+  function setHead({ title, lead, crumb, source, status, action }) {
     pageTitle.textContent = title;
-    pageLead.textContent = lead;
-    pageCrumb.textContent = crumb;
+    mobileTitle.textContent = title;
+    pageLead.textContent = lead || '';
+    pageLead.hidden = !lead;
+    pageCrumb.textContent = crumb || '';
+    if (source) {
+      pageSource.hidden = false;
+      paintSource(pageSource, source);
+    } else {
+      pageSource.hidden = true;
+      pageSource.textContent = '';
+      pageSource.className = 'source-badge';
+    }
+    if (status) {
+      pageStatus.hidden = false;
+      pageStatus.textContent = status;
+    } else {
+      pageStatus.hidden = true;
+      pageStatus.textContent = '';
+    }
+    headActions.replaceChildren();
+    if (action) headActions.append(action);
   }
 
   function markNav(section) {
@@ -173,6 +321,10 @@
     Object.entries(views).forEach(([key, node]) => {
       node.hidden = key !== name;
     });
+    if (name !== 'room' && name !== 'chatForm' && name !== 'form') {
+      trackedForm = null;
+      dirty = false;
+    }
   }
 
   function el(tag, className, text) {
@@ -191,55 +343,111 @@
     return Boolean(session?.writable);
   }
 
+  function storageLabel(room) {
+    if (room?.storage || room?.ephemeral === false) return t('overview.storageSqlite');
+    return t('overview.storageMemory');
+  }
+
+  function sourceLabel(source) {
+    return t(source === 'operator' ? 'overview.sourceOperator' : 'overview.sourceYaml');
+  }
+
   function renderOverview() {
     const room = dashboard?.room || {};
     const sources = pavilion.sources || {};
-    overviewCards.replaceChildren();
     const roomTitle = pavilion.room?.title || dashboard?.pavilion?.roomTitle || '—';
-    const chatValue = pavilionError
-      ? t('pavilion.loadError')
-      : t('overview.channelCount', { count: pavilion.channels.length });
-    const cards = [
-      [t('overview.room'), pavilionError ? t('pavilion.loadError') : roomTitle, `${t('overview.users')} ${room.users ?? 0} · ${t(sources.room === 'operator' ? 'overview.sourceOperator' : 'overview.sourceYaml')}`],
-      [t('overview.chat'), chatValue, `${t('overview.chatHint')} · ${t(sources.channels === 'operator' ? 'overview.sourceOperator' : 'overview.sourceYaml')}`],
-      [t('gateway.title'), t('overview.channelCount', { count: channels.length }), t('gateway.lead')]
-    ];
-    for (const [kicker, value, detail] of cards) {
-      const card = el('article', 'card');
-      card.append(el('p', 'kicker', kicker), el('strong', '', value), el('p', '', detail));
-      overviewCards.append(card);
+    const writableChat = (pavilion.channels || []).some((channel) => channel.enabled !== false && !channel.readOnly);
+    const dutyWarn = Boolean(pavilionError) || (!pavilionError && pavilion.channels.length > 0 && !writableChat);
+
+    const duty = el('a', `sheet duty${dutyWarn ? ' warn' : ''}`);
+    duty.href = '#/room';
+    duty.append(
+      el('p', 'kicker', t('overview.room')),
+      el('strong', '', pavilionError ? t('pavilion.loadError') : roomTitle),
+      el('p', '', pavilionError
+        ? String(pavilionError)
+        : t('overview.dutyMeta', {
+          users: t('overview.online', { count: room.users ?? 0 }),
+          storage: storageLabel(room),
+          source: sourceLabel(sources.room)
+        }))
+    );
+    if (!pavilionError && pavilion.channels.length > 0 && !writableChat) {
+      duty.append(el('p', '', t('overview.noWritable')));
     }
-    overviewNext.replaceChildren();
-    const roomLink = el('a', 'button', t('overview.openRoom'));
-    roomLink.href = '#/room';
-    const chatLink = el('a', 'button ghost', t('overview.openChat'));
-    chatLink.href = '#/chat';
-    const gateway = el('a', 'button ghost', t('overview.openGateway'));
+
+    const chat = el('a', 'sheet');
+    chat.href = '#/chat';
+    const defaultId = pavilion.room?.defaultChannel;
+    chat.append(
+      el('p', 'kicker', t('overview.chat')),
+      el('strong', '', pavilionError ? t('pavilion.loadError') : t('overview.channelCount', { count: pavilion.channels.length })),
+      el('p', '', pavilionError
+        ? t('pavilion.loadErrorHint')
+        : [defaultId ? t('overview.defaultChannel', { id: defaultId }) : '', sourceLabel(sources.channels)].filter(Boolean).join(' · '))
+    );
+
+    const missing = channels.filter((channel) => !channel.keyPresent || channel.unwrapFailed).length;
+    const errors = usage.rows.reduce((sum, row) => sum + (row.errors || 0), 0);
+    const gateway = el('a', `sheet${missing ? ' warn' : ''}`);
     gateway.href = '#/gateway';
-    overviewNext.append(roomLink, chatLink, gateway);
+    gateway.append(
+      el('p', 'kicker', t('gateway.title')),
+      el('strong', '', t('overview.channelCount', { count: channels.length })),
+      el('p', '', `${t('overview.missingKey', { count: missing })} · ${t('overview.errors', { count: errors })}`)
+    );
+
+    overviewSheets.replaceChildren(duty, chat, gateway);
+  }
+
+  function modelChannelRow(channel) {
+    const row = el('a', 'ledger-row');
+    row.href = `#/gateway/channels/${encodeURIComponent(channel.id)}`;
+    const identity = el('div');
+    identity.append(el('div', 'ledger-name', channel.label || channel.model || channel.id));
+    const meta = el('div', 'ledger-meta');
+    meta.append(el('code', '', channel.id));
+    meta.append(document.createTextNode(` · ${channel.preset}${channel.model ? ` · ${channel.model}` : ''}`));
+    identity.append(meta);
+    const status = el('div', 'ledger-status');
+    status.append(el('span', `badge${channel.enabled ? '' : ' off'}`, channel.enabled ? t('channel.enabledOn') : t('channel.enabledOff')));
+    const keyOk = channel.keyPresent && !channel.unwrapFailed;
+    status.append(el('span', `badge${keyOk ? '' : ' warn'}`, keyOk ? t('channel.keyOn') : t('channel.keyOff')));
+    row.append(identity, status);
+    return row;
+  }
+
+  function chatChannelRow(channel) {
+    const row = el('a', 'ledger-row');
+    row.href = `#/chat/${encodeURIComponent(channel.id)}`;
+    const identity = el('div');
+    identity.append(el('div', 'ledger-name', channel.name || channel.id));
+    const meta = el('div', 'ledger-meta');
+    meta.append(el('code', '', channel.id));
+    const occ = pavilion.occupancy?.[channel.id] ?? 0;
+    meta.append(document.createTextNode(` · ${t('chat.occupancy', { count: occ, cap: channel.maxUsers || pavilion.room?.maxUsers || '—' })}`));
+    identity.append(meta);
+    const status = el('div', 'ledger-status');
+    status.append(el('span', `badge${channel.enabled ? '' : ' off'}`, channel.enabled ? t('chat.enabledOn') : t('chat.enabledOff')));
+    if (channel.readOnly) status.append(el('span', 'badge', t('chat.readOnlyOn')));
+    row.append(identity, status);
+    return row;
   }
 
   function renderGatewayOverview() {
-    const enabled = channels.filter((channel) => channel.enabled).length;
-    const missing = channels.filter((channel) => !channel.keyPresent || channel.unwrapFailed).length;
-    const requests = usage.rows.reduce((sum, row) => sum + (row.requests || 0), 0);
-    const errors = usage.rows.reduce((sum, row) => sum + (row.errors || 0), 0);
-    gatewayCards.replaceChildren();
-    const cards = [
-      [t('overview.channels'), t('overview.channelCount', { count: channels.length }), `${t('overview.enabled', { count: enabled })} · ${t('overview.missingKey', { count: missing })}`],
-      [t('overview.usage'), String(requests), `${t('overview.requests', { count: requests })} · ${t('overview.errors', { count: errors })}`]
-    ];
-    for (const [kicker, value, detail] of cards) {
-      const card = el('article', 'card');
-      card.append(el('p', 'kicker', kicker), el('strong', '', value), el('p', '', detail));
-      gatewayCards.append(card);
+    gatewaySheets.replaceChildren();
+    if (!channels.length) {
+      const empty = el('div', 'empty paper');
+      empty.append(el('h2', '', t('gateway.empty')), el('p', '', t('gateway.emptyHint')));
+      const add = el('a', 'button', t('overview.addFirst'));
+      add.href = '#/gateway/channels/new';
+      empty.append(add);
+      gatewayLedger.replaceChildren(empty);
+      return;
     }
-    gatewayNext.replaceChildren();
-    const primary = el('a', 'button', channels.length ? t('overview.viewChannels') : t('overview.addFirst'));
-    primary.href = channels.length ? '#/gateway/channels' : '#/gateway/channels/new';
-    const secondary = el('a', 'button ghost', t('overview.viewUsage'));
-    secondary.href = '#/gateway/usage';
-    gatewayNext.append(primary, secondary);
+    const list = el('div', 'ledger');
+    for (const channel of channels) list.append(modelChannelRow(channel));
+    gatewayLedger.replaceChildren(list);
   }
 
   function paintLoadError(node) {
@@ -255,7 +463,6 @@
 
   function fillRoomForm() {
     const room = pavilion.room || {};
-    paintSource(roomSource, pavilion.sources?.room);
     paintLoadError(document.getElementById('roomLoadError'));
     roomForm.title.value = room.title || '';
     roomForm.defaultLanguage.value = room.defaultLanguage || 'zh-CN';
@@ -276,15 +483,11 @@
     roomSaveButton.disabled = !canWrite;
     roomRevertButton.hidden = pavilion.sources?.room !== 'operator';
     roomRevertButton.disabled = !canWrite;
+    trackForm(roomForm);
   }
 
   function renderChatList() {
-    paintSource(chatSource, pavilion.sources?.channels);
     paintLoadError(document.getElementById('chatLoadError'));
-    const chatAddButton = document.getElementById('chatAddButton');
-    if (chatAddButton) chatAddButton.hidden = Boolean(pavilionError);
-    chatRevertButton.hidden = pavilion.sources?.channels !== 'operator';
-    chatRevertButton.disabled = !writable() || Boolean(pavilionError);
     chatList.replaceChildren();
     if (pavilionError) {
       const empty = el('div', 'empty paper');
@@ -301,18 +504,16 @@
       chatList.append(empty);
       return;
     }
-    const list = el('div', 'rows');
-    for (const channel of pavilion.channels) {
-      const row = el('a', 'row');
-      row.href = `#/chat/${encodeURIComponent(channel.id)}`;
-      const identity = el('div');
-      identity.append(el('code', '', channel.id), el('div', 'name', channel.name));
-      const badge = el('span', `badge${channel.enabled ? '' : ' off'}`, channel.enabled ? t('chat.enabledOn') : t('chat.enabledOff'));
-      row.append(identity, el('div', 'name', channel.description || ''), badge);
-      if (channel.readOnly) row.append(el('span', 'badge', t('chat.readOnlyOn')));
-      list.append(row);
-    }
+    const list = el('div', 'ledger');
+    for (const channel of pavilion.channels) list.append(chatChannelRow(channel));
     chatList.append(list);
+    if (pavilion.sources?.channels === 'operator') {
+      const revert = el('button', 'ghost', t('chat.revert'));
+      revert.type = 'button';
+      revert.disabled = !writable();
+      revert.addEventListener('click', revertChat);
+      chatList.append(revert);
+    }
   }
 
   function fillChatForm(channel) {
@@ -340,10 +541,11 @@
       if (channel?.play === play) option.selected = true;
       chatPlay.append(option);
     }
-    chatDeleteButton.hidden = !editing;
+    chatDanger.hidden = !editing;
     const canWrite = writable() && !pavilionError;
     chatSaveButton.disabled = !canWrite;
     chatDeleteButton.disabled = !canWrite;
+    trackForm(chatForm);
   }
 
   function chatPayloadFromForm() {
@@ -371,17 +573,8 @@
       channelList.append(empty);
       return;
     }
-    const list = el('div', 'rows');
-    for (const channel of channels) {
-      const row = el('a', 'row');
-      row.href = `#/gateway/channels/${encodeURIComponent(channel.id)}`;
-      const identity = el('div');
-      identity.append(el('code', '', channel.id), el('div', 'name', channel.label || channel.preset));
-      const badge = el('span', `badge${channel.enabled ? '' : ' off'}`, channel.enabled ? t('channel.enabledOn') : t('channel.enabledOff'));
-      const key = el('span', `badge${channel.keyPresent && !channel.unwrapFailed ? '' : ' warn'}`, channel.keyPresent && !channel.unwrapFailed ? t('channel.keyOn') : t('channel.keyOff'));
-      row.append(identity, el('div', 'name', channel.preset), badge, key);
-      list.append(row);
-    }
+    const list = el('div', 'ledger');
+    for (const channel of channels) list.append(modelChannelRow(channel));
     channelList.append(list);
   }
 
@@ -394,13 +587,19 @@
     form.model.value = channel?.model || (form.preset.value === 'deepseek' ? DEEPSEEK_MODEL : '');
     form.baseUrl.value = channel?.baseUrl || (form.preset.value === 'deepseek' ? DEEPSEEK_BASE : '');
     form.apiKey.value = '';
+    form.apiKey.type = 'password';
     form.enabled.checked = channel ? channel.enabled !== false : true;
-    deleteButton.hidden = !editing;
+    channelDanger.hidden = !editing;
     probeButton.disabled = !editing;
+    probeResult.hidden = true;
+    probeResult.textContent = '';
+    probeResult.className = 'probe-result';
     if (!channel) keyHelp.textContent = t('channel.keyMissing');
     else if (channel.unwrapFailed) keyHelp.textContent = t('channel.keyUnwrap');
     else if (channel.keyPresent) keyHelp.textContent = t('channel.keyKeep', { hint: channel.keyHint });
     else keyHelp.textContent = t('channel.keyMissing');
+    paintReveal(keyReveal, form.apiKey);
+    trackForm(form);
   }
 
   function renderUsage() {
@@ -411,24 +610,41 @@
       usageBox.append(empty);
       return;
     }
+    const requests = usage.rows.reduce((sum, row) => sum + (row.requests || 0), 0);
+    const tokens = usage.rows.reduce((sum, row) => sum + (row.promptTokens || 0) + (row.completionTokens || 0), 0);
+    const errors = usage.rows.reduce((sum, row) => sum + (row.errors || 0), 0);
+    usageBox.append(el('p', 'usage-summary', t('usage.summary', { requests, tokens, errors })));
+    const wrap = el('div', 'table-wrap');
     const table = document.createElement('table');
+    const thead = document.createElement('thead');
     const head = document.createElement('tr');
     for (const key of ['usage.day', 'usage.channel', 'usage.requests', 'usage.tokens', 'usage.errors']) {
       head.append(el('th', '', t(key)));
     }
-    table.append(head);
+    thead.append(head);
+    table.append(thead);
+    const tbody = document.createElement('tbody');
     for (const row of usage.rows) {
       const tr = document.createElement('tr');
+      const err = el('td', row.errors ? 'num warn' : 'num', String(row.errors || 0));
       tr.append(
         el('td', '', row.day),
         el('td', '', row.channelId),
         el('td', 'num', String(row.requests)),
         el('td', 'num', String((row.promptTokens || 0) + (row.completionTokens || 0))),
-        el('td', 'num', String(row.errors || 0))
+        err
       );
-      table.append(tr);
+      tbody.append(tr);
     }
-    usageBox.append(table);
+    table.append(tbody);
+    wrap.append(table);
+    usageBox.append(wrap);
+  }
+
+  function addAction(href, label) {
+    const link = el('a', 'button', label);
+    link.href = href;
+    return link;
   }
 
   function renderRoute() {
@@ -436,23 +652,40 @@
     paintI18n();
     saveButton.disabled = session ? !session.writable : true;
     deleteButton.disabled = session ? !session.writable : true;
+    lastHash = location.hash || '#/overview';
     if (route.view === 'overview') {
       markNav('overview');
-      setHead(t('overview.title'), t('overview.lead'), t('nav.groupPavilo'));
+      setHead({
+        title: t('overview.title'),
+        lead: t('overview.lead'),
+        crumb: t('nav.groupPavilo')
+      });
       showView('overview');
       renderOverview();
       return;
     }
     if (route.view === 'room') {
       markNav('room');
-      setHead(t('room.pageTitle'), t('room.lead'), t('nav.groupPavilo'));
+      setHead({
+        title: t('room.pageTitle'),
+        lead: t('room.lead'),
+        crumb: t('nav.groupPavilo'),
+        source: pavilion.sources?.room
+      });
       showView('room');
       fillRoomForm();
       return;
     }
     if (route.view === 'chat') {
       markNav('chat');
-      setHead(t('chat.pageTitle'), t('chat.lead'), t('nav.groupPavilo'));
+      const action = pavilionError || !pavilion.channels.length ? null : addAction('#/chat/new', t('chat.add'));
+      setHead({
+        title: t('chat.pageTitle'),
+        lead: t('chat.lead'),
+        crumb: t('nav.groupPavilo'),
+        source: pavilion.sources?.channels,
+        action
+      });
       showView('chat');
       renderChatList();
       return;
@@ -468,32 +701,48 @@
         location.hash = '#/chat';
         return;
       }
-      setHead(
-        channel ? t('chat.editTitle', { id: channel.id }) : t('chat.newTitle'),
-        channel ? t('chat.editLead') : t('chat.newLead'),
-        t('nav.groupPavilo')
-      );
+      setHead({
+        title: channel ? t('chat.editTitle', { name: channel.name || channel.id }) : t('chat.newTitle'),
+        lead: channel ? t('chat.editLead') : t('chat.newLead'),
+        crumb: `${t('nav.groupPavilo')} / ${t('nav.chat')}`
+      });
       showView('chatForm');
       fillChatForm(channel);
       return;
     }
     if (route.view === 'gateway') {
       markNav('gateway');
-      setHead(t('gateway.title'), t('gateway.lead'), t('nav.groupGateway'));
+      const action = el('a', 'text-btn', t('overview.viewUsage'));
+      action.href = '#/gateway/usage';
+      setHead({
+        title: t('gateway.title'),
+        lead: t('gateway.lead'),
+        crumb: t('nav.groupGateway'),
+        action: channels.length ? action : null
+      });
       showView('gateway');
       renderGatewayOverview();
       return;
     }
     if (route.view === 'channels') {
       markNav('gateway-channels');
-      setHead(t('channels.title'), t('channels.lead'), t('nav.groupGateway'));
+      setHead({
+        title: t('channels.title'),
+        lead: t('channels.lead'),
+        crumb: t('nav.groupGateway'),
+        action: channels.length ? addAction('#/gateway/channels/new', t('channels.add')) : null
+      });
       showView('channels');
       renderChannels();
       return;
     }
     if (route.view === 'usage') {
       markNav('gateway-usage');
-      setHead(t('usage.title'), t('usage.lead'), t('nav.groupGateway'));
+      setHead({
+        title: t('usage.title'),
+        lead: t('usage.lead'),
+        crumb: t('nav.groupGateway')
+      });
       showView('usage');
       renderUsage();
       return;
@@ -504,11 +753,11 @@
       location.hash = '#/gateway/channels';
       return;
     }
-    setHead(
-      channel ? t('channel.editTitle', { id: channel.id }) : t('channel.newTitle'),
-      channel ? t('channel.editLead') : t('channel.newLead'),
-      t('nav.groupGateway')
-    );
+    setHead({
+      title: channel ? t('channel.editTitle', { name: channel.label || channel.model || channel.id }) : t('channel.newTitle'),
+      lead: channel ? t('channel.editLead') : t('channel.newLead'),
+      crumb: `${t('nav.groupGateway')} / ${t('nav.channels')}`
+    });
     showView('form');
     fillForm(channel);
   }
@@ -527,60 +776,96 @@
     }
   }
 
+  function bindReveal(button, input) {
+    button.addEventListener('click', () => {
+      input.type = input.type === 'password' ? 'text' : 'password';
+      paintReveal(button, input);
+    });
+  }
+
+  bindReveal(tokenReveal, tokenInput);
+  bindReveal(keyReveal, form.apiKey);
+
   loginForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     loginError.textContent = '';
-    try {
-      await api('/admin/api/login', { method: 'POST', body: JSON.stringify({ token: tokenInput.value }) });
-      tokenInput.value = '';
-      await load();
-      if (!location.hash || location.hash === '#') location.hash = '#/overview';
-      showDesk();
-      renderRoute();
-    } catch (error) {
-      loginError.textContent = error.code === 'OPERATOR_RATE_LIMITED' ? t('login.rate')
-        : error.code === 'OPERATOR_UNAUTHORIZED' ? t('login.error')
-          : t('login.failed');
-    }
+    await withBusy(loginSubmit, 'login.submitting', async () => {
+      try {
+        await api('/admin/api/login', { method: 'POST', body: JSON.stringify({ token: tokenInput.value }) });
+        tokenInput.value = '';
+        tokenInput.type = 'password';
+        paintReveal(tokenReveal, tokenInput);
+        await load();
+        if (!location.hash || location.hash === '#') location.hash = '#/overview';
+        showDesk();
+        renderRoute();
+      } catch (error) {
+        loginError.textContent = error.code === 'OPERATOR_RATE_LIMITED' ? t('login.rate')
+          : error.code === 'OPERATOR_UNAUTHORIZED' ? t('login.error')
+            : t('login.failed');
+      }
+    });
   });
 
   document.getElementById('logoutButton').addEventListener('click', async () => {
+    if (!(await guardLeave())) return;
     try { await api('/admin/api/logout', { method: 'POST', body: '{}' }); } catch { /* still leave */ }
+    ignoreHash = true;
     location.hash = '';
     showLogin();
+    requestAnimationFrame(() => { ignoreHash = false; });
   });
 
   roomForm.addEventListener('submit', async (event) => {
     event.preventDefault();
-    try {
-      acceptPavilion(await api('/admin/api/pavilion/room', {
-        method: 'PUT',
-        body: JSON.stringify({
-          title: roomForm.title.value.trim(),
-          defaultLanguage: roomForm.defaultLanguage.value,
-          defaultChannel: roomForm.defaultChannel.value,
-          maxUsers: Number(roomForm.maxUsers.value),
-          exposeMemberIps: roomForm.exposeMemberIps.checked,
-          exposeLanUrls: roomForm.exposeLanUrls.checked
-        })
-      }));
-      dashboard = await api('/admin/api/dashboard');
-      fillRoomForm();
-      showToast(t('room.saved'));
-    } catch (error) {
-      showToast(error.message);
-    }
+    await withBusy(roomSaveButton, 'form.saving', async () => {
+      try {
+        acceptPavilion(await api('/admin/api/pavilion/room', {
+          method: 'PUT',
+          body: JSON.stringify({
+            title: roomForm.title.value.trim(),
+            defaultLanguage: roomForm.defaultLanguage.value,
+            defaultChannel: roomForm.defaultChannel.value,
+            maxUsers: Number(roomForm.maxUsers.value),
+            exposeMemberIps: roomForm.exposeMemberIps.checked,
+            exposeLanUrls: roomForm.exposeLanUrls.checked
+          })
+        }));
+        dashboard = await api('/admin/api/dashboard');
+        fillRoomForm();
+        setHead({
+          title: t('room.pageTitle'),
+          lead: t('room.lead'),
+          crumb: t('nav.groupPavilo'),
+          source: pavilion.sources?.room
+        });
+        showToast(t('room.saved'));
+      } catch (error) {
+        showToast(error.message, 'err');
+      }
+    });
   });
 
   roomRevertButton.addEventListener('click', async () => {
-    if (!window.confirm(t('room.revertConfirm'))) return;
+    const ok = await confirmDialog({
+      title: t('room.revert'),
+      copy: t('room.revertConfirm'),
+      ok: t('room.revert')
+    });
+    if (!ok) return;
     try {
       acceptPavilion(await api('/admin/api/pavilion/room', { method: 'DELETE' }));
       dashboard = await api('/admin/api/dashboard');
       fillRoomForm();
+      setHead({
+        title: t('room.pageTitle'),
+        lead: t('room.lead'),
+        crumb: t('nav.groupPavilo'),
+        source: pavilion.sources?.room
+      });
       showToast(t('room.reverted'));
     } catch (error) {
-      showToast(error.message);
+      showToast(error.message, 'err');
     }
   });
 
@@ -590,47 +875,70 @@
     const list = pavilion.channels.some((channel) => channel.id === next.id)
       ? pavilion.channels.map((channel) => (channel.id === next.id ? next : channel))
       : pavilion.channels.concat(next);
-    try {
-      acceptPavilion(await api('/admin/api/pavilion/channels', {
-        method: 'PUT',
-        body: JSON.stringify({ channels: list })
-      }));
-      location.hash = `#/chat/${encodeURIComponent(next.id)}`;
-      renderRoute();
-      showToast(t('chat.saved'));
-    } catch (error) {
-      showToast(error.message);
-    }
+    await withBusy(chatSaveButton, 'form.saving', async () => {
+      try {
+        acceptPavilion(await api('/admin/api/pavilion/channels', {
+          method: 'PUT',
+          body: JSON.stringify({ channels: list })
+        }));
+        clearDirty();
+        location.hash = `#/chat/${encodeURIComponent(next.id)}`;
+        renderRoute();
+        showToast(t('chat.saved'));
+      } catch (error) {
+        showToast(error.message, 'err');
+      }
+    });
   });
 
   chatDeleteButton.addEventListener('click', async () => {
     const id = chatForm.id.value.trim();
     if (!id) return;
-    if (!window.confirm(t('chat.deleteConfirm', { id }))) return;
+    const ok = await confirmDialog({
+      title: t('chat.delete'),
+      copy: t('chat.deleteConfirm', { id }),
+      ok: t('chat.delete'),
+      danger: true
+    });
+    if (!ok) return;
     const list = pavilion.channels.filter((channel) => channel.id !== id);
     try {
       acceptPavilion(await api('/admin/api/pavilion/channels', {
         method: 'PUT',
         body: JSON.stringify({ channels: list })
       }));
+      clearDirty();
+      trackedForm = null;
       location.hash = '#/chat';
       renderRoute();
       showToast(t('chat.deleted'));
     } catch (error) {
-      showToast(error.message);
+      showToast(error.message, 'err');
     }
   });
 
-  chatRevertButton.addEventListener('click', async () => {
-    if (!window.confirm(t('chat.revertConfirm'))) return;
+  async function revertChat() {
+    const ok = await confirmDialog({
+      title: t('chat.revert'),
+      copy: t('chat.revertConfirm'),
+      ok: t('chat.revert')
+    });
+    if (!ok) return;
     try {
       acceptPavilion(await api('/admin/api/pavilion/channels', { method: 'DELETE' }));
       renderChatList();
+      setHead({
+        title: t('chat.pageTitle'),
+        lead: t('chat.lead'),
+        crumb: t('nav.groupPavilo'),
+        source: pavilion.sources?.channels,
+        action: addAction('#/chat/new', t('chat.add'))
+      });
       showToast(t('chat.reverted'));
     } catch (error) {
-      showToast(error.message);
+      showToast(error.message, 'err');
     }
-  });
+  }
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -643,34 +951,50 @@
       enabled: form.enabled.checked
     };
     if (form.apiKey.value) body.apiKey = form.apiKey.value;
-    try {
-      await api(`/admin/api/channels/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(body) });
-      await load();
-      location.hash = `#/gateway/channels/${encodeURIComponent(id)}`;
-      renderRoute();
-      showToast(t('channel.saved'));
-    } catch (error) {
-      showToast(error.message);
-    }
+    await withBusy(saveButton, 'form.saving', async () => {
+      try {
+        await api(`/admin/api/channels/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(body) });
+        await load();
+        clearDirty();
+        location.hash = `#/gateway/channels/${encodeURIComponent(id)}`;
+        renderRoute();
+        showToast(t('channel.saved'));
+      } catch (error) {
+        showToast(error.message, 'err');
+      }
+    });
   });
 
   probeButton.addEventListener('click', async () => {
     const id = form.id.value.trim();
     if (!id || form.id.readOnly === false) {
-      showToast(t('channel.probeNeedSave'));
+      probeResult.hidden = false;
+      probeResult.className = 'probe-result fail';
+      probeResult.textContent = t('channel.probeNeedSave');
+      showToast(t('channel.probeNeedSave'), 'err');
       return;
     }
-    try {
-      const payload = await api(`/admin/api/channels/${encodeURIComponent(id)}/probe`, { method: 'POST', body: '{}' });
-      const result = payload.result || payload;
-      showToast(result.ok
-        ? t('channel.probeOk', { model: result.model || '', ms: result.latencyMs || 0 })
-        : t('channel.probeFail', { code: result.code || 'error' }));
-      usage = await api('/admin/api/usage?days=7');
-    } catch (error) {
-      const result = error.payload?.result;
-      showToast(t('channel.probeFail', { code: result?.code || error.code || 'error' }));
-    }
+    await withBusy(probeButton, null, async () => {
+      try {
+        const payload = await api(`/admin/api/channels/${encodeURIComponent(id)}/probe`, { method: 'POST', body: '{}' });
+        const result = payload.result || payload;
+        const ok = Boolean(result.ok);
+        probeResult.hidden = false;
+        probeResult.className = `probe-result ${ok ? 'ok' : 'fail'}`;
+        probeResult.textContent = ok
+          ? t('channel.probeOk', { model: result.model || '', ms: result.latencyMs || 0 })
+          : t('channel.probeFail', { code: result.code || 'error' });
+        showToast(probeResult.textContent, ok ? undefined : 'err');
+        usage = await api('/admin/api/usage?days=7');
+      } catch (error) {
+        const result = error.payload?.result;
+        const message = t('channel.probeFail', { code: result?.code || error.code || 'error' });
+        probeResult.hidden = false;
+        probeResult.className = 'probe-result fail';
+        probeResult.textContent = message;
+        showToast(message, 'err');
+      }
+    });
   });
 
   form.preset.addEventListener('change', () => {
@@ -678,21 +1002,35 @@
       if (!form.baseUrl.value || form.baseUrl.value === DEEPSEEK_BASE) form.baseUrl.value = DEEPSEEK_BASE;
       if (!form.model.value) form.model.value = DEEPSEEK_MODEL;
     }
+    refreshDirty();
   });
 
   deleteButton.addEventListener('click', async () => {
     const id = form.id.value.trim();
     if (!id) return;
-    if (!window.confirm(t('channel.deleteConfirm', { id }))) return;
+    const ok = await confirmDialog({
+      title: t('channel.delete'),
+      copy: t('channel.deleteConfirm', { id }),
+      ok: t('channel.delete'),
+      danger: true
+    });
+    if (!ok) return;
     try {
       await api(`/admin/api/channels/${encodeURIComponent(id)}`, { method: 'DELETE' });
       await load();
+      clearDirty();
+      trackedForm = null;
       location.hash = '#/gateway/channels';
       renderRoute();
       showToast(t('channel.deleted'));
     } catch (error) {
-      showToast(error.message);
+      showToast(error.message, 'err');
     }
+  });
+
+  [roomForm, chatForm, form].forEach((node) => {
+    node.addEventListener('input', refreshDirty);
+    node.addEventListener('change', refreshDirty);
   });
 
   document.querySelectorAll('.lang').forEach((button) => {
@@ -703,8 +1041,58 @@
     });
   });
 
-  window.addEventListener('hashchange', () => {
-    if (!desk.hidden) renderRoute();
+  menuButton.addEventListener('click', () => setNavOpen(!desk.classList.contains('nav-open')));
+  railBackdrop.addEventListener('click', () => setNavOpen(false));
+  desk.querySelectorAll('.rail-nav a, .rail-brand').forEach((link) => {
+    link.addEventListener('click', () => setNavOpen(false));
+  });
+
+  dialogCancel.addEventListener('click', () => closeDialog(false));
+  dialogOk.addEventListener('click', () => closeDialog(true));
+  dialog.addEventListener('click', (event) => {
+    if (event.target === dialog) closeDialog(false);
+  });
+  dialog.addEventListener('keydown', (event) => {
+    if (dialog.hidden || event.key !== 'Tab') return;
+    const focusable = [dialogCancel, dialogOk];
+    const index = focusable.indexOf(document.activeElement);
+    if (event.shiftKey) {
+      if (index <= 0) {
+        event.preventDefault();
+        dialogOk.focus();
+      }
+    } else if (index === focusable.length - 1 || index === -1) {
+      event.preventDefault();
+      dialogCancel.focus();
+    }
+  });
+
+  window.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    if (!dialog.hidden) {
+      event.preventDefault();
+      closeDialog(false);
+      return;
+    }
+    if (desk.classList.contains('nav-open')) setNavOpen(false);
+  });
+
+  window.addEventListener('hashchange', async () => {
+    if (ignoreHash || desk.hidden) return;
+    if (!(await guardLeave())) {
+      ignoreHash = true;
+      location.hash = lastHash;
+      requestAnimationFrame(() => { ignoreHash = false; });
+      return;
+    }
+    renderRoute();
+  });
+
+  window.addEventListener('beforeunload', (event) => {
+    refreshDirty();
+    if (!dirty) return;
+    event.preventDefault();
+    event.returnValue = '';
   });
 
   paintI18n();

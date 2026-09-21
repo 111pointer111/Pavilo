@@ -3,11 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#eef4f2">
+  <meta name="theme-color" content="#eef4f2" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0d1b1d" media="(prefers-color-scheme: dark)">
   <title>语亭值班</title>
   <link rel="stylesheet" href="/admin/admin.css">
 </head>
 <body>
+  <a class="skip" href="#main" data-i18n="skip">跳到内容</a>
+
   <section class="login" id="loginScreen">
     <div class="login-card">
       <span class="brand-mark" aria-hidden="true">
@@ -22,12 +25,15 @@
       <form id="loginForm">
         <label for="tokenInput" data-i18n="login.label">Operator token</label>
         <div class="login-row">
-          <input id="tokenInput" name="token" type="password" autocomplete="current-password" required>
-          <button type="submit" data-i18n="login.submit">进入值班</button>
+          <div class="secret-field">
+            <input id="tokenInput" name="token" type="password" autocomplete="current-password" required>
+            <button type="button" class="text-btn reveal" id="tokenReveal" data-i18n="reveal.show">显示</button>
+          </div>
+          <button type="submit" id="loginSubmit" data-i18n="login.submit">进入值班</button>
         </div>
         <p class="error" id="loginError" role="alert"></p>
       </form>
-      <div class="lang-row">
+      <div class="lang-row lang-seg">
         <button type="button" class="text-btn lang" data-lang="zh-CN" data-i18n="lang.zh">中文</button>
         <button type="button" class="text-btn lang" data-lang="en" data-i18n="lang.en">English</button>
       </div>
@@ -35,196 +41,266 @@
   </section>
 
   <div class="shell" id="desk" hidden>
-    <aside class="rail">
-      <a class="rail-brand" href="#/overview" data-i18n="brand.name">语亭值班</a>
-      <p class="rail-kicker" data-i18n="nav.groupPavilo">语亭</p>
-      <nav class="rail-nav" aria-label="pavilo">
-        <a href="#/overview" data-nav="overview" data-i18n="nav.overview">总览</a>
-        <a href="#/room" data-nav="room" data-i18n="nav.room">房间</a>
-        <a href="#/chat" data-nav="chat" data-i18n="nav.chat">聊天频道</a>
-      </nav>
-      <p class="rail-kicker" data-i18n="nav.groupGateway">AI 网关</p>
-      <nav class="rail-nav" aria-label="gateway">
-        <a href="#/gateway" data-nav="gateway" data-i18n="nav.gateway">网关</a>
-        <a href="#/gateway/channels" data-nav="gateway-channels" data-i18n="nav.channels">模型渠道</a>
-        <a href="#/gateway/usage" data-nav="gateway-usage" data-i18n="nav.usage">用量</a>
-      </nav>
+    <header class="mobile-bar" id="mobileBar">
+      <button type="button" class="menu-btn" id="menuButton" aria-controls="rail" aria-expanded="false" data-i18n="nav.menu">菜单</button>
+      <p class="mobile-title" id="mobileTitle"></p>
+    </header>
+    <button type="button" class="rail-backdrop" id="railBackdrop" tabindex="-1" data-i18n="nav.close"></button>
+    <aside class="rail" id="rail">
+      <a class="rail-brand" href="#/overview">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 256 256">
+            <path fill="#0f7772" d="M127 46C119 47 113 61 105 69C87 87 66 99 37 108C30 110 32 119 40 124L51 129V199C51 205 56 210 63 210H84L98 189C87 186 81 180 81 171V142C81 133 86 129 95 122C111 111 122 101 129 89C137 103 147 113 161 122C171 129 175 135 175 143V171C175 183 168 190 156 192H116C108 194 102 201 96 207C92 210 94 210 101 210H193C200 210 205 205 205 198V129L217 123C225 119 225 110 219 108C187 98 166 84 152 70L134 48C132 45 130 45 127 46Z"/>
+            <circle cx="196.7" cy="71.7" r="15.1" fill="#e86f57"/>
+          </svg>
+        </span>
+        <span data-i18n="brand.name">语亭值班</span>
+      </a>
+      <div>
+        <p class="rail-kicker" data-i18n="nav.groupPavilo">语亭</p>
+        <nav class="rail-nav" aria-label="pavilo">
+          <a href="#/overview" data-nav="overview" data-i18n="nav.overview">总览</a>
+          <a href="#/room" data-nav="room" data-i18n="nav.room">房间</a>
+          <a href="#/chat" data-nav="chat" data-i18n="nav.chat">聊天频道</a>
+        </nav>
+      </div>
+      <div>
+        <p class="rail-kicker" data-i18n="nav.groupGateway">AI 网关</p>
+        <nav class="rail-nav" aria-label="gateway">
+          <a href="#/gateway" data-nav="gateway" data-i18n="nav.gateway">网关</a>
+          <a href="#/gateway/channels" data-nav="gateway-channels" data-i18n="nav.channels">模型渠道</a>
+          <a href="#/gateway/usage" data-nav="gateway-usage" data-i18n="nav.usage">用量</a>
+        </nav>
+      </div>
       <div class="rail-foot">
-        <button type="button" class="text-btn lang" data-lang="zh-CN" data-i18n="lang.zh">中文</button>
-        <button type="button" class="text-btn lang" data-lang="en" data-i18n="lang.en">English</button>
+        <div class="lang-seg">
+          <button type="button" class="text-btn lang" data-lang="zh-CN" data-i18n="lang.zh">中文</button>
+          <button type="button" class="text-btn lang" data-lang="en" data-i18n="lang.en">English</button>
+        </div>
         <button type="button" class="text-btn" id="logoutButton" data-i18n="top.logout">退出</button>
       </div>
     </aside>
     <div class="stage">
       <header class="stage-head">
-        <p class="crumb" id="pageCrumb"></p>
-        <h1 id="pageTitle"></h1>
-        <p class="lead" id="pageLead"></p>
+        <div class="stage-head-main">
+          <p class="crumb" id="pageCrumb"></p>
+          <div class="title-row">
+            <h1 id="pageTitle"></h1>
+            <span class="source-badge" id="pageSource" hidden></span>
+            <div class="head-actions" id="headActions"></div>
+          </div>
+          <p class="lead" id="pageLead"></p>
+        </div>
+        <p class="stage-status" id="pageStatus" hidden></p>
       </header>
 
-      <section class="view" id="viewOverview" hidden>
-        <div class="cards" id="overviewCards"></div>
-        <div class="next" id="overviewNext"></div>
-      </section>
+      <main id="main">
+        <section class="view" id="viewOverview" hidden>
+          <div class="sheets" id="overviewSheets"></div>
+        </section>
 
-      <section class="view" id="viewRoom" hidden>
-        <form class="editor paper" id="roomForm">
-          <p class="source-line"><span class="source-badge" id="roomSource"></span></p>
-          <p class="error" id="roomLoadError" hidden></p>
-          <div class="grid">
-            <label>
-              <span data-i18n="room.title">房间标题</span>
-              <input name="title" required maxlength="80">
-            </label>
-            <label>
-              <span data-i18n="room.defaultLanguage">默认语言</span>
-              <select name="defaultLanguage">
-                <option value="zh-CN">中文</option>
-                <option value="en">English</option>
-              </select>
-            </label>
-            <label>
-              <span data-i18n="room.defaultChannel">默认频道</span>
-              <select name="defaultChannel" id="roomDefaultChannel"></select>
-            </label>
-            <label>
-              <span data-i18n="room.maxUsers">全站人数上限</span>
-              <input name="maxUsers" type="number" min="1" required>
-              <small id="roomMaxUsersHint"></small>
-            </label>
-          </div>
-          <label class="check">
-            <input type="checkbox" name="exposeMemberIps">
-            <span data-i18n="room.exposeMemberIps">向成员显示彼此的 IP</span>
-          </label>
-          <label class="check">
-            <input type="checkbox" name="exposeLanUrls">
-            <span data-i18n="room.exposeLanUrls">在入口信息里列出局域网地址</span>
-          </label>
-          <div class="actions">
-            <button type="submit" id="roomSaveButton" data-i18n="room.save">保存</button>
-            <button type="button" id="roomRevertButton" class="danger" data-i18n="room.revert">恢复为配置文件</button>
-          </div>
-        </form>
-      </section>
+        <section class="view" id="viewRoom" hidden>
+          <form class="editor paper" id="roomForm">
+            <p class="error" id="roomLoadError" hidden></p>
+            <fieldset>
+              <legend data-i18n="room.groupLook">这座亭</legend>
+              <div class="grid">
+                <label>
+                  <span data-i18n="room.title">房间标题</span>
+                  <input name="title" required maxlength="80">
+                </label>
+                <label>
+                  <span data-i18n="room.defaultLanguage">默认语言</span>
+                  <select name="defaultLanguage">
+                    <option value="zh-CN">中文</option>
+                    <option value="en">English</option>
+                  </select>
+                </label>
+                <label class="wide">
+                  <span data-i18n="room.defaultChannel">默认频道</span>
+                  <select name="defaultChannel" id="roomDefaultChannel"></select>
+                </label>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend data-i18n="room.groupPeople">人怎么进来</legend>
+              <div class="grid">
+                <label class="wide">
+                  <span data-i18n="room.maxUsers">全站人数上限</span>
+                  <input name="maxUsers" type="number" min="1" required>
+                  <small id="roomMaxUsersHint"></small>
+                </label>
+              </div>
+              <label class="check">
+                <input type="checkbox" name="exposeMemberIps">
+                <span data-i18n="room.exposeMemberIps">向成员显示彼此的 IP</span>
+              </label>
+              <label class="check">
+                <input type="checkbox" name="exposeLanUrls">
+                <span data-i18n="room.exposeLanUrls">在入口信息里列出局域网地址</span>
+              </label>
+            </fieldset>
+            <div class="actions">
+              <button type="submit" id="roomSaveButton" data-i18n="room.save">保存</button>
+              <button type="button" id="roomRevertButton" class="ghost" data-i18n="room.revert">恢复为配置文件</button>
+            </div>
+          </form>
+        </section>
 
-      <section class="view" id="viewChat" hidden>
-        <p class="source-line"><span class="source-badge" id="chatSource"></span></p>
-        <p class="error" id="chatLoadError" hidden></p>
-        <div class="toolbar">
-          <a class="button" href="#/chat/new" id="chatAddButton" data-i18n="chat.add">添加聊天频道</a>
-          <button type="button" class="button ghost" id="chatRevertButton" data-i18n="chat.revert">恢复为配置文件</button>
-        </div>
-        <div id="chatList"></div>
-      </section>
+        <section class="view" id="viewChat" hidden>
+          <p class="error" id="chatLoadError" hidden></p>
+          <div id="chatList"></div>
+        </section>
 
-      <section class="view" id="viewChatForm" hidden>
-        <p><a class="back" href="#/chat" data-i18n="chat.back">返回聊天频道</a></p>
-        <form class="editor paper" id="chatForm">
-          <div class="grid">
-            <label>
-              <span data-i18n="chat.id">频道 ID</span>
-              <input name="id" required pattern="[a-z0-9][a-z0-9_-]{0,31}" maxlength="32">
-              <small data-i18n="chat.idHint">保存后不能改。</small>
-            </label>
-            <label>
-              <span data-i18n="chat.name">显示名</span>
-              <input name="name" required maxlength="40">
-            </label>
-            <label class="wide">
-              <span data-i18n="chat.description">说明</span>
-              <input name="description" maxlength="160">
-            </label>
-            <label>
-              <span data-i18n="chat.maxUsers">人数上限</span>
-              <input name="maxUsers" type="number" min="1" required>
-            </label>
-            <label id="chatPlayRow">
-              <span data-i18n="chat.play">绑定玩法</span>
-              <select name="play" id="chatPlay"></select>
-            </label>
-            <label class="wide">
-              <span data-i18n="chat.welcome">欢迎语</span>
-              <textarea name="welcome" rows="5" maxlength="2000"></textarea>
-            </label>
-          </div>
-          <label class="check">
-            <input type="checkbox" name="enabled" checked>
-            <span data-i18n="chat.enabled">启用这个频道</span>
-          </label>
-          <label class="check">
-            <input type="checkbox" name="readOnly">
-            <span data-i18n="chat.readOnly">只读（所有人不能发言）</span>
-          </label>
-          <p class="lead" data-i18n="chat.deleteHint">删除只从目录拿掉，同名再建会接到旧记录。</p>
-          <div class="actions">
-            <button type="submit" id="chatSaveButton" data-i18n="chat.save">保存</button>
-            <button type="button" id="chatDeleteButton" class="danger" data-i18n="chat.delete">删除</button>
-          </div>
-        </form>
-      </section>
+        <section class="view" id="viewChatForm" hidden>
+          <p><a class="back" href="#/chat" data-i18n="chat.back">返回聊天频道</a></p>
+          <form class="editor paper" id="chatForm">
+            <fieldset>
+              <legend data-i18n="chat.groupIdentity">这个频道是谁</legend>
+              <div class="grid">
+                <label>
+                  <span data-i18n="chat.id">频道 ID</span>
+                  <input name="id" required pattern="[a-z0-9][a-z0-9_-]{0,31}" maxlength="32">
+                  <small data-i18n="chat.idHint">保存后不能改。</small>
+                </label>
+                <label>
+                  <span data-i18n="chat.name">显示名</span>
+                  <input name="name" required maxlength="40">
+                </label>
+                <label class="wide">
+                  <span data-i18n="chat.description">说明</span>
+                  <input name="description" maxlength="160">
+                </label>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend data-i18n="chat.groupUse">怎么用</legend>
+              <div class="grid">
+                <label>
+                  <span data-i18n="chat.maxUsers">人数上限</span>
+                  <input name="maxUsers" type="number" min="1" required>
+                </label>
+                <label id="chatPlayRow">
+                  <span data-i18n="chat.play">绑定玩法</span>
+                  <select name="play" id="chatPlay"></select>
+                </label>
+                <label class="wide">
+                  <span data-i18n="chat.welcome">欢迎语</span>
+                  <textarea name="welcome" rows="5" maxlength="2000"></textarea>
+                </label>
+              </div>
+              <label class="check">
+                <input type="checkbox" name="enabled" checked>
+                <span data-i18n="chat.enabled">启用这个频道</span>
+              </label>
+              <label class="check">
+                <input type="checkbox" name="readOnly">
+                <span data-i18n="chat.readOnly">只读（所有人不能发言）</span>
+              </label>
+            </fieldset>
+            <div class="actions">
+              <button type="submit" id="chatSaveButton" data-i18n="chat.save">保存</button>
+            </div>
+            <fieldset class="danger-zone" id="chatDanger">
+              <legend data-i18n="chat.danger">删除这个频道</legend>
+              <p class="lead" data-i18n="chat.deleteHint">删除只从目录拿掉，同名再建会接到旧记录。</p>
+              <div class="actions">
+                <button type="button" id="chatDeleteButton" class="danger" data-i18n="chat.delete">删除</button>
+              </div>
+            </fieldset>
+          </form>
+        </section>
 
-      <section class="view" id="viewGateway" hidden>
-        <div class="cards" id="gatewayCards"></div>
-        <div class="next" id="gatewayNext"></div>
-      </section>
+        <section class="view" id="viewGateway" hidden>
+          <div class="sheets" id="gatewaySheets"></div>
+          <div id="gatewayLedger"></div>
+        </section>
 
-      <section class="view" id="viewChannels" hidden>
-        <div class="toolbar">
-          <a class="button" href="#/gateway/channels/new" data-i18n="channels.add">添加渠道</a>
-        </div>
-        <div id="channelList"></div>
-      </section>
+        <section class="view" id="viewChannels" hidden>
+          <div id="channelList"></div>
+        </section>
 
-      <section class="view" id="viewChannelForm" hidden>
-        <p><a class="back" href="#/gateway/channels" data-i18n="channel.back">返回渠道列表</a></p>
-        <form class="editor paper" id="channelForm">
-          <div class="grid">
-            <label>
-              <span data-i18n="channel.id">渠道 ID</span>
-              <input name="id" required pattern="[a-z0-9][a-z0-9_-]{0,31}" maxlength="32">
-              <small data-i18n="channel.idHint">保存后不能改。</small>
-            </label>
-            <label>
-              <span data-i18n="channel.preset">类型</span>
-              <select name="preset">
-                <option value="deepseek">DeepSeek</option>
-                <option value="openai-compatible">OpenAI compatible</option>
-              </select>
-            </label>
-            <label>
-              <span data-i18n="channel.label">显示名</span>
-              <input name="label" maxlength="80">
-            </label>
-            <label>
-              <span data-i18n="channel.model">模型</span>
-              <input name="model" maxlength="128">
-            </label>
-            <label class="wide">
-              <span data-i18n="channel.baseUrl">接口地址</span>
-              <input name="baseUrl" maxlength="2048" placeholder="https://api.deepseek.com/v1">
-            </label>
-            <label class="wide">
-              <span data-i18n="channel.apiKey">API key</span>
-              <input name="apiKey" type="password" autocomplete="off">
-              <small id="keyHelp"></small>
-            </label>
-          </div>
-          <label class="check">
-            <input type="checkbox" name="enabled" checked>
-            <span data-i18n="channel.enabled">启用这条渠道</span>
-          </label>
-          <div class="actions">
-            <button type="submit" id="saveButton" data-i18n="channel.save">保存</button>
-            <button type="button" id="probeButton" data-i18n="channel.probe">探测连通</button>
-            <button type="button" id="deleteButton" class="danger" data-i18n="channel.delete">删除</button>
-          </div>
-        </form>
-      </section>
+        <section class="view" id="viewChannelForm" hidden>
+          <p><a class="back" href="#/gateway/channels" data-i18n="channel.back">返回渠道列表</a></p>
+          <form class="editor paper" id="channelForm">
+            <fieldset>
+              <legend data-i18n="channel.groupIdentity">这条渠道是谁</legend>
+              <div class="grid">
+                <label>
+                  <span data-i18n="channel.id">渠道 ID</span>
+                  <input name="id" required pattern="[a-z0-9][a-z0-9_-]{0,31}" maxlength="32">
+                  <small data-i18n="channel.idHint">保存后不能改。</small>
+                </label>
+                <label>
+                  <span data-i18n="channel.preset">类型</span>
+                  <select name="preset">
+                    <option value="deepseek">DeepSeek</option>
+                    <option value="openai-compatible">OpenAI compatible</option>
+                  </select>
+                </label>
+                <label class="wide">
+                  <span data-i18n="channel.label">显示名</span>
+                  <input name="label" maxlength="80">
+                </label>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend data-i18n="channel.groupConnect">怎么连</legend>
+              <div class="grid">
+                <label>
+                  <span data-i18n="channel.model">模型</span>
+                  <input name="model" maxlength="128">
+                </label>
+                <label class="wide">
+                  <span data-i18n="channel.baseUrl">接口地址</span>
+                  <input name="baseUrl" maxlength="2048" placeholder="https://api.deepseek.com/v1">
+                </label>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend data-i18n="channel.groupKey">密钥</legend>
+              <label class="wide">
+                <span data-i18n="channel.apiKey">API key</span>
+                <div class="secret-field">
+                  <input name="apiKey" type="password" autocomplete="off">
+                  <button type="button" class="text-btn reveal" id="keyReveal" data-i18n="reveal.show">显示</button>
+                </div>
+                <small id="keyHelp"></small>
+              </label>
+              <label class="check">
+                <input type="checkbox" name="enabled" checked>
+                <span data-i18n="channel.enabled">启用这条渠道</span>
+              </label>
+            </fieldset>
+            <div class="actions">
+              <button type="submit" id="saveButton" data-i18n="channel.save">保存</button>
+              <button type="button" id="probeButton" class="ghost" data-i18n="channel.probe">探测连通</button>
+              <p class="probe-result" id="probeResult" hidden></p>
+            </div>
+            <fieldset class="danger-zone" id="channelDanger">
+              <legend data-i18n="channel.danger">删除这条渠道</legend>
+              <div class="actions">
+                <button type="button" id="deleteButton" class="danger" data-i18n="channel.delete">删除</button>
+              </div>
+            </fieldset>
+          </form>
+        </section>
 
-      <section class="view" id="viewUsage" hidden>
-        <div class="paper" id="usageBox"></div>
-      </section>
+        <section class="view" id="viewUsage" hidden>
+          <div class="paper" id="usageBox"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="dialog" id="dialog" hidden>
+    <div class="dialog-card" role="alertdialog" aria-modal="true" aria-labelledby="dialogTitle" aria-describedby="dialogCopy">
+      <h2 id="dialogTitle"></h2>
+      <p id="dialogCopy"></p>
+      <div class="actions">
+        <button type="button" class="ghost" id="dialogCancel" data-i18n="dialog.cancel">取消</button>
+        <button type="button" id="dialogOk"></button>
+      </div>
     </div>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
