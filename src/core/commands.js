@@ -189,6 +189,53 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     broadcast(channelId, { type: 'message', roomEpoch: channel.epoch, message: publicMessage(message), removedIds });
   }
 
+  // Agents hold a channel seat but no peer, so a play host speaking on an
+  // agent's behalf cannot reuse handleMessage: there is nobody to ack or to
+  // report errors to. Everything else (cleaning, rate limit, byte budgets,
+  // eviction, broadcast shape) stays identical to a human message.
+  function postAsSession(session, rawText) {
+    if (!session || session.kind !== 'agent') return { ok: false, code: 'PLAY_POST_REJECTED' };
+    const channel = rooms.get(session.channelId);
+    if (!channel?.config.enabled) return { ok: false, code: 'CHANNEL_UNAVAILABLE' };
+    if (channel.config.readOnly) return { ok: false, code: 'CHANNEL_READ_ONLY' };
+    const text = cleanText(rawText, config.maxTextLength);
+    if (!text) return { ok: false, code: 'EMPTY_MESSAGE' };
+    if (!rateAllows(session, 'message', config.messageRateLimit, config.rateLimitWindowMs)) {
+      return { ok: false, code: 'RATE_LIMITED' };
+    }
+    const channelId = channel.config.id;
+    const roster = rosterUsers(channelId);
+    // The body must literally name the recipient, same rule as human mentions.
+    const mentions = normalizeMentions(roster.map((user) => user.id), roster, text);
+    const sequence = store.incrementSeq(channelId);
+    const message = {
+      id: randomId(`m${sequence}`),
+      seq: sequence,
+      clientMessageId: randomId('agentmsg'),
+      kind: 'text',
+      text,
+      author: publicUser(session),
+      createdAt: now(),
+      replyTo: null,
+      reactions: {},
+      ...(mentions.length ? { mentions } : {})
+    };
+    message.reactionUsers = new Map();
+    message.byteSize = messageByteSize(message);
+    const historyEnvelope = serialize({ type: 'history', roomEpoch: channel.epoch, messages: [publicMessage(message)] });
+    if (message.byteSize > config.maxRoomBytes || historyEnvelope.length > config.maxJsonBytes) {
+      return { ok: false, code: 'MESSAGE_TOO_LARGE' };
+    }
+    let removedIds;
+    try {
+      ({ removedIds } = store.appendMessage(channelId, message));
+    } catch {
+      return { ok: false, code: 'STORAGE_UNAVAILABLE' };
+    }
+    broadcast(channelId, { type: 'message', roomEpoch: channel.epoch, message: publicMessage(message), removedIds });
+    return { ok: true, messageId: message.id, seq: message.seq };
+  }
+
   function handleReaction(client, command) {
     if (client.session.muted) return;
     const channel = rooms.get(client.session.channelId);
@@ -373,6 +420,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
   }
 
 
+  handleCommand.postAsSession = postAsSession;
   return handleCommand;
 }
 module.exports = { createCommandHandler };

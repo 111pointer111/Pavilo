@@ -42,6 +42,7 @@ function createPlayRuntime(config, runtime = {}) {
   const schedule = runtime.schedule || ((fn, ms) => setTimeout(fn, ms));
   const complete = runtime.complete || (async () => ({ ok: false, code: 'GATEWAY_DISABLED', message: 'Gateway is not configured' }));
   const onEffects = runtime.onEffects || (() => {});
+  const postAsAgent = runtime.postAsAgent || (() => ({ ok: false, code: 'PLAY_POST_REJECTED' }));
   const store = runtime.store || (runtime.engine
     ? createSqlitePlayStore({ engine: runtime.engine, now })
     : createMemoryPlayStore({ now }));
@@ -74,6 +75,17 @@ function createPlayRuntime(config, runtime = {}) {
       }));
     }
     return list;
+  }
+
+  // Snapshots become routed effects. Private ones go to the owning actor,
+  // channel ones fan out to the seated human peers.
+  function effectsFrom(channelId, snapshots) {
+    return snapshots.map((payload) => ({
+      kind: payload.visibility === 'channel' ? 'broadcast' : 'send',
+      channelId,
+      actorId: payload.actorId,
+      payload
+    }));
   }
 
   function callHost(table, method, ...args) {
@@ -122,6 +134,21 @@ function createPlayRuntime(config, runtime = {}) {
       },
       requestTurn(actor, turn) {
         return requestTurn(channelId, actor, turn);
+      },
+      // Phase machines advance on deadlines, not only on player input, so a
+      // host must be able to push state outside an onAction return value.
+      emit(snapshots) {
+        if (!Array.isArray(snapshots) || !snapshots.length) return 0;
+        const table = tables.get(channelId);
+        if (!table || table.faulted) return 0;
+        const effects = effectsFrom(channelId, snapshotsFrom(table, { snapshots }, null));
+        if (effects.length) onEffects(effects);
+        return effects.length;
+      },
+      // Speak publicly as a seated agent. Humans reach this through the
+      // `post` return value of their own playAction instead.
+      post(actorId, text) {
+        return postAsAgent(actorId, text);
       },
       memory: {
         read(actorId) { return store.readMemory(gameId, actorId); },
@@ -188,13 +215,11 @@ function createPlayRuntime(config, runtime = {}) {
           clientActionId: randomId('ca')
         });
         const snapshots = snapshotsFrom(table, result, actor);
-        const effects = snapshots.map((payload) => ({
-          kind: payload.visibility === 'channel' ? 'broadcast' : 'send',
-          channelId,
-          actorId: payload.actorId,
-          payload
-        }));
+        const effects = effectsFrom(channelId, snapshots);
         if (effects.length) onEffects(effects);
+        // Without this an agent can vote and kill but never speak: its turn
+        // would end in silence while the table waits out the whole deadline.
+        if (result?.post?.text) postAsAgent(actor.id, result.post.text);
       }).catch(() => {});
     }, 0);
   }

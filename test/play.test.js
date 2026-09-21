@@ -20,9 +20,12 @@ function createPlayHarness(options = {}) {
   let sequence = 0;
   const timers = [];
   const delayed = [];
+  // Effects produced outside a dispatch (agent turns, host timers) arrive here.
+  const emitted = [];
   const config = { ...DEFAULTS, ...options, plays: options.plays || ['echo'], channels: options.channels || PLAY_CHANNELS, defaultChannelId: 'general' };
   const core = createChatCore(config, {
     now: () => clock,
+    onEffects: (effects) => emitted.push(...effects),
     randomId: (prefix) => `${prefix}_${String(++sequence).padStart(16, '0')}`,
     randomResumeToken: () => `resume-${String(++sequence).padStart(12, '0')}`,
     randomAvatarSeed: () => 42,
@@ -49,6 +52,7 @@ function createPlayHarness(options = {}) {
     },
     complete: options.complete || (async () => ({ ok: false, code: 'GATEWAY_DISABLED' })),
     onEffects: (effects) => core.deliverPlayEffects(effects),
+    postAsAgent: (actorId, text) => core.postAsAgent(actorId, text),
     seatAgent: (input) => core.seatAgent(input),
     roster: (channelId) => core.roster(channelId)
   });
@@ -65,7 +69,7 @@ function createPlayHarness(options = {}) {
     }
     flush();
   }
-  return { core, plays, flush, advance };
+  return { core, plays, flush, advance, emitted };
 }
 
 function join(core, peerId, username, clientSessionId, channelId) {
@@ -243,6 +247,113 @@ test('agent legalActions are enforced and a fixture agent can echo pong', async 
   const view = plays.tableFor('echo').host.snapshot({ id: 'alice-peer', username: 'Alice', kind: 'human' });
   assert.equal(view.lastEcho.payload.text, 'pong');
   assert.equal(view.agentName, 'EchoBot');
+});
+
+// —— 契约缺口 1：Agent 的 post 曾被 requestTurn 丢弃，Agent 永远不会公开发言。
+test('an agent turn that returns post reaches the channel as a real message', async () => {
+  const { core, emitted, flush } = createPlayHarness({
+    complete: async () => ({ ok: true, text: '{"name":"say","payload":{"text":"hello from bot"}}' })
+  });
+  join(core, 'alice-peer', 'Alice', 'session-alice-0001', 'echo');
+  const summoned = core.dispatch('alice-peer', {
+    type: 'playAction',
+    clientActionId: 'action-talker-01',
+    name: 'summonTalker',
+    payload: {}
+  });
+  assert.equal(summoned.accepted, true);
+
+  flush();
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  const spoken = emitted.find((effect) => effect.payload?.type === 'message'
+    && effect.payload.message?.text === 'hello from bot');
+  assert.ok(spoken, 'Agent 的 post 必须变成频道里的真实消息');
+  assert.equal(spoken.payload.message.author.username, 'TalkBot');
+  assert.ok(spoken.peerIds.includes('alice-peer'), '在座玩家应收到这条发言');
+});
+
+test('an agent post is a normal message: sequenced, stored and visible to newcomers', async () => {
+  const { core, flush } = createPlayHarness({
+    complete: async () => ({ ok: true, text: '{"name":"say","payload":{"text":"hello from bot"}}' })
+  });
+  join(core, 'alice-peer', 'Alice', 'session-alice-0001', 'echo');
+  core.dispatch('alice-peer', {
+    type: 'playAction', clientActionId: 'action-talker-02', name: 'summonTalker', payload: {}
+  });
+  flush();
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  const initial = join(core, 'bob-peer', 'Bob', 'session-bob-0001', 'echo');
+  const history = initial.payloads.filter((payload) => payload.type === 'history').flatMap((payload) => payload.messages);
+  const stored = history.find((message) => message.text === 'hello from bot');
+  assert.ok(stored, 'Agent 发言必须进入频道历史');
+  assert.equal(stored.author.username, 'TalkBot');
+  assert.ok(Number.isSafeInteger(stored.seq) && stored.seq > 0, 'Agent 发言必须占用正常序号');
+});
+
+// —— 契约缺口 2：host 只能在 onAction 返回值里发快照，定时推进发不出去。
+test('a host can push snapshots from a timer, not only from an action return', () => {
+  const { core, emitted, advance } = createPlayHarness();
+  join(core, 'alice-peer', 'Alice', 'session-alice-0001', 'echo');
+  join(core, 'bob-peer', 'Bob', 'session-bob-0001', 'echo');
+
+  const scheduled = core.dispatch('alice-peer', {
+    type: 'playAction', clientActionId: 'action-tick-0001', name: 'tick', payload: { delayMs: 1000 }
+  });
+  assert.equal(scheduled.accepted, true);
+  assert.equal(emitted.length, 0, '定时器未到点前不应有推送');
+
+  advance(1000);
+
+  const channelPush = emitted.find((effect) => effect.kind === 'broadcast'
+    && effect.payload?.type === 'playState' && effect.payload.visibility === 'channel');
+  assert.ok(channelPush, 'deadline 到点后 host 必须能广播新状态');
+  assert.equal(channelPush.payload.state.ticks, 1);
+  assert.ok(channelPush.peerIds.includes('bob-peer'), '同频道其他玩家也应收到');
+
+  const privatePush = emitted.find((effect) => effect.kind === 'send'
+    && effect.payload?.type === 'playState' && effect.payload.visibility === 'private');
+  assert.ok(privatePush, '定时推送同样要能只发给某一个人');
+  assert.equal(privatePush.payload.state.you, 'Alice');
+});
+
+test('a timer push keeps private state off the channel broadcast', () => {
+  const { core, emitted, advance } = createPlayHarness();
+  join(core, 'alice-peer', 'Alice', 'session-alice-0001', 'echo');
+  join(core, 'bob-peer', 'Bob', 'session-bob-0001', 'echo');
+  core.dispatch('alice-peer', {
+    type: 'playAction', clientActionId: 'action-tick-0002', name: 'tick', payload: { delayMs: 500 }
+  });
+  advance(500);
+
+  for (const effect of emitted.filter((item) => item.kind === 'broadcast' && item.payload?.type === 'playState')) {
+    assert.ok(!JSON.stringify(effect.payload).includes('Alice'), '私密字段不得混进频道广播');
+  }
+});
+
+test('a faulted host stops emitting and leaves chat working', () => {
+  const { core, emitted, advance } = createPlayHarness();
+  join(core, 'alice-peer', 'Alice', 'session-alice-0001', 'echo');
+  core.dispatch('alice-peer', {
+    type: 'playAction', clientActionId: 'action-tick-0003', name: 'tick', payload: { delayMs: 1000 }
+  });
+  const boom = core.dispatch('alice-peer', {
+    type: 'playAction', clientActionId: 'action-boom-0001', name: 'boom', payload: {}
+  });
+  assert.equal(boom.accepted, false);
+
+  emitted.length = 0;
+  advance(1000);
+  assert.equal(emitted.filter((effect) => effect.payload?.type === 'playState').length, 0,
+    'host 故障后定时推送必须停止');
+
+  const chat = core.dispatch('alice-peer', {
+    type: 'message', kind: 'text', text: '聊天仍然可用', clientMessageId: 'chat-after-fault-1'
+  });
+  assert.equal(chat.accepted, true, '玩法故障不得影响普通聊天');
 });
 
 test('play HTTP only serves page and assets of enabled plays', async (t) => {
