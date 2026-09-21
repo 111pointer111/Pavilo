@@ -1,6 +1,7 @@
 'use strict';
 
 const { createMachine } = require('./machine');
+const { specFor } = require('./agents');
 
 // 编排层：把 playAction 路由到状态机，把状态机的变化投影成 playState。
 // 规则全部在 machine.js 与 rules/ 里，这里不做裁决。
@@ -13,6 +14,11 @@ function create(runtime) {
     randomId: runtime.randomId,
     // 占座要走契约的 seatAgent；machine 自己不碰宿主。
     seatAgent: ({ username }) => runtime.seatAgent({ username, role: 'player' }),
+    // 身份是发牌后才知道的，所以 spec 在每个回合按角色现取。
+    // Agent 的上下文只有 host.snapshot(actor) —— 拿不到别人的身份。
+    requestTurn: (actor, turn) => {
+      runtime.requestTurn(actor, { legalActions: turn.legalActions, spec: specFor(turn.role) });
+    },
     // 阶段推进可能由 deadline 触发，此时没有 onAction 返回值可搭便车。
     onChange: () => pushAll()
   });

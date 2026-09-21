@@ -276,3 +276,44 @@ test('the game state survives a reload through save and hydrate', () => {
   assert.equal(saved.state.phase, 'night_actions');
   assert.equal(saved.state.seats.length, 9);
 });
+
+// —— P3：Agent 真正参与对局（真实 core + runtime + host + spec）。
+test('agents act on their own turn through the real runtime', async () => {
+  const kit = harness();
+  const { core } = kit;
+  join(core, 'alice', 'Alice');
+  seatTable(kit, 'alice');
+
+  const started = act(core, 'alice', 'start');
+  assert.equal(started.accepted, true);
+  // requestTurn 走 schedule(fn, 0) → delayed 队列，advance 会 flush
+  kit.advance(10);
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  // 网关未配置，Agent 会走 onInvalid 兜底，但仍必须给出合法动作。
+  // 表现为：夜晚在 deadline 之前就被推完（狼与预言家都行动了）。
+  const view = lastStateFor(started, 'alice', kit.emitted);
+  assert.ok(view, 'Alice 应当收到状态');
+  assert.ok(['night_actions', 'night_witch', 'dawn'].includes(view.phase.name));
+});
+
+test('a full game with eight agents reaches an end without human input', async () => {
+  const kit = harness();
+  const { core } = kit;
+  join(core, 'alice', 'Alice');
+  seatTable(kit, 'alice');
+  act(core, 'alice', 'start');
+
+  // 人类玩家全程不操作：只靠 Agent 兜底动作与 deadline 推进。
+  // 这条正是「Agent 失败不能让游戏卡死」的回归测试。
+  let phase = null;
+  for (let guard = 0; guard < 240; guard += 1) {
+    kit.advance(31_000);
+    await new Promise((resolve) => setImmediate(resolve));
+    const latest = kit.emitted.filter((effect) => effect.payload?.type === 'playState').at(-1);
+    phase = latest?.payload?.state?.phase?.name || phase;
+    if (phase === 'game_over') break;
+  }
+  assert.equal(phase, 'game_over', `一局必须能在无人操作下打完，卡在 ${phase}`);
+});

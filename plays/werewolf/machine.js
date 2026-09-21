@@ -94,6 +94,23 @@ function createMachine(options = {}) {
       }, ms);
     }
     onChange({ phase: name });
+    nudgeAgents();
+  }
+
+  // 每次进入新阶段，把此刻有合法动作的 Agent 座位唤醒一次。
+  // 宿主负责真正的模型调用；machine 只说「轮到你了，这些是你能做的」。
+  function nudgeAgents() {
+    if (typeof options.requestTurn !== 'function') return;
+    if (state.phase === PHASES.LOBBY || state.phase === PHASES.GAME_OVER) return;
+    for (const seat of state.seats) {
+      if (seat.kind !== 'agent') continue;
+      const legalActions = legalActionsFor(seat.id);
+      if (!legalActions.length) continue;
+      options.requestTurn(
+        { id: seat.id, username: seat.username, kind: 'agent' },
+        { legalActions, role: seat.role }
+      );
+    }
   }
 
   function finish(victory) {
@@ -226,8 +243,13 @@ function createMachine(options = {}) {
     else startVote(PHASES.DAY_VOTE);
   }
 
-  function startVote(phaseName) {
-    state.votes = new Map();
+  // 遗言与普通发言的轮转规则不同，交棒统一走这里。
+  function nextSpeakerFor(phaseName) {
+    if (phaseName === PHASES.LAST_WORDS || phaseName === PHASES.EXILE_LAST_WORDS) nextLastWordsSpeaker();
+    else nextSpeaker();
+  }
+
+  function startVote(phaseName) {    state.votes = new Map();
     enterPhase(phaseName, { currentSpeaker: null });
   }
 
@@ -465,14 +487,16 @@ function createMachine(options = {}) {
       if (state.currentSpeaker !== actorId) return reject(ERR.NOT_YOUR_TURN, '还没轮到你。');
       const text = String(payload?.text || '').trim();
       if (!text) return reject(ERR.TARGET, '说点什么。');
-      // 一个回合内可以连发多条，不自动结束。
+      // 人类一个回合内可以连发多条，说完自己点「结束发言」。
+      // Agent 不会主动收尾，讲完一句就把话筒交出去，否则每轮都要空耗满 90 秒。
+      state.spokenThisTurn = true;
+      if (self.kind === 'agent') nextSpeakerFor(state.phase);
       return OK({ post: { text } });
     },
     endSpeech(actorId) {
       if (!SPEECH_PHASES.has(state.phase)) return reject(ERR.PHASE);
       if (state.currentSpeaker !== actorId) return reject(ERR.NOT_YOUR_TURN);
-      if (state.phase === PHASES.LAST_WORDS || state.phase === PHASES.EXILE_LAST_WORDS) nextLastWordsSpeaker();
-      else nextSpeaker();
+      nextSpeakerFor(state.phase);
       return OK();
     },
 
