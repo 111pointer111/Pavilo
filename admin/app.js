@@ -362,13 +362,95 @@
     return Boolean(session?.writable);
   }
 
-  function storageLabel(room) {
-    if (room?.storage || room?.ephemeral === false) return t('overview.storageSqlite');
-    return t('overview.storageMemory');
-  }
-
   function sourceLabel(source) {
     return t(source === 'operator' ? 'overview.sourceOperator' : 'overview.sourceYaml');
+  }
+
+  function channelRecord(id) {
+    return (pavilion.channels || []).find((channel) => channel.id === id) || null;
+  }
+
+  function channelLabel(id) {
+    return channelRecord(id)?.name || id || t('people.never');
+  }
+
+  function formatBytes(bytes) {
+    const value = Number(bytes);
+    if (!Number.isFinite(value) || value < 0) return t('people.never');
+    if (value < 1024) return `${Math.round(value)} B`;
+    const kb = value / 1024;
+    if (kb < 1024) return `${kb < 10 ? kb.toFixed(1) : Math.round(kb)} KB`;
+    const mb = kb / 1024;
+    if (mb < 1024) return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`;
+    const gb = mb / 1024;
+    return `${gb < 10 ? gb.toFixed(1) : Math.round(gb)} GB`;
+  }
+
+  function formatUptime(seconds) {
+    const sec = Math.max(0, Math.floor(Number(seconds) || 0));
+    if (sec < 60) return t('overview.uptimeSec', { count: sec });
+    const minutes = Math.floor(sec / 60);
+    if (minutes < 60) return t('overview.uptimeMin', { count: minutes });
+    const hours = Math.floor(minutes / 60);
+    if (hours < 48) return t('overview.uptimeHour', { hours, minutes: minutes % 60 });
+    return t('overview.uptimeDay', { days: Math.floor(hours / 24), hours: hours % 24 });
+  }
+
+  function retentionLabel(days) {
+    if (days == null) return t('overview.retentionForever');
+    return t('overview.retentionDays', { count: days });
+  }
+
+  function storageFact() {
+    const room = dashboard?.room || {};
+    const storage = dashboard?.storage || {};
+    if (room.storage || storage.driver === 'sqlite') {
+      const size = formatBytes(room.storage?.bytes);
+      const count = room.storage?.messages ?? room.messages ?? 0;
+      const retention = retentionLabel(storage.retentionDays);
+      const name = String(room.storage?.path || storage.path || '').split(/[/\\]/).pop();
+      const meta = t('overview.sqliteMeta', { size, count, retention });
+      return name ? `${t('overview.storageSqlite')} · ${name} · ${meta}` : `${t('overview.storageSqlite')} · ${meta}`;
+    }
+    return `${t('overview.storageMemory')} · ${t('overview.memoryMeta', {
+      count: room.messages ?? 0,
+      size: formatBytes(room.roomBytes)
+    })}`;
+  }
+
+  function occupancyMap() {
+    return pavilion.occupancy || dashboard?.pavilion?.occupancy || {};
+  }
+
+  function occupancyTotal() {
+    const values = Object.values(occupancyMap());
+    if (!values.length) return null;
+    return values.reduce((sum, n) => sum + (Number(n) || 0), 0);
+  }
+
+  function occupancyLine() {
+    return (pavilion.channels || [])
+      .map((channel) => {
+        const count = occupancyMap()[channel.id] || 0;
+        return count ? t('people.occupancy', { name: channel.name || channel.id, count }) : '';
+      })
+      .filter(Boolean)
+      .join(' · ');
+  }
+
+  function factRow(label, value, href) {
+    const row = document.createElement('div');
+    row.append(el('dt', '', label));
+    const dd = el('dd', '');
+    if (href) {
+      const link = el('a', '', value);
+      link.href = href;
+      dd.append(link);
+    } else {
+      dd.textContent = value;
+    }
+    row.append(dd);
+    return row;
   }
 
   function stopPeoplePoll() {
@@ -435,23 +517,42 @@
     const roomTitle = pavilion.room?.title || dashboard?.pavilion?.roomTitle || '—';
     const writableChat = (pavilion.channels || []).some((channel) => channel.enabled !== false && !channel.readOnly);
     const dutyWarn = Boolean(pavilionError) || (!pavilionError && pavilion.channels.length > 0 && !writableChat);
+    const running = t('overview.running');
+    const uptime = Number.isFinite(dashboard?.uptimeSec)
+      ? t('overview.uptime', { time: formatUptime(dashboard.uptimeSec) })
+      : '';
 
-    const duty = el('a', `sheet duty${dutyWarn ? ' warn' : ''}`);
-    duty.href = '#/room';
-    duty.append(
-      el('p', 'kicker', t('overview.room')),
-      el('strong', '', pavilionError ? t('pavilion.loadError') : roomTitle),
-      el('p', '', pavilionError
-        ? String(pavilionError)
-        : t('overview.dutyMeta', {
-          users: t('overview.online', { count: room.users ?? 0 }),
-          storage: storageLabel(room),
-          source: sourceLabel(sources.room)
-        }))
-    );
+    const duty = el('div', `sheet duty${dutyWarn ? ' warn' : ''}`);
+    duty.append(el('p', 'kicker', [running, uptime].filter(Boolean).join(' · ')));
+    const titleLink = el('a', 'duty-title');
+    titleLink.href = '#/room';
+    titleLink.append(el('strong', '', pavilionError ? t('pavilion.loadError') : roomTitle));
+    duty.append(titleLink);
+    if (pavilionError) {
+      duty.append(el('p', '', String(pavilionError)));
+    } else {
+      const facts = el('dl', 'sheet-facts');
+      facts.append(
+        factRow(t('overview.factPeople'), [
+          t('overview.online', { count: occupancyTotal() ?? room.users ?? 0 }),
+          t('overview.clients', { count: room.clients ?? 0 })
+        ].join(' · '), '#/people'),
+        factRow(t('overview.factStorage'), storageFact()),
+        factRow(t('overview.factSource'), sourceLabel(sources.room), '#/room')
+      );
+      duty.append(facts);
+    }
     if (!pavilionError && pavilion.channels.length > 0 && !writableChat) {
       duty.append(el('p', '', t('overview.noWritable')));
     }
+
+    const people = el('a', 'sheet');
+    people.href = '#/people';
+    people.append(
+      el('p', 'kicker', t('nav.people')),
+      el('strong', '', t('overview.online', { count: occupancyTotal() ?? room.users ?? 0 })),
+      el('p', '', occupancyLine() || t('people.overviewHint'))
+    );
 
     const chat = el('a', 'sheet');
     chat.href = '#/chat';
@@ -472,14 +573,6 @@
       el('p', 'kicker', t('gateway.title')),
       el('strong', '', t('overview.channelCount', { count: channels.length })),
       el('p', '', `${t('overview.missingKey', { count: missing })} · ${t('overview.errors', { count: errors })}`)
-    );
-
-    const people = el('a', 'sheet');
-    people.href = '#/people';
-    people.append(
-      el('p', 'kicker', t('nav.people')),
-      el('strong', '', t('overview.online', { count: room.users ?? 0 })),
-      el('p', '', t('people.overviewHint'))
     );
 
     overviewSheets.replaceChildren(duty, people, chat, gateway);
@@ -792,22 +885,24 @@
     } else {
       const list = el('div', 'ledger');
       for (const seat of seats) {
-        const row = el('a', 'ledger-row');
+        const row = el('a', 'ledger-row people-row');
         row.href = `#/people/${encodeURIComponent(seat.id)}`;
         const identity = el('div');
         identity.append(el('div', 'ledger-name', seat.username));
         const meta = el('div', 'ledger-meta');
         meta.append(document.createTextNode([
-          seat.channelId,
           seat.ip || t('people.never'),
           t('people.messages', { count: seat.messageCount || 0 }),
           formatDuration(seat.joinedAt)
         ].join(' · ')));
         identity.append(meta);
+        const channel = el('div', 'people-channel');
+        channel.append(el('div', 'people-channel-name', channelLabel(seat.channelId)));
+        if (seat.channelId) channel.append(el('code', '', seat.channelId));
         const status = el('div', 'ledger-status');
         const badgeClass = seat.kind === 'agent' || seat.muted || seat.status === 'leased' ? 'badge warn' : 'badge';
         status.append(el('span', badgeClass, seatStatusLabel(seat)));
-        row.append(identity, status);
+        row.append(identity, channel, status);
         list.append(row);
       }
       peopleList.append(list);
@@ -872,27 +967,25 @@
       return;
     }
     const seat = payload.seat;
+    const stack = el('div', 'seat-stack');
     const paper = el('div', 'editor paper');
     const identity = document.createElement('fieldset');
     identity.append(el('legend', '', t('people.groupSeat')));
     const dl = el('dl', 'seat-dl');
+    const channelText = seat.channelId
+      ? `${channelLabel(seat.channelId)} · ${seat.channelId}`
+      : t('people.never');
     dl.append(
-      seatField(t('people.fieldId'), seat.id),
-      seatField(t('people.fieldChannel'), seat.channelId),
+      seatField(t('people.fieldChannel'), channelText),
       seatField(t('people.fieldIp'), seat.ip || t('people.never')),
       seatField(t('people.fieldJoined'), formatClock(seat.joinedAt)),
       seatField(t('people.fieldDuration'), formatDuration(seat.joinedAt)),
       seatField(t('people.fieldCount'), String(seat.messageCount || 0)),
-      seatField(t('people.fieldLast'), formatClock(seat.lastSpokenAt))
+      seatField(t('people.fieldLast'), formatClock(seat.lastSpokenAt)),
+      seatField(t('people.fieldId'), seat.id)
     );
     identity.append(dl);
     paper.append(identity);
-
-    const history = document.createElement('fieldset');
-    history.append(el('legend', '', t('people.groupHistory')));
-    const historyBox = el('div', 'history-list');
-    history.append(historyBox);
-    paper.append(history);
 
     const danger = document.createElement('fieldset');
     danger.className = 'danger-zone';
@@ -966,7 +1059,15 @@
     }
     danger.append(actions);
     paper.append(danger);
-    seatPaper.append(paper);
+
+    const historyPaper = el('div', 'paper');
+    const history = document.createElement('fieldset');
+    history.append(el('legend', '', t('people.groupHistory')));
+    const historyBox = el('div', 'history-list');
+    history.append(historyBox);
+    historyPaper.append(history);
+    stack.append(paper, historyPaper);
+    seatPaper.append(stack);
 
     try {
       const page = await api(`/admin/api/people/${encodeURIComponent(id)}/messages?limit=50`);
@@ -976,7 +1077,7 @@
       } else {
         for (const message of page.messages) {
           const row = el('div', 'history-row');
-          row.append(el('div', 'history-meta', `${formatClock(message.createdAt)} · ${message.channelId}`));
+          row.append(el('div', 'history-meta', `${formatClock(message.createdAt)} · ${channelLabel(message.channelId)}`));
           const body = el('div', 'history-text', message.kind === 'image'
             ? `${t('people.image')}${message.text ? ` · ${message.text}` : ''}`
             : (message.text || ''));
@@ -992,7 +1093,7 @@
             more.remove();
             for (const message of next.messages) {
               const row = el('div', 'history-row');
-              row.append(el('div', 'history-meta', `${formatClock(message.createdAt)} · ${message.channelId}`));
+              row.append(el('div', 'history-meta', `${formatClock(message.createdAt)} · ${channelLabel(message.channelId)}`));
               row.append(el('div', 'history-text', message.kind === 'image'
                 ? `${t('people.image')}${message.text ? ` · ${message.text}` : ''}`
                 : (message.text || '')));
@@ -1027,7 +1128,13 @@
         crumb: t('nav.groupPavilo')
       });
       showView('overview');
-      renderOverview();
+      api('/admin/api/dashboard').then((payload) => {
+        dashboard = payload;
+        session = payload.session || session;
+        renderOverview();
+      }).catch(() => {
+        renderOverview();
+      });
       return;
     }
     if (route.view === 'room') {
@@ -1049,7 +1156,6 @@
         title: t('people.title'),
         lead: t('people.lead'),
         crumb: t('nav.groupPavilo'),
-        source: peopleState.sources.moderation,
         status: t('people.status', { online: peopleState.online, leased: peopleState.leased })
       });
       showView('people');
@@ -1058,7 +1164,6 @@
           title: t('people.title'),
           lead: t('people.lead'),
           crumb: t('nav.groupPavilo'),
-          source: peopleState.sources.moderation,
           status: t('people.status', { online: peopleState.online, leased: peopleState.leased })
         });
         renderPeopleList();
@@ -1083,7 +1188,10 @@
         setHead({
           title: t('people.seatTitle', { name: seat.username || t('people.title') }),
           lead: t('people.seatLead'),
-          crumb: `${t('nav.groupPavilo')} / ${t('nav.people')}`
+          crumb: `${t('nav.groupPavilo')} / ${t('nav.people')}`,
+          status: seat.username
+            ? [seatStatusLabel(seat), channelLabel(seat.channelId)].join(' · ')
+            : ''
         });
       });
       return;

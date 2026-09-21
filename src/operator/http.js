@@ -180,9 +180,12 @@ function createOperatorHttp(config, { gateway, core, pavilion, root }) {
         ok: true,
         session: sessionPayload(),
         room: core.health(),
+        storage: core.storageInfo(),
+        uptimeSec: Math.floor(process.uptime()),
         pavilion: pavilionSnapshot ? {
           roomTitle: pavilionSnapshot.room.title,
           channelCount: pavilionSnapshot.channels.length,
+          occupancy: pavilionSnapshot.occupancy || {},
           sources: pavilionSnapshot.sources
         } : null,
         gateway: gateway.status(),

@@ -160,6 +160,9 @@ test('session APIs hide the API key, persist ciphertext, and probe without expos
 
   const dashboard = await (await fetch(`${origin}/admin/api/dashboard`, { headers })).json();
   assert.equal(dashboard.room.ok, true);
+  assert.equal(typeof dashboard.uptimeSec, 'number');
+  assert.ok(dashboard.uptimeSec >= 0);
+  assert.equal(dashboard.storage?.driver, 'sqlite');
   assert.equal(dashboard.pavilion.roomTitle, '语亭 · 临时频道');
   assert.equal(dashboard.pavilion.sources.room, 'yaml');
   assert.equal(dashboard.pavilion.sources.channels, 'yaml');

@@ -150,10 +150,13 @@
 
         <section class="view" id="viewPeople" hidden>
           <p class="error" id="peopleLoadError" hidden></p>
-          <p class="log-strip" id="peopleLog" hidden></p>
-          <div class="people-toolbar" id="peopleToolbar"></div>
-          <div id="peopleList"></div>
-          <form class="editor paper deny-paper" id="denyForm">
+          <div class="people-desk">
+            <div class="paper people-main">
+              <p class="log-strip" id="peopleLog" hidden></p>
+              <div class="people-toolbar" id="peopleToolbar"></div>
+              <div id="peopleList"></div>
+            </div>
+            <form class="editor paper deny-paper" id="denyForm">
             <fieldset>
               <legend>
                 <span data-i18n="people.denyTitle">进不来的 IP</span>
@@ -172,7 +175,8 @@
                 <button type="button" class="ghost" id="denyRevertButton" data-i18n="people.denyRevert">恢复为配置文件</button>
               </div>
             </fieldset>
-          </form>
+            </form>
+          </div>
         </section>
 
         <section class="view" id="viewSeat" hidden>
