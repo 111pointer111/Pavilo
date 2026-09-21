@@ -39,6 +39,7 @@ function createChatServer(options = {}) {
     randomId: options.randomId,
     complete: (request) => gateway.complete(request),
     onEffects: (effects) => core.deliverPlayEffects(effects),
+    postAsAgent: (actorId, text) => core.postAsAgent(actorId, text),
     seatAgent: (input) => core.seatAgent(input),
     roster: (channelId) => core.roster(channelId)
   });
