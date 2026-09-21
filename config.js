@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const YAML = require('yaml');
 const { normalizeIp, isIpAddress, MAX_IP_DENY_LIST } = require('./src/ip');
+const { FEATURE_KEYS, defaultFeatures } = require('./src/core/capabilities');
 
 const ROOT = __dirname;
 const CONFIG_VERSION = 2;
@@ -11,6 +12,9 @@ const SUPPORTED_CONFIG_VERSIONS = Object.freeze([1, 2, 3]);
 const MAX_SQLITE_RETENTION_DAYS = 3650;
 const MIN_OPERATOR_TOKEN_LENGTH = 16;
 const MAX_OPERATOR_TOKEN_LENGTH = 256;
+const MIN_IDENTITY_SECRET_LENGTH = 32;
+const MAX_IDENTITY_SECRET_LENGTH = 256;
+const MAX_IDENTITY_ISSUERS = 1;
 const OPERATOR_TOKEN_COMMAND = 'openssl rand -hex 32';
 const CHANNEL_ID_RE = /^[a-z0-9](?:[a-z0-9_-]{0,31})$/;
 const DECIMAL_PORT_RE = /^(?:[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$/;
@@ -70,6 +74,7 @@ const DEFAULTS = deepFreeze({
   },
   plays: [],
   ipDenyList: [],
+  identity: { guests: true, audience: 'pavilo', clockSkewSec: 60, issuers: [] },
   channels: [{
     id: 'general',
     name: '闲聊',
@@ -77,7 +82,9 @@ const DEFAULTS = deepFreeze({
     enabled: true,
     readOnly: false,
     maxUsers: 64,
-    welcome: ''
+    welcome: '',
+    access: 'open',
+    features: defaultFeatures()
   },{
     id: 'project',
     name: '项目讨论',
@@ -85,12 +92,17 @@ const DEFAULTS = deepFreeze({
     enabled: true,
     readOnly: false,
     maxUsers: 32,
-    welcome: ''
+    welcome: '',
+    access: 'open',
+    features: defaultFeatures()
   }]
 });
 
-const ROOT_KEYS_V1 = new Set(['version', 'server', 'room', 'channels', 'limits', 'timeouts', 'rateLimits']);
+const ROOT_KEYS_V1 = new Set(['version', 'server', 'room', 'channels', 'limits', 'timeouts', 'rateLimits', 'identity']);
 const ROOT_KEYS_V2 = new Set([...ROOT_KEYS_V1, 'storage', 'operator', 'plays', 'moderation']);
+const IDENTITY_KEYS = new Set(['guests', 'audience', 'clockSkewSec', 'issuers']);
+const ISSUER_KEYS = new Set(['id', 'alg', 'secret']);
+const ACCESS_MODES = new Set(['open', 'authenticated']);
 const MODERATION_KEYS = new Set(['ipDenyList']);
 const STORAGE_KEYS = new Set(['driver', 'sqlite']);
 const OPERATOR_KEYS = new Set(['token']);
@@ -100,8 +112,9 @@ const SQLITE_ENGINES = new Set(['auto', 'node', 'better-sqlite3']);
 const SERVER_KEYS = new Set(['host', 'port', 'maxUsers', 'maxConnections', 'maxConnectionsPerIp', 'allowNoOrigin', 'allowedOrigins']);
 const ROOM_KEYS = new Set(['title', 'defaultChannel', 'exposeMemberIps', 'exposeLanUrls', 'defaultLanguage']);
 const ROOM_OVERLAY_KEYS = new Set(['title', 'defaultChannel', 'defaultLanguage', 'exposeMemberIps', 'exposeLanUrls', 'maxUsers']);
-const CHANNEL_KEYS_V1 = new Set(['id', 'name', 'description', 'enabled', 'readOnly', 'maxUsers', 'welcome']);
+const CHANNEL_KEYS_V1 = new Set(['id', 'name', 'description', 'enabled', 'readOnly', 'maxUsers', 'welcome', 'access', 'features']);
 const CHANNEL_KEYS_V2 = new Set([...CHANNEL_KEYS_V1, 'play']);
+const FEATURE_KEY_SET = new Set(FEATURE_KEYS);
 const MAX_PLAYS = 32;
 const LIMIT_KEYS = new Set(['maxMessagesPerChannel', 'maxTextLength', 'maxImageBytes', 'maxImageDimension', 'maxImagePixels', 'maxJsonBytes', 'maxWebSocketFrameBytes', 'maxChannelBytes', 'maxWritableBytes', 'maxDedupeEntries']);
 const TIMEOUT_KEYS = new Set(['joinMs', 'heartbeatIntervalMs', 'heartbeatTimeoutMs', 'typingTtlMs', 'sessionLeaseMs', 'dedupeTtlMs']);
@@ -207,6 +220,94 @@ function parsePlays(value) {
   return ids;
 }
 
+function parseFeatures(value, field) {
+  if (value === undefined) return defaultFeatures();
+  const features = record(value, field);
+  knownKeys(features, FEATURE_KEY_SET, field);
+  const parsed = defaultFeatures();
+  for (const key of FEATURE_KEYS) {
+    if (features[key] !== undefined) parsed[key] = boolean(features[key], `${field}.${key}`);
+  }
+  return parsed;
+}
+
+function parseAccess(value, field) {
+  if (value === undefined) return 'open';
+  const access = text(value, field, 1, 32);
+  if (!ACCESS_MODES.has(access)) fail(field, '只能是 open 或 authenticated');
+  return access;
+}
+
+function parseIdentitySecret(value, field) {
+  if (value === undefined) return '';
+  const secret = secretText(value, field, 0, MAX_IDENTITY_SECRET_LENGTH);
+  if (secret.length === 0) return '';
+  if (/\s/.test(secret)) fail(field, '不能包含空白字符');
+  if (secret.length < MIN_IDENTITY_SECRET_LENGTH) {
+    fail(field, `长度必须是 ${MIN_IDENTITY_SECRET_LENGTH}–${MAX_IDENTITY_SECRET_LENGTH} 个字符`);
+  }
+  return secret;
+}
+
+function parseIdentity(value) {
+  if (value === undefined) return { guests: true, audience: 'pavilo', clockSkewSec: 60, issuers: [] };
+  const identity = record(value, 'identity');
+  knownKeys(identity, IDENTITY_KEYS, 'identity');
+  const guests = identity.guests === undefined ? true : boolean(identity.guests, 'identity.guests');
+  const audience = identity.audience === undefined ? 'pavilo' : text(identity.audience, 'identity.audience', 1, 64);
+  const clockSkewSec = identity.clockSkewSec === undefined
+    ? 60
+    : integer(identity.clockSkewSec, 'identity.clockSkewSec', 0, 300);
+  if (identity.issuers === undefined) {
+    return { guests, audience, clockSkewSec, issuers: [] };
+  }
+  if (!Array.isArray(identity.issuers)) fail('identity.issuers', '必须是数组');
+  if (identity.issuers.length > MAX_IDENTITY_ISSUERS) fail('identity.issuers', `最多 ${MAX_IDENTITY_ISSUERS} 个签发方`);
+  const issuers = identity.issuers.map((entry, index) => {
+    const field = `identity.issuers[${index}]`;
+    const issuer = record(entry, field);
+    knownKeys(issuer, ISSUER_KEYS, field);
+    const id = text(issuer.id, `${field}.id`, 1, 32);
+    if (!/^[A-Za-z0-9._:-]+$/.test(id)) fail(`${field}.id`, '只能使用字母、数字、点、下划线、冒号和连字符');
+    const alg = issuer.alg === undefined ? 'HS256' : text(issuer.alg, `${field}.alg`, 1, 16);
+    if (alg !== 'HS256') fail(`${field}.alg`, '当前只支持 HS256');
+    return { id, alg, secret: parseIdentitySecret(issuer.secret, `${field}.secret`) };
+  });
+  const ids = new Set();
+  for (const issuer of issuers) {
+    if (ids.has(issuer.id)) fail('identity.issuers', `签发方 “${issuer.id}” 重复`);
+    ids.add(issuer.id);
+  }
+  return { guests, audience, clockSkewSec, issuers };
+}
+
+function identityUsable(config) {
+  return (config.identity?.issuers || []).some((issuer) => issuer.alg === 'HS256' && issuer.secret.length >= MIN_IDENTITY_SECRET_LENGTH);
+}
+
+function identityDeclared(config) {
+  return (config.identity?.issuers || []).length > 0;
+}
+
+function validateIdentity(config, { requireSecrets = true } = {}) {
+  const guests = config.identity?.guests !== false;
+  const hasAuthenticated = (config.channels || []).some((channel) => channel.access === 'authenticated');
+  const ready = identityUsable(config);
+  const present = requireSecrets ? ready : ready || identityDeclared(config);
+  if (hasAuthenticated && !present) {
+    fail('identity.issuers', 'access: authenticated 需要配置可用的 identity.issuers');
+  }
+  if (!guests && !present) {
+    fail('identity.guests', '关闭访客时必须配置可用的 identity.issuers');
+  }
+  if (guests) {
+    const defaultChannel = (config.channels || []).find((channel) => channel.id === config.defaultChannelId);
+    if (defaultChannel?.access === 'authenticated') {
+      fail('room.defaultChannel', '访客开启时默认频道必须是 access: open');
+    }
+  }
+}
+
 function normalizeChannels(value, maxUsers, { schemaVersion, plays, clampMaxUsers = false } = {}) {
   if (!Array.isArray(value) || value.length < 1 || value.length > MAX_CHANNELS) fail('channels', `必须包含 1–${MAX_CHANNELS} 个频道`);
   const ids = new Set();
@@ -236,6 +337,8 @@ function normalizeChannels(value, maxUsers, { schemaVersion, plays, clampMaxUser
       readOnly: channel.readOnly === undefined ? false : boolean(channel.readOnly, `${field}.readOnly`),
       maxUsers: channelMaxUsers,
       welcome: channel.welcome === undefined ? '' : paragraph(channel.welcome, `${field}.welcome`, 0, MAX_WELCOME_LENGTH),
+      access: parseAccess(channel.access, `${field}.access`),
+      features: parseFeatures(channel.features, `${field}.features`),
       ...(play ? { play } : {})
     };
   });
@@ -266,6 +369,8 @@ function snapshotChannelsSection(config) {
       welcome: channel.welcome || ''
     };
     if (channel.play) copy.play = channel.play;
+    copy.access = channel.access === 'authenticated' ? 'authenticated' : 'open';
+    copy.features = { ...defaultFeatures(), ...(channel.features || {}) };
     return copy;
   });
 }
@@ -471,7 +576,14 @@ function applySecretEnv(config, env) {
   if (typeof env.PAVILO_OPERATOR_TOKEN === 'string' && env.PAVILO_OPERATOR_TOKEN !== '') {
     config.operator.token = parseOperatorToken(env.PAVILO_OPERATOR_TOKEN, 'PAVILO_OPERATOR_TOKEN');
   }
+  if (typeof env.PAVILO_IDENTITY_SECRET === 'string' && env.PAVILO_IDENTITY_SECRET !== '') {
+    const secret = parseIdentitySecret(env.PAVILO_IDENTITY_SECRET, 'PAVILO_IDENTITY_SECRET');
+    const issuers = config.identity?.issuers || [];
+    if (issuers.length !== 1) fail('PAVILO_IDENTITY_SECRET', '覆盖密钥时 identity.issuers 必须恰好有一项');
+    issuers[0].secret = secret;
+  }
   finalizeOperator(config);
+  validateIdentity(config);
 }
 
 function parseRetentionDays(value, field) {
@@ -547,6 +659,14 @@ function validateCrossConstraints(config) {
   }
   const usesPlay = (config.plays || []).length > 0 || config.channels.some((channel) => channel.play);
   if (usesPlay && !sqlite) fail('plays', '玩法需要 storage.driver: sqlite');
+  if (config.operator?.token && identityUsable(config)) {
+    for (const issuer of config.identity.issuers) {
+      if (issuer.secret && issuer.secret === config.operator.token) {
+        fail('identity.issuers', '不能与 operator.token 使用同一密钥');
+      }
+    }
+  }
+  validateIdentity(config, { requireSecrets: false });
 }
 
 function normalizeConfig(document = {}, { requireVersion = false, baseDir = ROOT } = {}) {
@@ -616,11 +736,17 @@ function normalizeConfig(document = {}, { requireVersion = false, baseDir = ROOT
 
   config.plays = schemaVersion >= 2 ? parsePlays(root.plays) : [];
   if (root.channels === undefined) {
-    config.channels = config.channels.map((channel) => ({ ...channel, maxUsers: Math.min(channel.maxUsers, config.maxUsers) }));
+    config.channels = config.channels.map((channel) => ({
+      ...channel,
+      maxUsers: Math.min(channel.maxUsers, config.maxUsers),
+      access: channel.access || 'open',
+      features: { ...defaultFeatures(), ...(channel.features || {}) }
+    }));
   } else {
     config.channels = normalizeChannels(root.channels, config.maxUsers, { schemaVersion, plays: config.plays });
   }
   validateDefaultChannel(config);
+  config.identity = parseIdentity(root.identity);
   config.storage = schemaVersion >= 2 ? parseStorage(root.storage, baseDir) : { driver: 'memory' };
   if (schemaVersion >= 2) config.operator = parseOperator(root.operator);
   if (root.operator !== undefined) config._operatorDeclared = true;

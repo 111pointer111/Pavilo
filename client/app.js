@@ -147,7 +147,9 @@
   }
 
   function channelById(channelId) {
-    return roomChannels.find((channel) => channel.id === channelId) || null;
+    const fromRoom = roomChannels.find((channel) => channel.id === channelId);
+    if (fromRoom) return fromRoom;
+    return store.getState().channels?.find((channel) => channel.id === channelId) || null;
   }
 
   function hasStoredLanguage() {
@@ -167,8 +169,13 @@
     document.title = t('brand.title');
     const picker = $('#composerPicker');
     if (picker) picker.setAttribute('locale', i18n.language === 'en' ? 'en' : 'zh');
+    const guests = roomInfo?.identity?.guests !== false;
     for (const node of document.querySelectorAll('[data-i18n]')) {
       if (node.id === 'messageCount' || node.id === 'connectionText') continue;
+      if (node.id === 'loginCopy' && !guests) {
+        node.textContent = t('login.hostRequired');
+        continue;
+      }
       node.textContent = t(node.dataset.i18n);
     }
     const note = document.querySelector('.ephemeral-note');
@@ -340,7 +347,11 @@
     const channelId = state.channelId || selectedChannelId;
     const switching = Boolean(state.channel?.switching);
     const joined = Boolean(state.connection?.joined);
-    const enabledCount = roomChannels.filter((channel) => channel.enabled).length;
+    const authorized = joined && Array.isArray(state.channels) && state.channels.length ? state.channels : null;
+    const list = authorized
+      ? authorized.map((channel) => roomChannels.find((item) => item.id === channel.id) || channel)
+      : roomChannels;
+    const enabledCount = list.filter((channel) => channel.enabled).length;
     const channelCountEl = $('#channelCount');
     if (enabledCount > 1) {
       channelCountEl.textContent = t('channels.count', { count: enabledCount });
@@ -348,7 +359,7 @@
     } else {
       channelCountEl.hidden = true;
     }
-    channelList.replaceChildren(...roomChannels.map((channel) => {
+    channelList.replaceChildren(...list.map((channel) => {
       const button = document.createElement('button');
       const active = channel.id === channelId;
       button.className = `channel${active ? ' active' : ''}`;
@@ -368,7 +379,7 @@
       button.addEventListener('click', () => switchChannel(channel.id));
       return button;
     }));
-    mobileChannelPicker.replaceChildren(...roomChannels.map((channel) => {
+    mobileChannelPicker.replaceChildren(...list.map((channel) => {
       const option = document.createElement('option');
       option.value = channel.id;
       option.disabled = !channel.enabled;
@@ -376,24 +387,29 @@
       return option;
     }));
     if (channelId) mobileChannelPicker.value = channelId;
-    mobileChannelPicker.disabled = switching || !joined || !roomChannels.some((channel) => channel.enabled);
+    mobileChannelPicker.disabled = switching || !joined || !list.some((channel) => channel.enabled);
     updateChannelOccupancy(state);
     renderChannelChrome(state);
-    channelRenderKey = `${channelId || ''}|${switching}|${joined}|${roomChannels.length}`;
+    channelRenderKey = `${channelId || ''}|${switching}|${joined}|${list.length}`;
   }
 
   function applyRoomInfo(info) {
     if (!info || typeof info.defaultChannelId !== 'string' || !Array.isArray(info.channels)) throw new Error('invalid room info');
+    const guests = info.identity?.guests !== false;
     const channels = info.channels.filter((channel) => channel && typeof channel.id === 'string' && typeof channel.name === 'string');
     const defaultChannel = channels.find((channel) => channel.id === info.defaultChannelId && channel.enabled);
-    if (!defaultChannel) throw new Error('invalid default channel');
+    if (guests && !defaultChannel) throw new Error('invalid default channel');
+    const loginForm = $('#loginForm');
+    if (loginForm) loginForm.hidden = !guests;
     roomInfo = info;
     roomChannels = channels;
     maxImageBytes = positiveLimit(info.limits?.maxImageBytes, maxImageBytes);
     maxImagePixels = positiveLimit(info.limits?.maxImagePixels, maxImagePixels);
     maxGifDimension = positiveLimit(info.limits?.maxImageDimension, maxGifDimension);
     const saved = channelById(connection.readChannelId());
-    if (!selectedChannelId || !channelById(selectedChannelId)?.enabled) selectedChannelId = saved?.enabled ? saved.id : defaultChannel.id;
+    if (!selectedChannelId || !channelById(selectedChannelId)?.enabled) {
+      selectedChannelId = saved?.enabled ? saved.id : (defaultChannel?.id || info.defaultChannelId);
+    }
     roomInfoReady = true;
     if (info.defaultLanguage && !hasStoredLanguage()) {
       i18n.setLanguage(info.defaultLanguage);
@@ -920,7 +936,9 @@
       composerController.clearReply();
       composerController.clearAttachment();
       showLogin();
-      const type = event.reason === 'denied' ? 'IP_DENIED' : 'KICKED';
+      const type = event.reason === 'denied' ? 'IP_DENIED'
+        : event.reason === 'identity' ? 'IDENTITY_EXPIRED'
+          : 'KICKED';
       if (errorController.getCurrentError() !== type) {
         errorController.showErrorOverlay(type, { onAction: () => errorController.hideErrorOverlay() });
       }

@@ -15,6 +15,7 @@
     if (code === 1001 && reason === 'server stopped') return 'stopped';
     if (code === 4008 && reason === 'kicked') return 'kicked';
     if (code === 4009 && reason === 'ip_denied') return 'denied';
+    if (code === 4010 && reason === 'identity_expired') return 'identity';
     return null;
   }
 
@@ -246,6 +247,7 @@
         };
         if (typeof latest.resumeToken === 'string' && latest.resumeToken) command.resumeToken = latest.resumeToken;
         if (latest.avatarSeed !== undefined && latest.avatarSeed !== null) command.avatarSeed = latest.avatarSeed;
+        if (typeof latest.identityToken === 'string' && latest.identityToken) command.identityToken = latest.identityToken;
         if (!sendRaw(command)) {
           emit({ type: 'error', error: new Error('Join could not be sent') });
           close({ intentional: false });

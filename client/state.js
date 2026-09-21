@@ -47,7 +47,7 @@
   function createInitialState(options = {}) {
     return {
       connection: { status: 'idle', joined: false, attempt: 0, intentionalLeave: false },
-      room: { epoch: null, startedAt: null, latestSeq: 0, resumeToken: null, capabilities: [] },
+      room: { epoch: null, startedAt: null, latestSeq: 0, resumeToken: null, capabilities: [], features: null },
       self: null, selfMuted: false, channelId: null, channel: { switching: false, requestedId: null }, channels: [], channelOccupancy: {},
       users: [], messages: [], pending: {}, sync: emptySync(), typing: {}, unread: 0,
       historyPage: { loading: false, exhausted: true, hasPaged: false },
@@ -122,13 +122,15 @@
         const channelId = event.channelId || state.channelId || event.defaultChannelId || null;
         const switched = state.channel.switching && channelId === state.channel.requestedId;
         return { ...state, self: event.self, selfMuted: Boolean(event.selfMuted), users: event.users || [], channelId,
+          channels: Array.isArray(event.channels) ? event.channels : state.channels,
           channelOccupancy: occupancyMap(event.occupancy),
           messages: switched ? [] : state.messages, typing: switched ? {} : state.typing,
           unread: switched ? 0 : state.unread,
           room: { ...state.room, epoch: switched ? null : state.room.epoch,
             startedAt: event.roomStartedAt ?? state.room.startedAt, latestSeq: Number(event.latestSeq) || 0,
             resumeToken: typeof event.resumeToken === 'string' && event.resumeToken ? event.resumeToken : state.room.resumeToken,
-            capabilities: Array.isArray(event.capabilities) ? event.capabilities : state.room.capabilities || [] },
+            capabilities: Array.isArray(event.capabilities) ? event.capabilities : state.room.capabilities || [],
+            features: event.features && typeof event.features === 'object' ? event.features : state.room.features },
           connection: { ...state.connection, joined: false, status: 'syncing' },
           sync: makeSync({ active: true, epoch: event.roomEpoch || (switched ? null : state.room.epoch),
             messages: [], deferred: [], latestSeq: Number(event.latestSeq) || 0 }) };

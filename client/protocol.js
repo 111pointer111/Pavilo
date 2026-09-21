@@ -83,7 +83,9 @@
           && optional(event.resumeToken, (value) => value === null || isClientMessageId(value))
           && optional(event.occupancy, isOccupancy)
           && optional(event.play, (value) => isRecord(value) && typeof value.id === 'string' && typeof value.page === 'string')
-          && optional(event.selfMuted, (value) => typeof value === 'boolean');
+          && optional(event.selfMuted, (value) => typeof value === 'boolean')
+          && optional(event.features, (value) => isRecord(value) && ['images', 'replies', 'reactions', 'mentions', 'typing', 'history'].every((key) => typeof value[key] === 'boolean'))
+          && optional(event.channels, (value) => Array.isArray(value) && value.every((channel) => isRecord(channel) && isChannelId(channel.id) && typeof channel.name === 'string'));
         break;
       case EVENTS.HISTORY: valid = isMessages(event.messages); break;
       case EVENTS.HISTORY_END: valid = isSequence(event.latestSeq); break;

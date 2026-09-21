@@ -82,6 +82,16 @@
       return Boolean(state.selfMuted);
     }
 
+    function features(state = getState()) {
+      const value = state.room?.features;
+      return {
+        images: value?.images !== false,
+        replies: value?.replies !== false,
+        mentions: value?.mentions !== false,
+        typing: value?.typing !== false
+      };
+    }
+
     function isReady(state = getState()) {
       return Boolean(state.connection?.joined && (!connection.isReady || connection.isReady()));
     }
@@ -110,7 +120,7 @@
     }
 
     function paintReply(message) {
-      const show = Boolean(message) && !isReadOnly();
+      const show = Boolean(message) && !isReadOnly() && features().replies;
       if (replyingBar) replyingBar.hidden = !show;
       if (show) {
         if (replyingName) replyingName.textContent = message.author.username;
@@ -222,8 +232,15 @@
       if (sendButton) sendButton.disabled = switching || blocked || !ready || preparing || !(canSendImage || (!attachmentReady && canSendText));
       composerText.disabled = switching || blocked;
       if (emojiButton) emojiButton.disabled = switching || blocked;
-      if (attachmentButton) attachmentButton.disabled = switching || blocked || !ready;
-      if (elements.mentionButton) elements.mentionButton.disabled = switching || blocked;
+      const enabled = features(state);
+      if (attachmentButton) {
+        attachmentButton.hidden = !enabled.images;
+        attachmentButton.disabled = switching || blocked || !ready || !enabled.images;
+      }
+      if (elements.mentionButton) {
+        elements.mentionButton.hidden = !enabled.mentions;
+        elements.mentionButton.disabled = switching || blocked || !enabled.mentions;
+      }
       composer.hidden = readOnly;
       if (elements.composerHint) elements.composerHint.hidden = blocked;
       if (elements.composerWrap) elements.composerWrap.classList.toggle('is-readonly', blocked);
@@ -260,7 +277,7 @@
     function scheduleTyping(active) {
       clearTimer(typingTimer);
       typingTimer = null;
-      if (!isReady() || getState().channel?.switching || isReadOnly()) return;
+      if (!isReady() || getState().channel?.switching || isReadOnly() || !features().typing) return;
       const elapsed = now() - typingLastSent;
       if (active && elapsed < TYPING_INTERVAL) {
         typingTimer = setTimer(() => scheduleTyping(true), TYPING_INTERVAL - elapsed);
@@ -351,7 +368,7 @@
         toast(t('toast.imageNotReady'), true);
         return false;
       }
-      if (isReadOnly(state)) {
+      if (isReadOnly(state) || !features(state).images) {
         toast(t('toast.readOnlyImage'), true);
         return false;
       }
@@ -438,7 +455,7 @@
         toast(t('toast.imageNotReady'), true);
         return false;
       }
-      if (isReadOnly(state)) {
+      if (isReadOnly(state) || !features(state).images) {
         toast(t('toast.readOnlyImage'), true);
         return false;
       }
@@ -519,7 +536,7 @@
     }
 
     function pasteAllowed() {
-      if (isReadOnly()) return false;
+      if (isReadOnly() || !features().images) return false;
       if (typeof canCapturePaste === 'function') return canCapturePaste();
       return !elements.appShell?.hidden;
     }

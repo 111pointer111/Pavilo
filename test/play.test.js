@@ -9,6 +9,7 @@ const { DEFAULTS, parseConfig } = require('../config');
 const { createChatCore } = require('../src/core');
 const { createPlayRuntime, createPlayAgent, isLegalAction } = require('../src/play');
 const { createChatServer } = require('../server');
+const { signHs256 } = require('../src/identity');
 
 const PLAY_CHANNELS = [
   { id: 'general', name: '闲聊', description: '', enabled: true, readOnly: false, maxUsers: 16, welcome: '' },
@@ -16,7 +17,7 @@ const PLAY_CHANNELS = [
 ];
 
 function createPlayHarness(options = {}) {
-  let clock = 1_000;
+  let clock = options.clock || 1_000;
   let sequence = 0;
   const timers = [];
   const delayed = [];
@@ -72,7 +73,7 @@ function createPlayHarness(options = {}) {
   return { core, plays, flush, advance, emitted };
 }
 
-function join(core, peerId, username, clientSessionId, channelId) {
+function join(core, peerId, username, clientSessionId, channelId, extra = {}) {
   assert.equal(core.connect(peerId, '192.0.2.10'), true);
   const result = core.dispatch(peerId, {
     type: 'join',
@@ -80,7 +81,8 @@ function join(core, peerId, username, clientSessionId, channelId) {
     username,
     clientSessionId,
     channelId,
-    avatarSeed: 17
+    avatarSeed: 17,
+    ...extra
   });
   assert.equal(result.accepted, true, result.error && result.error.message);
   const initial = result.effects.find((effect) => effect.kind === 'initial');
@@ -397,6 +399,72 @@ test('agent memory is scoped to a game and actor', () => {
   plays.store.clearGame('echo');
   assert.equal(plays.store.readMemory('g1', 'seer').length, 0);
   assert.equal(plays.store.readMemory('g2', 'seer').length, 1);
+});
+
+test('echo private views follow host userKey across a new session, not the old seat', () => {
+  const secret = 'identity-secret-key-32-chars-min';
+  const now = 1_700_000_000_000;
+  const nowSec = Math.floor(now / 1000);
+  const tokenFor = (sub, name) => signHs256({
+    iss: 'app',
+    aud: 'pavilo',
+    sub,
+    name,
+    channels: ['general', 'echo'],
+    iat: nowSec,
+    exp: nowSec + 600
+  }, secret);
+  const { core } = createPlayHarness({
+    clock: now,
+    identity: {
+      guests: true,
+      audience: 'pavilo',
+      clockSkewSec: 60,
+      issuers: [{ id: 'app', alg: 'HS256', secret }]
+    },
+    channels: [
+      { id: 'general', name: '闲聊', description: '', enabled: true, readOnly: false, maxUsers: 16, welcome: '', access: 'open' },
+      { id: 'echo', name: '回声', description: '', enabled: true, readOnly: false, maxUsers: 8, welcome: '', play: 'echo', access: 'open' }
+    ]
+  });
+
+  const first = join(core, 'cat-peer', '北岸的猫', 'session-cat-0001', 'echo', {
+    identityToken: tokenFor('user-1', '北岸的猫')
+  });
+  const firstPrivate = first.payloads.find((payload) => payload.type === 'playState' && payload.visibility === 'private');
+  assert.equal(firstPrivate.state.actor.id, 'user-1');
+
+  const echoed = core.dispatch('cat-peer', {
+    type: 'playAction',
+    clientActionId: 'action-echo-host-01',
+    name: 'echo',
+    payload: { text: 'secret-meow' }
+  });
+  assert.equal(echoed.accepted, true);
+  const directed = echoed.effects.filter((effect) => effect.payload?.type === 'playState');
+  assert.equal(directed.length, 1);
+  assert.equal(directed[0].kind, 'send');
+  assert.equal(directed[0].peerId, 'cat-peer');
+  assert.equal(directed[0].payload.state.lastEcho.payload.text, 'secret-meow');
+  assert.equal(directed[0].payload.state.actor.id, 'user-1');
+
+  core.dispatch('cat-peer', { type: 'leave' });
+  core.disconnect('cat-peer');
+
+  const resumed = join(core, 'cat-peer-2', '北岸的猫', 'session-cat-0002', 'echo', {
+    identityToken: tokenFor('user-1', '北岸的猫')
+  });
+  const resumedPrivate = resumed.payloads.find((payload) => payload.type === 'playState' && payload.visibility === 'private');
+  assert.ok(resumedPrivate);
+  assert.equal(resumedPrivate.state.actor.id, 'user-1');
+  assert.equal(resumedPrivate.state.lastEcho.payload.text, 'secret-meow');
+
+  const other = join(core, 'dog-peer', '别人', 'session-dog-0001', 'echo', {
+    identityToken: tokenFor('user-2', '别人')
+  });
+  const otherPrivate = other.payloads.find((payload) => payload.type === 'playState' && payload.visibility === 'private');
+  assert.equal(otherPrivate.state.actor.id, 'user-2');
+  assert.ok(other.payloads.every((payload) => payload.type !== 'playState' || payload.state?.actor?.id !== 'user-1'));
 });
 
 test('echo fixture files exist on disk', () => {

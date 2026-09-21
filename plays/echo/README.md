@@ -20,4 +20,4 @@ channels:
     play: echo
 ```
 
-对照完整示例见仓库根目录 `pavilo.plays.example.yaml`。
+对照完整示例见 `pavilo.sqlite.example.yaml` 里标注「可选：玩法」的注释块。

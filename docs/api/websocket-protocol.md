@@ -69,6 +69,7 @@ COMMANDS = { JOIN: 'join', MESSAGE: 'message', REACTION: 'reaction',
 | `channelId` | string | ⬜ | 目标频道；缺失或空字符串时使用默认频道 |
 | `resumeToken` | string | ⬜ | 恢复令牌，`[A-Za-z0-9_-]{8,96}`；格式合法时优先于 `clientSessionId` |
 | `avatarSeed` | number | ⬜ | 头像种子；只影响新 session，有限数值会归一为无符号 32 位整数 |
+| `identityToken` | string | ⬜ | 宿主签发的 HS256 JWT。省略则为访客。坏票不回落访客。字段见 [ADR-0010](../adr/0010-host-identity.md) |
 
 补充约定：
 
@@ -508,6 +509,11 @@ v4 专有，向所有已加入的 v4 客户端广播完整摘要；只含频道 
 | `PAYLOAD_TOO_LARGE` | 服务端要发送的负载超过 `maxJsonBytes`，回退为错误帧 |
 | `PLAY_NOT_BOUND` | 当前频道没有绑定玩法时发送了 `playAction` |
 | `PLAY_ACTION_REJECTED` | 玩法拒绝该动作（非法、非当前回合等） |
+| `FEATURE_DISABLED` | 频道关闭了对应功能 |
+| `CHANNEL_FORBIDDEN` | 当前身份不能进入或操作该频道 |
+| `IDENTITY_REQUIRED` | 关闭访客时 join 未带凭证 |
+| `IDENTITY_INVALID` | 宿主凭证无法验证 |
+| `IDENTITY_EXPIRED` | 宿主凭证过期（已加入后会以 `4010 / identity_expired` 关闭） |
 
 ---
 
@@ -541,12 +547,14 @@ v4 专有，向所有已加入的 v4 客户端广播完整摘要；只含频道 
 | `1009` | `payload too large` | 超过 `maxJsonBytes` 或 `maxWsFrameBytes` |
 | `4008` | `kicked` | 值班台结束了这一席 |
 | `4009` | `ip_denied` | 连接 IP 在黑名单中 |
+| `4010` | `identity_expired` | 宿主凭证过期 |
 
 客户端应把下列关闭当作**不要自动重连**的终态，并清空恢复信息：
 
 - **`1001` + reason `server stopped`**：权威停服
 - **`4008` + reason `kicked`**：被请离，回到进亭页
 - **`4009` + reason `ip_denied`**：这个网络不能进亭
+- **`4010` + reason `identity_expired`**：宿主凭证过期，需从宿主应用重新进入
 
 其余断线按普通重连处理。请离前服务端会先发 `{ "type": "moderation", "action": "kicked" }`；禁言是 `{ "type": "moderation", "action": "muted" | "unmuted" }`，不关连接。其他人只看到普通 `presence / leave`，没有公开的踢人广播。
 

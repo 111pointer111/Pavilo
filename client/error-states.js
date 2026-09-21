@@ -73,6 +73,11 @@
         messageKey: 'error.denied.message', detailKey: 'error.denied.detail',
         actionKey: 'error.denied.action',
       },
+      IDENTITY_EXPIRED: {
+        level: 'error', recoverable: false, icon: 'circle-slash',
+        messageKey: 'error.identity.message', detailKey: 'error.identity.detail',
+        actionKey: 'error.identity.action',
+      },
     };
 
     // 设置连接状态指示器

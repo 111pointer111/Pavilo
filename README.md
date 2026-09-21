@@ -11,13 +11,13 @@
 Pavilo（**Pavilion + Local**）是浏览器即用、默认临时、可自托管、可按需组装的轻量聊天工具，也在向方便接入已有产品的聊天与玩法能力演进。像一座随处可搭的小亭：启动 Node.js 进程，同一局域网里的人打开网页就能交谈；默认内存模式下，服务停止后聊天记录回到空白。
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.3.0-0f7772">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.4.0-0f7772">
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-0f7772">
   <img alt="Node.js" src="https://img.shields.io/badge/node-%3E%3D22-0f7772">
   <img alt="Protocol v4" src="https://img.shields.io/badge/protocol-v4-0f7772">
 </p>
 
-当前版本 **v1.3.0**：默认仍是无数据库的临时群聊；可用 Config Schema v2 可选启用 SQLite（默认留存 30 天，支持历史分页与备份）。sqlite 下可打开 `/admin` 值班台、可选 AI 网关与 Play 宿主。界面提供简体中文与英语，WebSocket 协议只接受 v4。适合可信局域网、私有网络或 VPN 环境。
+当前版本 **v1.4.0**：默认仍是无数据库的临时群聊；可用 Config Schema v2 可选启用 SQLite（默认留存 30 天，支持历史分页与备份）。sqlite 下可打开 `/admin` 值班台、可选 AI 网关与 Play 宿主，并可按频道开关功能、接入宿主 JWT 身份。界面提供简体中文与英语，WebSocket 协议只接受 v4。适合可信局域网、私有网络或 VPN 环境。
 
 <p align="center">
   <img src="docs/screenshots/overview.png" width="880" alt="Pavilo 界面预览：桌面聊天、登录页与移动端">
@@ -32,10 +32,11 @@ Pavilo（**Pavilion + Local**）是浏览器即用、默认临时、可自托管
 | 状态 | 能力 |
 | --- | --- |
 | 已发布：v1.2.0 | 临时聊天、可选 SQLite 留存与分页/备份等运维能力 |
-| 已发布：v1.3.0（最新稳定版） | AI 网关、管理后台、房间/频道配置、席位禁言/请离/IP 黑名单、Play/Agent 宿主和 echo 夹具 |
-| 计划中，v2.0 目标 | 功能组装、宿主身份与频道授权、嵌入页面及接入 SDK、基础治理闭环、官方狼人杀 |
+| 已发布：v1.3.0 | AI 网关、管理后台、房间/频道配置、席位禁言/请离/IP 黑名单、Play/Agent 宿主和 echo 夹具 |
+| 已发布：v1.4.0（最新稳定版） | 功能目录、宿主 JWT 身份与频道授权 |
+| 计划中，v2.0 目标 | 嵌入页面及接入 SDK、基础治理闭环、官方狼人杀 |
 
-**当前还没有可直接使用的嵌入 SDK 或宿主身份接口。** v2.0 以独立服务＋现成界面＋接入 SDK 为主要交付形态，先接入预建频道，支持品牌与布局配置。部署服务、配置宿主信任关系、复制少量接入代码即可使用，是我们对“一键接入”的目标定义。
+**当前还没有可直接使用的嵌入 SDK。** v1.4 提供 `join.identityToken` 宿主身份端口。v2.0 以独立服务＋现成界面＋接入 SDK 为主要交付形态。
 
 默认临时模式始终保留；狼人杀作为官方完整 Play 示例，与基础设施并行开发，并在 v2.0 前完成。阶段与暂缓范围见 [路线图](ROADMAP.md)，接口边界见 [集成设计（规划中）](docs/integration.md)。本文配置和能力说明以当前稳定版为准。
 
@@ -193,7 +194,7 @@ PAVILO_CONFIG=/etc/pavilo/config.yaml npm start
 
 修改 YAML 后必须**重启进程**，运行中的服务不会热加载 YAML。`npm run config:check` 只校验并显示实际配置来源（含房间/聊天频道是 YAML 还是管理页），不启动服务。sqlite 管理页保存过的房间或聊天频道以数据库为准，立即生效，不必重启。
 
-配置必须声明 `version: 1` 或 `2`（`3` 视为 `2`）。`version: 1` 是内存模式，禁止 `storage` / `operator` / `plays`。`version: 2` 是 SQLite 家族：可写 `storage`、`operator.token`、`plays`；管理页、网关和玩法都要求 sqlite。模型渠道只在 `/admin` 配置，不写进 YAML。sqlite 而未填 token 时服务仍启动，但会提示无法打开管理页。YAML 使用严格类型：布尔值写作 `true` / `false`，数字写作整数；未知配置项、重复键、未知 tag、锚点/别名和非对象根节点都会被拒绝。内存示例见 [`pavilo.example.yaml`](./pavilo.example.yaml)，留存示例见 [`pavilo.sqlite.example.yaml`](./pavilo.sqlite.example.yaml)，玩法示例见 [`pavilo.plays.example.yaml`](./pavilo.plays.example.yaml)。
+配置必须声明 `version: 1` 或 `2`（`3` 视为 `2`）。`version: 1` 是内存模式，禁止 `storage` / `operator` / `plays`。`version: 2` 是 SQLite 家族：可写 `storage`、`operator.token`、`plays`；管理页、网关和玩法都要求 sqlite。模型渠道只在 `/admin` 配置，不写进 YAML。sqlite 而未填 token 时服务仍启动，但会提示无法打开管理页。YAML 使用严格类型：布尔值写作 `true` / `false`，数字写作整数；未知配置项、重复键、未知 tag、锚点/别名和非对象根节点都会被拒绝。可复制示例只有两份：内存见 [`pavilo.example.yaml`](./pavilo.example.yaml)，SQLite 家族（留存、值班台、玩法、宿主身份）见 [`pavilo.sqlite.example.yaml`](./pavilo.sqlite.example.yaml)。
 
 ### 频道和人数语义
 
@@ -280,7 +281,8 @@ PAVILO_PLAYWRIGHT_PATH=/tmp/pavilo-browser-verify/node_modules/playwright npm ru
 - [玩法契约](docs/play.md) — 频道绑定与独立玩法页契约（v1.3）
 - [架构决策记录](docs/adr/) — 重大技术决策的背景与权衡
 - [产品路线图](ROADMAP.md) — 版本规划与发布门槛
-- [v1.3 收口清单](docs/v1.3-closeout.md) — 把主分支未发布能力收成 v1.3 的工作文档
+- [v1.3 收口清单](docs/v1.3-closeout.md) — v1.3.0 已完成
+- [v1.4 设计](docs/v1.4-design.md) — 功能目录与宿主身份（实现中）
 
 ## 项目结构
 
@@ -288,7 +290,7 @@ PAVILO_PLAYWRIGHT_PATH=/tmp/pavilo-browser-verify/node_modules/playwright npm ru
 .
 ├── config.js           # YAML / 环境变量配置加载与校验
 ├── pavilo.example.yaml        # 内存模式完整示例（cp 为 pavilo.yaml）
-├── pavilo.sqlite.example.yaml # SQLite 留存完整示例（cp 为 pavilo.yaml）
+├── pavilo.sqlite.example.yaml # SQLite 家族示例（留存；玩法/身份为注释块）
 ├── index.html          # 页面骨架、资源引用与启动入口
 ├── chat.css            # 页面样式（深色模式、玻璃态、微交互）
 ├── client/             # 协议、连接、状态、pending 与独立视图模块

@@ -254,6 +254,7 @@
       'people.log.deny-save': '更新黑名单 · {count} 条',
       'people.log.deny-revert': '黑名单恢复为配置文件',
       'people.never': '—',
+      'people.guest': '访客',
       'people.danger': '结束这一席'
     }),
     en: Object.freeze({
@@ -502,6 +503,7 @@
       'people.log.deny-save': 'Updated block list · {count}',
       'people.log.deny-revert': 'Block list reverted to the config file',
       'people.never': '—',
+      'people.guest': 'guest',
       'people.danger': 'End this seat'
     })
   });

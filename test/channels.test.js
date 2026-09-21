@@ -141,7 +141,8 @@ test('unsupported protocol versions are rejected and the socket is closed', asyn
 test('public metadata is allowlisted and private files or vendor symlinks cannot be downloaded', async (t) => {
   const { url } = await setup(t, { allowedOrigins: ['https://private.example'], exposeMemberIps: false });
   const metadata = await (await fetch(`${url}/room-info`)).json();
-  assert.deepEqual(Object.keys(metadata).sort(), ['channels', 'defaultChannelId', 'defaultLanguage', 'deprecatedProtocols', 'ephemeral', 'lanUrls', 'limits', 'localUrl', 'protocolVersion', 'roomEpoch', 'roomTitle', 'supportedLanguages'].sort());
+  assert.deepEqual(Object.keys(metadata).sort(), ['channels', 'defaultChannelId', 'defaultLanguage', 'deprecatedProtocols', 'ephemeral', 'identity', 'lanUrls', 'limits', 'localUrl', 'protocolVersion', 'roomEpoch', 'roomTitle', 'supportedLanguages'].sort());
+  assert.deepEqual(metadata.identity, { guests: true });
   assert.equal(metadata.protocolVersion, 4);
   assert.deepEqual(metadata.deprecatedProtocols, []);
   assert.equal(metadata.defaultLanguage, 'zh-CN');

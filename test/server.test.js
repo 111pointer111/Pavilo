@@ -647,7 +647,7 @@ test('a fresh server instance has a new room and an empty message sequence', asy
 });
 
 test('delivers live messages after the initial history terminator', async (t) => {
-  const { port } = await startServer(t, { maxJsonBytes: 700 });
+  const { port } = await startServer(t, { maxJsonBytes: 1200 });
   const sender = await openWebSocket({ port });
   await join(sender, { username: 'Sender', clientSessionId: 'session-sync-sender' });
   for (let index = 0; index < 7; index += 1) {

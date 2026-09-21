@@ -11,7 +11,7 @@ const MAX_ACTION_PAYLOAD_BYTES = 16 * 1024;
 function toActor(session) {
   if (!session) return null;
   return {
-    id: session.id,
+    id: session.userKey || session.id,
     username: session.username,
     kind: session.kind === 'agent' ? 'agent' : 'human',
     role: session.role || '',

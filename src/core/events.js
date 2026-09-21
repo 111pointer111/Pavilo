@@ -7,6 +7,11 @@ function publicChannel(channel) {
   if (channel.play) result.play = channel.play;
   return result;
 }
+function publicChannelSummary(channel) {
+  const result = { id: channel.id, name: channel.name, enabled: channel.enabled !== false, readOnly: Boolean(channel.readOnly) };
+  if (channel.play) result.play = channel.play;
+  return result;
+}
 function publicLimits(config) {
   return { maxTextLength: config.maxTextLength, maxImageBytes: config.maxImageBytes, maxImageDimension: config.maxImageDimension, maxImagePixels: config.maxImagePixels, maxMessages: config.maxMessages };
 }
@@ -26,4 +31,4 @@ function directed(peerId, payload) { return { kind: 'send', peerId, payload }; }
 function channelEvent(channelId, payload, peerIds) {
   return { kind: 'broadcast', channelId, payload, peerIds, transient: payload.type === 'typing' };
 }
-module.exports = { PROTOCOL_VERSION, REACTION_EMOJIS, publicChannel, publicLimits, publicUser, publicMessage, directed, channelEvent };
+module.exports = { PROTOCOL_VERSION, REACTION_EMOJIS, publicChannel, publicChannelSummary, publicLimits, publicUser, publicMessage, directed, channelEvent };

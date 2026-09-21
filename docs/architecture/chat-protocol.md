@@ -93,6 +93,8 @@ v2/v3/v4 的同步顺序：
 
 可选玩法（当前频道绑了 `play` 时 `stateStart.capabilities` 含 `play`）：命令 `playAction`，事件 `playState`。未绑定返回 `PLAY_NOT_BOUND`。信封见 [play.md](../play.md)，不另开协议号。
 
+可选功能与身份（v1.4，不升协议号）：`join.identityToken` 为宿主 JWT；`stateStart.features` 为六项频道功能的有效布尔值；关掉的功能从 `capabilities` 数组拿掉，命令返回 `FEATURE_DISABLED`。`/room-info` 对未认证请求只列出 `access: open` 的频道。字段见 [ADR-0009](../adr/0009-feature-catalog.md) 与 [ADR-0010](../adr/0010-host-identity.md)。
+
 客户端只应用当前 epoch 的 `history`/`historyEnd` 和带 epoch 的消息状态事件；epoch 改变时，旧 pending 消息不得自动重发，因为服务端去重表也属于旧房间生命周期。
 
 ## 5. 发送、ACK 与幂等

@@ -737,6 +737,9 @@
       readOnly: chatForm.readOnly.checked
     };
     if (chatForm.play.value) payload.play = chatForm.play.value;
+    const previous = (pavilion.channels || []).find((channel) => channel.id === payload.id);
+    if (previous?.access) payload.access = previous.access;
+    if (previous?.features) payload.features = previous.features;
     return payload;
   }
 
@@ -892,6 +895,7 @@
         const meta = el('div', 'ledger-meta');
         meta.append(document.createTextNode([
           seat.ip || t('people.never'),
+          seat.userKey ? `id ${seat.userKey}` : t('people.guest'),
           t('people.messages', { count: seat.messageCount || 0 }),
           formatDuration(seat.joinedAt)
         ].join(' · ')));

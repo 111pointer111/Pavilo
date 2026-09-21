@@ -9,6 +9,8 @@ const { createCommandHandler } = require('./commands');
 const events = require('./events');
 const { applyRoomOverlay, applyChannelsOverlay, applyModerationOverlay, validatePavilionConfig } = require('../../config');
 const { ipDenied } = require('../ip');
+const { effectiveFeatures, protocolCapabilities, actorKey } = require('./capabilities');
+const { guestsAllowed, publicChannels } = require('../identity');
 
 function pavilionError(code, message) {
   const error = new Error(message);
@@ -101,12 +103,15 @@ function createChatCore(config, runtime = {}) {
     const snapshot = [...channel.messages];
     const latestSeq = channel.messageSequence;
     const playId = channel.config.play;
-    const capabilities = ['ack', 'historyChunks', 'roomEpoch', 'reconnect', 'reactions', 'typingLease', 'mentions', 'channelOccupancy', 'historyPage'];
-    if (playId) capabilities.push('play');
+    const features = effectiveFeatures(channel.config);
+    const capabilities = protocolCapabilities(channel.config);
+    const identity = { userKey: session.userKey || null, channels: session.grantedChannels };
     const start = {
       type: 'stateStart',
       protocolVersion: events.PROTOCOL_VERSION,
       capabilities,
+      features,
+      channels: publicChannels(config, identity).map(events.publicChannelSummary),
       roomEpoch: channel.epoch, roomStartedAt: channel.startedAt, latestSeq, resumeToken: resumeToken || null,
       self: publicUser(session), users: sessionStore.rosterUsers(session.channelId), channelId: channel.config.id,
       occupancy: occupancySnapshot()
@@ -114,13 +119,14 @@ function createChatCore(config, runtime = {}) {
     if (session.muted) start.selfMuted = true;
     if (playId) start.play = { id: playId, page: `/plays/${playId}/` };
     const payloads = [start];
-    for (const chunk of rooms.historyChunks(channel, snapshot)) payloads.push({ type: 'history', roomEpoch: channel.epoch, messages: chunk });
+    const history = features.history ? snapshot : [];
+    for (const chunk of rooms.historyChunks(channel, history)) payloads.push({ type: 'history', roomEpoch: channel.epoch, messages: chunk });
     payloads.push({ type: 'historyEnd', roomEpoch: channel.epoch, latestSeq });
     if (session.muted) payloads.push({ type: 'moderation', action: 'muted' });
     if (playId && playSlot.runtime) {
       const joined = playSlot.runtime.onJoin(session, channel.epoch);
       for (const snap of joined.snapshots || []) {
-        if (snap.visibility === 'private' && snap.actorId && snap.actorId !== session.id) continue;
+        if (snap.visibility === 'private' && snap.actorId && snap.actorId !== actorKey(session)) continue;
         const payload = { ...snap };
         delete payload.actorId;
         payloads.push(payload);
@@ -234,7 +240,9 @@ function createChatCore(config, runtime = {}) {
     };
   }
   function roomInfo() {
-    const info = { protocolVersion: events.PROTOCOL_VERSION, deprecatedProtocols: [], roomEpoch: rooms.epoch, roomTitle: config.roomTitle, defaultChannelId: config.defaultChannelId, defaultLanguage: config.defaultLanguage || 'zh-CN', supportedLanguages: ['zh-CN', 'en'], channels: config.channels.map(events.publicChannel), limits: events.publicLimits(config), ephemeral: store.ephemeral };
+    const guest = { guest: true, userKey: null, channels: null };
+    const visible = publicChannels(config, guest);
+    const info = { protocolVersion: events.PROTOCOL_VERSION, deprecatedProtocols: [], roomEpoch: rooms.epoch, roomTitle: config.roomTitle, defaultChannelId: config.defaultChannelId, defaultLanguage: config.defaultLanguage || 'zh-CN', supportedLanguages: ['zh-CN', 'en'], channels: visible.map(events.publicChannel), limits: events.publicLimits(config), ephemeral: store.ephemeral, identity: { guests: guestsAllowed(config) } };
     if (store.driver === 'sqlite') info.retentionDays = config.storage.sqlite.retentionDays;
     return info;
   }
@@ -306,7 +314,8 @@ function createChatCore(config, runtime = {}) {
       muted: Boolean(session.muted),
       kind: session.kind === 'agent' ? 'agent' : 'member',
       status: status || seatStatus(session),
-      avatarSeed: session.avatarSeed
+      avatarSeed: session.avatarSeed,
+      ...(session.userKey ? { userKey: session.userKey } : {})
     };
   }
 
@@ -437,7 +446,7 @@ function createChatCore(config, runtime = {}) {
   // A play host speaking for an agent seat: the agent has no peer, so this
   // goes through the command handler's agent path rather than handleMessage.
   function postAsAgent(actorId, text) {
-    const session = sessionStore.findById(actorId);
+    const session = sessionStore.findByActor(actorId) || sessionStore.findById(actorId);
     if (!session) return { ok: false, code: 'PLAY_POST_REJECTED' };
     const result = handleCommand.postAsSession(session, text);
     if (runtime.onEffects) runtime.onEffects(takeEffects());
@@ -451,7 +460,7 @@ function createChatCore(config, runtime = {}) {
       if (Buffer.byteLength(JSON.stringify(payload)) > config.maxJsonBytes) continue;
       if (effect.kind === 'broadcast') broadcast(effect.channelId || payload.channelId, payload);
       else {
-        const session = sessionStore.findById(actorId || effect.actorId);
+        const session = sessionStore.findByActor(actorId || effect.actorId) || sessionStore.findById(actorId || effect.actorId);
         if (session?.client) sendJson(session.client, payload);
       }
     }

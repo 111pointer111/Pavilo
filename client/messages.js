@@ -108,6 +108,15 @@
       return Object.entries(message.reactions || {}).filter(([, item]) => item && item.count > 0);
     }
 
+    function roomFeatures() {
+      const features = getState()?.room?.features;
+      return {
+        images: features?.images !== false,
+        replies: features?.replies !== false,
+        reactions: features?.reactions !== false
+      };
+    }
+
     function reactionMarkup(message) {
       const entries = reactionEntries(message);
       if (!entries.length) return '';
@@ -155,8 +164,11 @@
     }
 
     function actionMarkup(messageId) {
-      const reaction = `<button class="message-action reaction-action" type="button" data-message-id="${escapeHtml(messageId)}" data-popover-align="right" aria-label="${escapeHtml(t('reaction.add'))}" title="${escapeHtml(t('reaction.add'))}"><span class="icon" data-icon="smile-plus" data-icon-size="16" aria-hidden="true"></span><span class="icon reaction-plus" data-icon="plus" data-icon-size="10" aria-hidden="true"></span></button>`;
-      const reply = isReadOnlyChannel() ? '' : `<button class="message-action reply-action" type="button" data-message-id="${escapeHtml(messageId)}" aria-label="${escapeHtml(t('reaction.replyAria'))}" title="${escapeHtml(t('reaction.reply'))}"><span class="icon" data-icon="reply" data-icon-size="14" aria-hidden="true"></span></button>`;
+      const features = roomFeatures();
+      const reaction = features.reactions
+        ? `<button class="message-action reaction-action" type="button" data-message-id="${escapeHtml(messageId)}" data-popover-align="right" aria-label="${escapeHtml(t('reaction.add'))}" title="${escapeHtml(t('reaction.add'))}"><span class="icon" data-icon="smile-plus" data-icon-size="16" aria-hidden="true"></span><span class="icon reaction-plus" data-icon="plus" data-icon-size="10" aria-hidden="true"></span></button>`
+        : '';
+      const reply = isReadOnlyChannel() || !features.replies ? '' : `<button class="message-action reply-action" type="button" data-message-id="${escapeHtml(messageId)}" aria-label="${escapeHtml(t('reaction.replyAria'))}" title="${escapeHtml(t('reaction.reply'))}"><span class="icon" data-icon="reply" data-icon-size="14" aria-hidden="true"></span></button>`;
       return `<div class="message-actions">${reaction}${reply}</div>`;
     }
 
@@ -349,6 +361,7 @@
     }
 
     function openReactionPopover(messageId, anchor) {
+      if (!roomFeatures().reactions) return;
       if (!reactionPopover.hidden && reactionMessageId === messageId) {
         closeReactionPopover();
         return;

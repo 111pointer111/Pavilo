@@ -37,15 +37,26 @@ test('pavilo.sqlite.example.yaml documents operator.token instead of gateway cha
   assert.equal(config.operator.enabled, false);
 });
 
-test('pavilo.plays.example.yaml enables echo and binds a play channel', () => {
-  const examplePath = path.join(__dirname, '../pavilo.plays.example.yaml');
+test('only memory and sqlite example yaml files are maintained', () => {
+  const root = path.join(__dirname, '..');
+  const examples = fs.readdirSync(root).filter((name) => name.endsWith('.example.yaml')).sort();
+  assert.deepEqual(examples, ['pavilo.example.yaml', 'pavilo.sqlite.example.yaml']);
+});
+
+test('sqlite example documents plays and identity without enabling them', () => {
+  const examplePath = path.join(__dirname, '../pavilo.sqlite.example.yaml');
   const yaml = fs.readFileSync(examplePath, 'utf8');
-  assert.ok(yaml.includes('version: 2'));
-  assert.ok(!/^gateway:/m.test(yaml));
+  assert.ok(yaml.includes('# plays:'));
+  assert.ok(yaml.includes('#   - echo'));
+  assert.ok(yaml.includes('# identity:'));
+  assert.ok(yaml.includes('play: echo'));
+  assert.ok(yaml.includes('access: authenticated'));
+  assert.ok(yaml.includes('examples/host-identity'));
   const config = parseConfig(yaml, examplePath);
-  assert.deepEqual(config.plays, ['echo']);
-  assert.equal(config.channels.find((channel) => channel.id === 'echo').play, 'echo');
-  assert.equal(config.channels.find((channel) => channel.id === 'general').play, undefined);
+  assert.deepEqual(config.plays, []);
+  assert.deepEqual(config.identity.issuers, []);
+  assert.equal(config.channels.some((channel) => channel.play === 'echo'), false);
+  assert.equal(config.channels.some((channel) => channel.access === 'authenticated'), false);
 });
 
 test('default channels match README documentation', () => {

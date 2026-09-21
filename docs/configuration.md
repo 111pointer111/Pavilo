@@ -1,6 +1,6 @@
 # 配置指南
 
-> 本文对应当前稳定版 v1.3.0 配置。`operator`、`plays` 与人员治理已随 v1.3 发布。未来的功能组装、宿主身份与嵌入设置见 [集成设计（规划中）](integration.md)，其字段尚未定义，不要写入当前 YAML。
+> 本文对应当前稳定版 v1.4.0 配置。`identity` / `channels[].features` / `channels[].access` 已随 v1.4 发布；默认省略则与 v1.3 行为一致。嵌入字段见 [集成设计（规划中）](integration.md)，不要提前写入。
 
 本文档逐项说明 Pavilo 的全部配置项。
 
@@ -15,6 +15,7 @@ Pavilo 按以下顺序加载配置（越靠后优先级越高）：
 3. **`PAVILO_CONFIG`** 指向的 YAML 文件
 4. **`PORT`** 环境变量 —— 只覆盖最终的监听端口
 5. **`PAVILO_OPERATOR_TOKEN`** —— 覆盖 `operator.token`
+6. **`PAVILO_IDENTITY_SECRET`** —— 覆盖唯一 `identity.issuers[0].secret`（必须恰好声明一个签发方）
 
 `PAVILO_CONFIG` 一旦显式设置，目标缺失、不可读、过大、不是普通文件或校验失败都会使启动**失败**，不会回退到默认值。
 
@@ -123,7 +124,7 @@ version: 1
 
 ### `plays` —— 可选玩法模块（`version: 2` + sqlite）
 
-默认不启用。playId 必须对应仓库内 `plays/<id>/`（含 `play.json`、`host.js`、`page/index.html`）。**必须** `storage.driver: sqlite`。可复制示例：[`pavilo.plays.example.yaml`](../pavilo.plays.example.yaml)。
+默认不启用。playId 必须对应仓库内 `plays/<id>/`（含 `play.json`、`host.js`、`page/index.html`）。**必须** `storage.driver: sqlite`。在 [`pavilo.sqlite.example.yaml`](../pavilo.sqlite.example.yaml) 里取消 `plays` 与 echo 频道的注释即可试用。
 
 ```yaml
 version: 2
@@ -190,6 +191,28 @@ npm run storage -- stats
 npm run storage -- restore --from ./data/backup.db   # 目标已存在则拒绝
 npm run storage -- restore --from ./data/backup.db --force
 ```
+
+---
+
+### `identity` —— 宿主身份
+
+未写 `identity` 时与 v1.3 相同：任何人凭用户名进 `access: open` 的频道。产品示例放在 SQLite 家族里：复制 [`pavilo.sqlite.example.yaml`](../pavilo.sqlite.example.yaml)，按注释打开 `identity` 与 `staff` 频道。对照 [`examples/host-identity/`](../examples/host-identity/)。密钥不能与 `operator.token` 相同，也不进 `/room-info`。
+
+```yaml
+identity:
+  guests: true
+  audience: pavilo
+  clockSkewSec: 60
+  issuers:
+    - id: app
+      alg: HS256
+      secret: ""   # 或 PAVILO_IDENTITY_SECRET
+```
+
+- **`guests`**：默认 `true`。`false` 时 join 必须带合法 `identityToken`。
+- **`audience`**：JWT `aud`，须完全一致。
+- **`issuers`**：v1.4 最多 1 项，算法钉死 `HS256`，不信任 token 头里的 `alg`。`secret` 至少 32 字符。
+- **join**：Protocol v4 可选字段 `identityToken`。claims：`iss`、`aud`、`exp`、`sub`、可选 `name`、`channels`（授权的预建频道 id 数组）。TTL 建议不超过 15 分钟。
 
 ---
 
@@ -455,6 +478,20 @@ channels:
 - **类型**：字符串（支持多行）
 - **说明**：频道顶部显示的导言卡，介绍频道用途、规则或玩法
 - **约束**：所有频道的 `welcome` 总字节数有上限，超出会被拒绝
+
+#### `channels[].access`
+
+- **默认值**：`open`
+- **类型**：`open` 或 `authenticated`
+- **说明**：`open` 允许访客（若 `identity.guests` 不为 `false`）；`authenticated` 只接受宿主 JWT 且 `channels` 声明含该 id 的用户。未认证的 `/room-info` 不列出 `authenticated` 频道
+- **约束**：出现 `authenticated` 时必须配置可用的 `identity.issuers`。访客开启时，默认频道必须是 `open`
+
+#### `channels[].features`
+
+- **默认值**：六项均为 `true`
+- **键**：`images`、`replies`、`reactions`、`mentions`、`typing`、`history`
+- **说明**：省略视为打开。关闭后服务端拒绝对应命令（`FEATURE_DISABLED`）；`typing` 关闭时静默丢弃。关 `history` 时 join 快照不带历史，也不提供 `historyPage`
+- **注意**：隐藏 UI 不等于放行。值班台保存频道目录时会原样带回这些字段，v1.4 页面不提供开关
 
 #### `channels[].play`（`version: 2` + sqlite）
 
@@ -826,7 +863,7 @@ Pavilo 的 HTTP 服务采用静态白名单，`pavilo.yaml`、`pavilo.example.ya
 ## 参考资源
 
 - [`pavilo.example.yaml`](../pavilo.example.yaml) —— 内存模式完整示例（`cp` 为 `pavilo.yaml`）
-- [`pavilo.sqlite.example.yaml`](../pavilo.sqlite.example.yaml) —— SQLite 留存完整示例（`cp` 为 `pavilo.yaml`）
+- [`pavilo.sqlite.example.yaml`](../pavilo.sqlite.example.yaml) —— SQLite 家族完整示例（留存、值班台；玩法与宿主身份为注释块）
 - [故障排查指南](troubleshooting.md)
 - [部署文档](deployment/)
 - [HTTP API 文档](api/http-api.md)

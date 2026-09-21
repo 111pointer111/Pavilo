@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>Host identity example</title>
+  <style>
+    body { font: 15px/1.5 sans-serif; max-width: 40rem; margin: 2rem auto; }
+    label { display: block; margin: .5rem 0; }
+    pre { background: #111; color: #eee; padding: 1rem; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>宿主身份示例</h1>
+  <p>用户 <code>ada</code> / <code>ada</code> 可进 staff；<code>guest</code> / <code>guest</code> 只能进大厅。</p>
+  <form id="login">
+    <label>用户名 <input name="username" value="ada"></label>
+    <label>密码 <input name="password" type="password" value="ada"></label>
+    <label>频道 <input name="channelId" value="staff"></label>
+    <button type="submit">登录并加入 Pavilo</button>
+  </form>
+  <pre id="log"></pre>
+  <script>
+    const log = document.getElementById('log');
+    const pavilo = '__PAVILO_URL__';
+    function line(text) { log.textContent += text + '\n'; }
+    document.getElementById('login').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const body = Object.fromEntries(new FormData(event.target));
+      const response = await fetch('/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const payload = await response.json();
+      if (!payload.ok) { line('login failed'); return; }
+      const wsUrl = pavilo.replace(/^http/, 'ws') + '/ws';
+      const ws = new WebSocket(wsUrl);
+      ws.onopen = () => {
+        ws.send(JSON.stringify({
+          type: 'join',
+          protocolVersion: 4,
+          username: payload.username,
+          clientSessionId: 'hostdemo-' + Math.random().toString(36).slice(2, 12),
+          channelId: body.channelId,
+          identityToken: payload.identityToken
+        }));
+      };
+      ws.onmessage = (message) => line(message.data);
+      ws.onerror = () => line('websocket error');
+    });
+  </script>
+</body>
+</html>

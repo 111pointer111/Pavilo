@@ -82,6 +82,20 @@ function createSessionStore(config, rooms, { now, randomResumeToken, schedule, c
     return null;
   }
 
+  function findByActor(actorId) {
+    if (!actorId) return null;
+    for (const session of sessions.values()) {
+      if (session.id === actorId || session.userKey === actorId) return session;
+    }
+    const timestamp = now();
+    for (const lease of leasedSessions.values()) {
+      if (lease.expiresAt > timestamp && (lease.session.id === actorId || lease.session.userKey === actorId)) {
+        return lease.session;
+      }
+    }
+    return null;
+  }
+
   function listSeats() {
     const timestamp = now();
     const result = [];
@@ -175,6 +189,6 @@ function createSessionStore(config, rooms, { now, randomResumeToken, schedule, c
     leasedSessions.clear();
     sessions.clear();
   }
-  return { activeMembers, rosterUsers, nameIsFree, resolveJoin, attach, detach, findById, listSeats, evict, seatAgent, unseatAgent, clear, size: () => sessions.size };
+  return { activeMembers, rosterUsers, nameIsFree, resolveJoin, attach, detach, findById, findByActor, listSeats, evict, seatAgent, unseatAgent, clear, size: () => sessions.size };
 }
 module.exports = { createSessionStore, cleanUsername, validateClientId };

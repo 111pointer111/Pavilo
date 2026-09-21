@@ -4,9 +4,11 @@ const { cleanUsername, validateClientId } = require('./session');
 const { cleanText } = require('./messages');
 const { PROTOCOL_VERSION, REACTION_EMOJIS, publicMessage } = require('./events');
 const { ipDenied } = require('../ip');
+const { effectiveFeatures } = require('./capabilities');
+const { authenticate, channelAllowed, identityStillValid } = require('../identity');
 const serialize = (payload) => Buffer.from(JSON.stringify(payload));
 function createCommandHandler(config, rooms, sessionStore, messageStore, peerEffects, { now, randomId, randomAvatarSeed, cancel, store, playSlot }) {
-  const { resolveJoin, rosterUsers, nameIsFree, activeMembers, findById } = sessionStore;
+  const { resolveJoin, rosterUsers, nameIsFree, activeMembers, findById, findByActor } = sessionStore;
   const { parseImage, normalizeMentions, payloadFingerprint, findReply, messageByteSize, messageAck, reactionSummary } = messageStore;
   const { publicUser, sendError, sendJson, broadcast, broadcastOccupancy, sendInitialState, activateTyping, deactivateTyping, closeClient, handOffSession } = peerEffects;
   function rateAllows(client, bucket = 'message', maximum = 8, windowMs = 5000) {
@@ -18,14 +20,30 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     return true;
   }
 
+  function featureOf(session) {
+    return effectiveFeatures(rooms.get(session.channelId)?.config);
+  }
+
+  function refuseIfExpired(client) {
+    if (identityStillValid(client.session, now())) return false;
+    sendError(client, 'IDENTITY_EXPIRED', '身份凭证已过期。');
+    closeClient(client, 4010, 'identity_expired');
+    return true;
+  }
+
   function handleJoin(client, command) {
     if (client.joined) return;
-    const username = cleanUsername(command.username);
     if (!Number.isInteger(command.protocolVersion) || command.protocolVersion !== PROTOCOL_VERSION) {
       sendError(client, 'PROTOCOL_NOT_SUPPORTED', 'Server requires protocol version 4');
       closeClient(client, 1002, 'protocol not supported');
       return;
     }
+    const identity = authenticate(config, command.identityToken, { now: now() });
+    if (identity.error) {
+      sendError(client, identity.error, identity.message);
+      return;
+    }
+    const username = identity.userKey ? identity.name : cleanUsername(command.username);
     if (!username) {
       sendError(client, 'INVALID_NAME', '请输入 1–24 个字符的用户名。');
       return;
@@ -33,6 +51,22 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     if (ipDenied(config.ipDenyList, client.ip)) {
       sendError(client, 'IP_DENIED', '这个网络不能进亭。');
       closeClient(client, 4009, 'ip_denied');
+      return;
+    }
+    const requestedChannel = typeof command.channelId === 'string' && command.channelId
+      ? command.channelId
+      : config.defaultChannelId;
+    const access = channelAllowed(config, requestedChannel, identity);
+    if (access.error === 'CHANNEL_UNAVAILABLE') {
+      sendError(client, 'CHANNEL_UNAVAILABLE', '这个频道不存在或已停用。');
+      return;
+    }
+    if (access.error === 'IDENTITY_REQUIRED') {
+      sendError(client, 'IDENTITY_REQUIRED', '这个亭需要宿主应用接入。');
+      return;
+    }
+    if (access.error) {
+      sendError(client, 'CHANNEL_FORBIDDEN', '没有这个频道的访问权限。');
       return;
     }
     client.protocolVersion = PROTOCOL_VERSION;
@@ -57,6 +91,14 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       sendError(client, 'NAME_TAKEN', '这个用户名已经在频道里了。换一个试试。');
       return;
     }
+    if (resolution.session) {
+      const previousKey = resolution.session.userKey || null;
+      const nextKey = identity.userKey || null;
+      if (previousKey !== nextKey) {
+        sendError(client, 'SESSION_CONFLICT', '本页会话与频道不匹配。');
+        return;
+      }
+    }
 
     const rawSeed = Number(command.avatarSeed);
     const requestedSeed = Number.isFinite(rawSeed) ? (Math.abs(Math.trunc(rawSeed)) >>> 0) : null;
@@ -71,13 +113,19 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       token: resolution.token,
       messageCount: 0,
       lastSpokenAt: null,
-      muted: false
+      muted: false,
+      userKey: identity.userKey || null,
+      grantedChannels: identity.guest ? null : identity.channels,
+      identityExpiresAt: identity.expiresAt || null
     };
     if (session.messageCount == null) session.messageCount = 0;
     if (session.lastSpokenAt === undefined) session.lastSpokenAt = null;
     if (session.muted == null) session.muted = false;
     session.username = username;
     session.channelId = resolution.channelId;
+    session.userKey = identity.userKey || null;
+    session.grantedChannels = identity.guest ? null : identity.channels;
+    session.identityExpiresAt = identity.expiresAt || null;
     handOffSession(session);
     session.client = client;
     session.ip = client.ip;
@@ -93,6 +141,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
 
   function handleMessage(client, command) {
     const channel = rooms.get(client.session.channelId);
+    const features = featureOf(client.session);
     if (client.session.muted) {
       sendError(client, 'MUTED', '现在不能发言。',
         typeof command.clientMessageId === 'string' ? command.clientMessageId : undefined);
@@ -112,6 +161,18 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     const kind = command.kind;
     if (kind !== 'text' && kind !== 'image') {
       sendError(client, 'INVALID_KIND', '不支持这种消息类型。', clientMessageId);
+      return;
+    }
+    if (kind === 'image' && !features.images) {
+      sendError(client, 'FEATURE_DISABLED', '这个频道关闭了图片。', clientMessageId);
+      return;
+    }
+    if (command.replyTo && !features.replies) {
+      sendError(client, 'FEATURE_DISABLED', '这个频道关闭了回复。', clientMessageId);
+      return;
+    }
+    if (command.mentions && !features.mentions) {
+      sendError(client, 'FEATURE_DISABLED', '这个频道关闭了提及。', clientMessageId);
       return;
     }
     const text = cleanText(command.text, config.maxTextLength);
@@ -205,8 +266,10 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     }
     const channelId = channel.config.id;
     const roster = rosterUsers(channelId);
-    // The body must literally name the recipient, same rule as human mentions.
-    const mentions = normalizeMentions(roster.map((user) => user.id), roster, text);
+    const features = effectiveFeatures(channel.config);
+    const mentions = features.mentions
+      ? normalizeMentions(roster.map((user) => user.id), roster, text)
+      : [];
     const sequence = store.incrementSeq(channelId);
     const message = {
       id: randomId(`m${sequence}`),
@@ -238,6 +301,10 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
 
   function handleReaction(client, command) {
     if (client.session.muted) return;
+    if (!featureOf(client.session).reactions) {
+      sendError(client, 'FEATURE_DISABLED', '这个频道关闭了回应。');
+      return;
+    }
     const channel = rooms.get(client.session.channelId);
     const channelId = channel.config.id;
     if (!rateAllows(client, 'reaction', config.reactionRateLimit, config.rateLimitWindowMs)) {
@@ -278,6 +345,10 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
   }
 
   function handleHistoryPage(client, command) {
+    if (!featureOf(client.session).history) {
+      sendError(client, 'FEATURE_DISABLED', '这个频道关闭了历史。');
+      return;
+    }
     const channel = rooms.get(client.session.channelId);
     if (!Number.isSafeInteger(command.beforeSeq) || command.beforeSeq < 1) {
       sendError(client, 'BAD_REQUEST', '历史分页参数无效。');
@@ -314,7 +385,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       if (Buffer.byteLength(JSON.stringify(payload)) > config.maxJsonBytes) continue;
       if (payload.visibility === 'channel') broadcast(payload.channelId, payload);
       else {
-        const session = actorId ? findById(actorId) : null;
+        const session = actorId ? findByActor(actorId) : null;
         const peer = session?.client || fallbackPeer;
         if (peer) sendJson(peer, payload);
       }
@@ -364,6 +435,13 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     const session = client.session;
     const target = rooms.get(command.channelId);
     if (!target?.config.enabled) return sendError(client, 'CHANNEL_UNAVAILABLE', '这个频道不存在或已停用。');
+    const access = channelAllowed(config, command.channelId, {
+      userKey: session.userKey || null,
+      channels: session.grantedChannels
+    });
+    if (access.error === 'IDENTITY_REQUIRED') return sendError(client, 'IDENTITY_REQUIRED', '这个亭需要宿主应用接入。');
+    if (access.error === 'CHANNEL_FORBIDDEN') return sendError(client, 'CHANNEL_FORBIDDEN', '没有这个频道的访问权限。');
+    if (access.error === 'CHANNEL_UNAVAILABLE') return sendError(client, 'CHANNEL_UNAVAILABLE', '这个频道不存在或已停用。');
     if (session.channelId === command.channelId) return sendInitialState(client, session, session.token);
     if (!rateAllows(client, 'switch', 8, 5000)) return sendError(client, 'RATE_LIMITED', '切换太快了，请稍后再试。');
     if (!nameIsFree(session.nameKey, command.channelId, session.token)) return sendError(client, 'NAME_TAKEN', '目标频道已有同名成员。');
@@ -389,6 +467,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       sendError(client, 'NOT_JOINED', '请先进入频道。');
       return;
     }
+    if (command.type !== 'leave' && refuseIfExpired(client)) return;
     if (client.syncing && command.type !== 'leave') {
       // The correlation ID is what lets the sender turn this into a retryable
       // failure instead of leaving the message stuck as "unconfirmed".
@@ -400,6 +479,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     }
     if (command.type === 'typing') {
       if (client.session.muted) return;
+      if (!featureOf(client.session).typing) return;
       if (rooms.get(client.session.channelId).config.readOnly) return;
       if (!rateAllows(client, 'typing', config.typingRateLimit, config.rateLimitWindowMs)) return;
       if (command.active) activateTyping(client);

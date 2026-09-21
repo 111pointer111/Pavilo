@@ -6,6 +6,26 @@ Pavilo 的重要变更都记在这份文件里。
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-09-21
+
+功能目录与宿主身份。默认 memory 仍全开、无账号。Protocol v4 不升号。官方狼人杀尚未实现。值班台不提供 `features` / `access` / 身份密钥的编辑页。
+
+### Added
+- 频道 `features`（`images` / `replies` / `reactions` / `mentions` / `typing` / `history`）与 `access`（`open` | `authenticated`）。省略等于全开、`open`。[ADR-0009](docs/adr/0009-feature-catalog.md)
+- `stateStart.features`；关掉的功能从 `capabilities` 数组拿掉；绕过 UI 返回 `FEATURE_DISABLED`
+- `join.identityToken`：宿主签发的 HS256 JWT；稳定用户 `userKey`；频道授权。[ADR-0010](docs/adr/0010-host-identity.md)
+- 错误码 `IDENTITY_REQUIRED` / `IDENTITY_INVALID` / `IDENTITY_EXPIRED` / `CHANNEL_FORBIDDEN`；过期关闭 `4010 / identity_expired`
+- [`examples/host-identity/`](examples/host-identity/)：最小宿主登录签发 JWT 并加入预建频道
+
+### Changed
+- `/room-info` 对未认证请求只列出 `access: open` 的频道，并带 `{ identity: { guests } }`，不含密钥
+- Play 演员键：有宿主 `userKey` 时用 `sub`，否则仍用 `session.id`
+- 人员页只读显示席位是否有 `userKey`；禁言/请离仍针对这一席
+- 可复制示例收成两份：[`pavilo.example.yaml`](pavilo.example.yaml)（内存）、[`pavilo.sqlite.example.yaml`](pavilo.sqlite.example.yaml)（SQLite 家族）。玩法和宿主身份改为 sqlite 示例里的可选注释块
+
+### Tests
+- 2026-09-21 发布验证：`npm test` 395 个 Node 测试，393 通过、2 跳过（`SYNC_IN_PROGRESS` 集成窗口、未安装 `better-sqlite3`）；`npm run test:browser` 19 通过
+
 ## [1.3.0] - 2026-09-21
 
 进程内 AI 网关、Play 宿主与 Agent 基座。配置对外仍是两种部署：`version: 1` 内存、`version: 2` SQLite 家族。默认关闭。聊天核心不依赖 AI 或玩法。内容审核不阻塞本期；后续阶段按更新后的路线图推进。官方狼人杀尚未实现。
@@ -400,6 +420,7 @@ SQLite 运维：历史分页、备份/恢复、完整性检查与 healthz 库存
 
 ## 版本摘要
 
+- **v1.4.0** — 功能目录与宿主 JWT 身份
 - **v1.3.0** — 可选网关、值班台、人员治理与 Play 宿主
 - **v1.0.0** — Ephemeral Stable
 - **v0.9.0** — Protocol v4 only Release Candidate

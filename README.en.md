@@ -11,13 +11,13 @@
 Pavilo (**Pavilion + Local**) is a lightweight, self-hosted chat tool that runs in the browser, is ephemeral by default, and is evolving toward composable chat and play capabilities that developers can embed in their products. Like a small pavilion you can put up anywhere: start a Node.js process, and anyone on the same local network can open a web page and talk. In the default memory mode, chat history disappears when the service stops.
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.3.0-0f7772">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.4.0-0f7772">
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-0f7772">
   <img alt="Node.js" src="https://img.shields.io/badge/node-%3E%3D22-0f7772">
   <img alt="Protocol v4" src="https://img.shields.io/badge/protocol-v4-0f7772">
 </p>
 
-Current version: **v1.3.0** — ephemeral group chat by default; optional SQLite via Config Schema v2 (30-day retention, history paging, backup). With sqlite you can open `/admin`, an optional AI gateway, and the Play host. Simplified Chinese and English UI, WebSocket Protocol v4 only. Built for trusted LANs, private networks, and VPNs.
+Current version: **v1.4.0** — ephemeral group chat by default; optional SQLite via Config Schema v2 (30-day retention, history paging, backup). With sqlite you can open `/admin`, an optional AI gateway, and the Play host, plus per-channel feature flags and host JWT identity. Simplified Chinese and English UI, WebSocket Protocol v4 only. Built for trusted LANs, private networks, and VPNs.
 
 <p align="center">
   <img src="docs/screenshots/overview.png" width="880" alt="Pavilo preview: desktop chat, login, and mobile">
@@ -32,10 +32,11 @@ Current version: **v1.3.0** — ephemeral group chat by default; optional SQLite
 | Status | Capabilities |
 | --- | --- |
 | Released: v1.2.0 | Ephemeral chat, optional SQLite retention, paging, backup, and storage operations |
-| Released: v1.3.0 (latest stable) | AI gateway, admin console, room/channel configuration, seat mute/kick and IP denylist, Play/Agent host, and echo fixture |
-| Planned for v2.0 | Feature composition, host identity and channel authorization, embedded page and integration SDK, basic governance workflow, and official Werewolf |
+| Released: v1.3.0 | AI gateway, admin console, room/channel configuration, seat mute/kick and IP denylist, Play/Agent host, and echo fixture |
+| Released: v1.4.0 (latest stable) | Feature catalog, host JWT identity, and channel authorization |
+| Planned for v2.0 | Embedded page and integration SDK, basic governance workflow, and official Werewolf |
 
-**An embedding SDK and host-identity API are not available yet.** The v2.0 target is a standalone service plus a ready-made UI and integration SDK, initially using pre-created channels and brand/layout settings. “Easy integration” means deploying Pavilo, configuring host trust, and adding a small amount of integration code without editing Pavilo source.
+**An embedding SDK is not available yet.** v1.4 adds a `join.identityToken` host-identity port. The v2.0 target is a standalone service plus a ready-made UI and integration SDK.
 
 The default ephemeral mode remains a first-class mode. Official Werewolf is planned as a complete Play reference, developed alongside the infrastructure and required before v2.0. See the [roadmap](ROADMAP.md) and [integration design (planned)](docs/integration.md) for milestones and boundaries. Configuration and capabilities below describe the current stable release.
 
@@ -188,7 +189,7 @@ PAVILO_CONFIG=/etc/pavilo/config.yaml npm start
 
 YAML changes require a **process restart**; a running service never hot-reloads YAML. `npm run config:check` validates and reports the actual configuration source (including whether room / chat channels come from YAML or the admin overlay) without starting the service. Room and chat-channel edits saved in `/admin` are stored in SQLite, take effect immediately, and become the source of truth for that section.
 
-Configuration must declare `version: 1` or `2` (`3` is read as `2`). Version 1 is memory mode and forbids `storage` / `operator` / `plays`. Version 2 is the SQLite family: optional `storage`, `operator.token`, and `plays`; the admin console, gateway, and plays all require sqlite. Model channels are configured in `/admin`, not in YAML. SQLite without a token still starts, but the process warns that `/admin` is unavailable. YAML uses strict types: write booleans as `true` / `false` and numbers as integers; unknown keys, duplicate keys, unknown tags, anchors/aliases, and non-object roots are rejected. Memory example: [`pavilo.example.yaml`](./pavilo.example.yaml). SQLite example: [`pavilo.sqlite.example.yaml`](./pavilo.sqlite.example.yaml). Play example: [`pavilo.plays.example.yaml`](./pavilo.plays.example.yaml). Field reference: [docs/configuration.md](docs/configuration.md) (Chinese).
+Configuration must declare `version: 1` or `2` (`3` is read as `2`). Version 1 is memory mode and forbids `storage` / `operator` / `plays`. Version 2 is the SQLite family: optional `storage`, `operator.token`, and `plays`; the admin console, gateway, and plays all require sqlite. Model channels are configured in `/admin`, not in YAML. SQLite without a token still starts, but the process warns that `/admin` is unavailable. YAML uses strict types: write booleans as `true` / `false` and numbers as integers; unknown keys, duplicate keys, unknown tags, anchors/aliases, and non-object roots are rejected. There are two copy-paste examples: memory [`pavilo.example.yaml`](./pavilo.example.yaml), and the SQLite family (retention, admin, plays, host identity) [`pavilo.sqlite.example.yaml`](./pavilo.sqlite.example.yaml). Field reference: [docs/configuration.md](docs/configuration.md) (Chinese).
 
 ### Channel and capacity semantics
 
@@ -274,7 +275,8 @@ Architecture decisions and evolution strategy:
 - [Play contract](docs/play.md) — channel binding and standalone play pages (v1.3)
 - [Architecture decision records](docs/adr/) — context and trade-offs behind major decisions
 - [Roadmap](ROADMAP.md) — version planning and release gates
-- [v1.3 closeout checklist](docs/v1.3-closeout.md) — working notes for publishing main-branch capabilities as v1.3 (Chinese)
+- [v1.3 closeout checklist](docs/v1.3-closeout.md) — completed with v1.3.0 (Chinese)
+- [v1.4 design](docs/v1.4-design.md) — feature catalog and host identity (Chinese)
 
 ## Project structure
 
@@ -282,7 +284,7 @@ Architecture decisions and evolution strategy:
 .
 ├── config.js           # YAML / environment configuration loading and validation
 ├── pavilo.example.yaml        # memory-mode example (cp to pavilo.yaml)
-├── pavilo.sqlite.example.yaml # SQLite retention example (cp to pavilo.yaml)
+├── pavilo.sqlite.example.yaml # SQLite family example (retention; plays/identity as comments)
 ├── index.html          # page skeleton, asset references, and boot entry
 ├── chat.css            # page styles (dark mode, glassmorphism, micro-interactions)
 ├── client/             # protocol, connection, state, pending, and view modules

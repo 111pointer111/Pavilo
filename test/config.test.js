@@ -627,6 +627,67 @@ server:
   assert.equal(merged.sources.moderation, 'yaml');
 });
 
+test('identity and channel features parse on schema v1 with omitted defaults', () => {
+  const config = parseConfig(`
+version: 1
+identity:
+  guests: true
+  audience: pavilo
+channels:
+  - id: general
+    name: 大厅
+    features:
+      images: false
+  - id: lounge
+    name: 会客
+    access: open
+`);
+  assert.equal(config.identity.guests, true);
+  assert.equal(config.identity.audience, 'pavilo');
+  assert.equal(config.channels[0].features.images, false);
+  assert.equal(config.channels[0].features.replies, true);
+  assert.equal(config.channels[0].access, 'open');
+  throwsMatch(() => parseConfig('version: 1\nidentity:\n  mode: jwt\n'), /identity.mode.*未知配置项/);
+  throwsMatch(() => parseConfig('version: 1\nchannels:\n  - id: general\n    name: 大厅\n    access: members\n'), /只能是 open 或 authenticated/);
+});
+
+test('authenticated channels require a declared issuer; secrets can wait for env', () => {
+  throwsMatch(() => parseConfig(`
+version: 1
+channels:
+  - id: general
+    name: 大厅
+    access: authenticated
+`), /identity.issuers/);
+  const pending = parseConfig(`
+version: 1
+identity:
+  guests: false
+  issuers:
+    - id: app
+      alg: HS256
+      secret: ""
+channels:
+  - id: general
+    name: 大厅
+    access: authenticated
+`);
+  assert.equal(pending.identity.issuers[0].secret, '');
+  const ready = parseConfig(`
+version: 1
+identity:
+  guests: false
+  issuers:
+    - id: app
+      secret: "${'k'.repeat(32)}"
+channels:
+  - id: general
+    name: 大厅
+    access: authenticated
+`);
+  assert.equal(ready.identity.issuers[0].secret.length, 32);
+});
+
 test('schema v2 moderation.ipDenyList is optional and validated', () => {
   const config = parseConfig(`
 version: 2
