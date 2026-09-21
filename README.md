@@ -4,7 +4,7 @@
   <img src="docs/logo/pavilo-lockup.svg" width="520" alt="Pavilo / 语亭">
 </p>
 
-> 一条命令，给身边的人一间聊天室。
+> 一条命令，给身边的人一间聊天室；按需组装，为自己的产品接入讨论空间。
 
 **简体中文** · [English](README.en.md)
 
@@ -42,7 +42,7 @@ Pavilo（**Pavilion + Local**）是浏览器即用、默认临时、可自托管
 ## 设计原则
 
 - **开箱即用**：安装依赖后一条命令启动，参与者只需要浏览器。
-- **保持轻量**：服务端主要使用 Node.js 内置模块，仅用 `yaml` 加载配置；前端资源全部自托管。
+- **保持轻量**：服务端主要使用 Node.js 内置模块，必需依赖只有 `yaml`，`better-sqlite3` 为可选 SQLite 驱动；前端资源全部自托管。
 - **临时优先**：默认不使用数据库、不持久化聊天记录；SQLite 留存由部署者显式开启。
 - **部署者可控**：运行在自己的电脑或服务器上，不依赖外部账号和云服务。
 - **按需扩展**：持久化已经可选；权限、审核、功能组装与产品接入逐步建设，不让默认部署变重。
@@ -283,18 +283,25 @@ PAVILO_PLAYWRIGHT_PATH=/tmp/pavilo-browser-verify/node_modules/playwright npm ru
 ├── index.html          # 页面骨架、资源引用与启动入口
 ├── chat.css            # 页面样式（深色模式、玻璃态、微交互）
 ├── client/             # 协议、连接、状态、pending 与独立视图模块
+├── admin/              # 值班台页面（主分支已实现，尚未发布）
 ├── server.js           # 配置、core/transport 组合与兼容启动入口
 ├── src/core/           # 不依赖网络的房间、会话、命令与领域事件
 ├── src/storage/        # ConversationStore；npm run storage 维护 CLI
 ├── src/transport/      # HTTP 静态白名单、WebSocket 连接与帧协议
+├── src/gateway/        # 进程内 AI 网关（主分支已实现，尚未发布）
+├── src/operator/       # 值班台鉴权、配置覆盖层与人员治理
+├── src/play/           # Play/Agent 宿主
+├── plays/              # echo 契约夹具；官方狼人杀目录仍为规划
 ├── vendor/             # 自托管的第三方前端资源
 ├── scripts/            # Lucide 资源构建脚本
 ├── test/               # Node 单元/集成测试及独立浏览器验收
 ├── docs/
-│   ├── architecture/   # 架构、协议与状态契约
+│   ├── architecture/   # 当前架构、协议与状态契约
+│   ├── evolution.md    # 目标架构（规划）
+│   ├── integration.md  # 宿主接入边界（规划）
 │   └── design-language.md  # 设计语言、色彩系统与组件规范
 ├── package.json        # 元数据、依赖与命令
-├── ROADMAP.md          # 已实现状态与后续计划
+├── ROADMAP.md          # 已发布 / 主分支已实现 / 计划中
 └── LICENSE             # MIT 许可证
 ```
 

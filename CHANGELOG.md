@@ -29,7 +29,7 @@ Pavilo 的重要变更都记在这份文件里。
 - `client/play.js` 玩法页宿主（不进聊天页）；聊天页点玩法频道会整页跳转
 - `createPlayAgent(spec)`：合法动作硬约束，模型不能越权
 - [`plays/echo/`](plays/echo/) 契约夹具（默认不启用）；[`pavilo.plays.example.yaml`](pavilo.plays.example.yaml)
-- [`plays/werewolf/README.md`](plays/werewolf/README.md) 官方样例目录约定（实现中）
+- [`plays/werewolf/README.md`](plays/werewolf/README.md) 官方样例目录约定（规划中，待实现）
 - 冻结后的 [`docs/play.md`](docs/play.md)
 
 ### Fixed
@@ -41,6 +41,7 @@ Pavilo 的重要变更都记在这份文件里。
 - `/admin` 房间 / 聊天频道不再是预留页；`config:check` 与启动横幅标明每段真源
 - 内容审核不挡 Play 宿主开工；玩法公开发言仍走现有 `message`
 - 更新产品与规划文档：独立聊天室与可嵌入聊天能力共用主线；v1.3–v2.0 按组装、宿主身份、嵌入与治理推进，官方狼人杀并行开发。新增集成设计和 ADR-0008；本次不实现未来功能或修改版本
+- 对齐剩余入口与贡献材料：口号、包描述、项目结构、贡献/审查清单、Issue/PR 模板，以及网关、状态模型和测试策略中的版本状态
 
 ### Tests
 - 2026-09-21 文档梳理基线：381 个 Node 测试，379 通过、2 跳过；本次未执行浏览器验收

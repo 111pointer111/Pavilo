@@ -60,7 +60,7 @@ body:
     attributes:
       label: Pavilo 版本
       description: 运行 `git rev-parse --short HEAD` 或查看 package.json
-      placeholder: 例如：v0.1.0 或 commit hash abc1234
+      placeholder: 例如：v1.2.0，或 commit hash abc1234
     validations:
       required: true
 

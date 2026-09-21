@@ -4,7 +4,7 @@
   <img src="docs/logo/pavilo-lockup.svg" width="520" alt="Pavilo">
 </p>
 
-> One command, one chat room for the people around you.
+> One command, one chat room for the people around you; compose it on demand to give your product a discussion space.
 
 **English** · [简体中文](README.md)
 
@@ -276,18 +276,25 @@ Architecture decisions and evolution strategy:
 ├── index.html          # page skeleton, asset references, and boot entry
 ├── chat.css            # page styles (dark mode, glassmorphism, micro-interactions)
 ├── client/             # protocol, connection, state, pending, and view modules
+├── admin/              # operator console (implemented on main, unreleased)
 ├── server.js           # configuration, core/transport composition, compatible entry
 ├── src/core/           # network-free rooms, sessions, commands, and domain events
 ├── src/storage/        # ConversationStore; npm run storage maintenance CLI
 ├── src/transport/      # HTTP static allowlist, WebSocket connections, frame protocol
+├── src/gateway/        # in-process AI gateway (implemented on main, unreleased)
+├── src/operator/       # admin auth, config overlay, and seat moderation
+├── src/play/           # Play/Agent host
+├── plays/              # echo contract fixture; official Werewolf still planned
 ├── vendor/             # self-hosted third-party front-end assets
 ├── scripts/            # Lucide asset build script
 ├── test/               # Node unit/integration tests and standalone browser acceptance
 ├── docs/
-│   ├── architecture/   # architecture, protocol, and state contracts
+│   ├── architecture/   # current architecture, protocol, and state contracts
+│   ├── evolution.md    # target architecture (planned)
+│   ├── integration.md  # host integration boundaries (planned)
 │   └── design-language.md  # design language, color system, component conventions
 ├── package.json        # metadata, dependencies, scripts
-├── ROADMAP.md          # implemented state and future plans
+├── ROADMAP.md          # released / implemented-on-main / planned
 └── LICENSE             # MIT license
 ```
 

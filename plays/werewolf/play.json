@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "name": { "zh-CN": "狼人杀", "en": "Werewolf" },
   "description": {
-    "zh-CN": "官方文字狼人杀。实现中：只提交 host.js、page/、agents/、prompts/、assets/。",
-    "en": "Official text werewolf. Implementation in progress: only submit host.js, page/, agents/, prompts/, assets/."
+    "zh-CN": "官方文字狼人杀。规划中：只提交 host.js、page/、agents/、prompts/、assets/。",
+    "en": "Official text werewolf. Planned: only submit host.js, page/, agents/, prompts/, assets/."
   }
 }

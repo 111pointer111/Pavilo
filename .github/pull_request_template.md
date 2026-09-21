@@ -39,12 +39,13 @@ assignees: ''
 
 请确认以下问题（来自 [CONTRIBUTING.md](CONTRIBUTING.md)）：
 
-- [ ] 默认 ephemeral 用户没有被迫承担额外复杂度
-- [ ] 业务规则没有进入 transport 层
-- [ ] 新 IO 可以在测试中替换（注入）
-- [ ] Public contract 有测试覆盖
-- [ ] 错误处理和边界情况已考虑
-- [ ] 文档已同步更新（如果需要）
+- [ ] 默认临时用户没有被迫承担新的依赖或复杂度
+- [ ] 能力和权限由服务端执行，关闭后绕过 UI 仍被拒绝
+- [ ] 核心、网络、存储、厂商调用与玩法规则边界清楚
+- [ ] 失败、重启、超限和身份变化的行为已定义；新 IO 可注入
+- [ ] 人与 Agent 走统一治理路径；私密状态按接收者隔离
+- [ ] 公共契约、兼容与迁移有对应测试
+- [ ] 当前实现、规划、配置示例和中英文入口一致
 
 ## Breaking Changes
 
@@ -61,9 +62,10 @@ assignees: ''
 
 如果你的 PR 涉及以下变更，请确认已同步更新：
 
-- [ ] 新配置字段 → `pavilo.example.yaml` + README
+- [ ] 已实现的新配置字段 → 可运行示例、配置文档与中英文 README；规划字段不写入示例
 - [ ] Protocol 变更 → `docs/architecture/chat-protocol.md`
-- [ ] 架构变更 → `docs/architecture/` 或新增 ADR
+- [ ] 当前架构变更 → `docs/architecture/overview.md` 与相关 ADR；未来边界 → 演进与集成设计
+- [ ] 产品阶段变更 → 路线图的“已发布 / 主分支已实现 / 计划中”状态
 
 ## 截图（如果涉及 UI）
 

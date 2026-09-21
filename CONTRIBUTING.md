@@ -35,12 +35,13 @@ Pavilo 致力于为所有贡献者提供友好、尊重的环境。请遵循基�
 
 ### 重大变更
 
-如果你计划实现重大功能或架构变更，**请先开 Issue 讨论**：
+如果你计划实现重大功能或架构变更，**请先开 Issue 讨论**，并先对照 [路线图](ROADMAP.md) 与 [集成设计（规划中）](docs/integration.md)：
+- 这是当前缺口、主分支未发布能力，还是 v2.0 规划？
+- 是否落在路线图「明确暂缓」范围？
 - 描述问题和你的解决方案
-- 等待维护者反馈
-- 确认方向后再投入大量时间编码
+- 等待维护者反馈后再投入大量时间编码
 
-这样可以避免你的 PR 因为与产品方向不符而被拒绝。
+这样可以避免你的 PR 因为与产品方向不符而被拒绝。规划中的接口不要按旧 ADR 示例直接调用。
 
 ## 开发环境
 
@@ -83,18 +84,25 @@ npm run config:check
 ├── src/
 │   ├── core/           # 核心逻辑（不依赖网络）
 │   ├── storage/        # ConversationStore（默认 memory）
-│   └── transport/      # HTTP / WebSocket 适配器
+│   ├── transport/      # HTTP / WebSocket 适配器
+│   ├── gateway/        # 进程内 AI 网关（主分支，未发布）
+│   ├── operator/       # 值班台鉴权与配置覆盖层
+│   └── play/           # Play/Agent 宿主
+├── admin/              # 值班台页面
 ├── client/             # 前端模块
+├── plays/              # echo 夹具；官方狼人杀仍为规划
 ├── test/               # Node.js 测试
-└── docs/               # 架构文档与 ADR
+└── docs/               # 当前契约、目标边界与 ADR
 ```
 
 ### 架构文档
 
 在修改代码前，请先阅读：
 - [架构原则](docs/architecture/principles.md) — 核心不变量与设计哲学
+- [架构演进](docs/evolution.md) — 目标边界，不是当前教程
+- [集成设计（规划中）](docs/integration.md) — 宿主身份、组装与嵌入 SDK
 - [架构决策记录](docs/adr/) — 重大技术决策的背景
-- [产品路线图](ROADMAP.md) — 版本规划与非目标
+- [产品路线图](ROADMAP.md) — 已发布 / 主分支已实现 / 计划中
 
 ## 提交规范
 
@@ -204,26 +212,18 @@ git push origin feat/your-feature-name
 
 每个 PR 合并前必须回答这 7 个问题（来自 [架构原则](docs/architecture/principles.md)）：
 
-1. **默认 ephemeral 用户是否被迫承担了额外复杂度？**
-   - 新功能是否默认关闭？未启用时是否零开销？
-
-2. **业务规则是否进入 transport 了？**
-   - WebSocket handler 是否只做协议解析？
-
-3. **adapter 是否能绕过 core 写状态？**
-   - 是否通过 Command API 进入 core？
-
-4. **新 IO 是否可在测试中替换？**
-   - 时钟、ID 生成器、HTTP 请求是否可注入？
-
-5. **public contract 是否有测试？**
-   - Protocol 变更是否有兼容性测试？
-
-6. **重启/失败/超限时语义是否定义？**
-   - 错误处理是否明确？
-
-7. **README/配置/协议/代码是否可能再次漂移？**
-   - 新配置字段是否同步到 example？
+1. **默认临时用户是否被迫承担新的依赖或复杂度？**
+   - 新功能是否默认关闭？未启用时是否增加默认负担？
+2. **能力和权限是否由服务端执行，依赖是否可验证？**
+   - 关闭后绕过 UI 是否仍被拒绝？
+3. **核心、网络、存储、厂商调用与玩法规则的边界是否清楚？**
+   - WebSocket handler 是否只做协议解析？adapter 是否绕过 core 写状态？
+4. **身份变化、审核等待、提交失败、重启和超限的行为是否明确？**
+   - 时钟、ID、外部 IO 是否可在测试中替换？
+5. **人与 Agent 是否走统一治理路径，私密状态是否按接收者隔离？**
+6. **公共契约、兼容与迁移是否有对应测试？**
+7. **当前实现、规划、配置示例和中英文入口是否一致？**
+   - 已实现字段才写入可运行示例；规划字段只进入设计文档。
 
 玩法相关 PR 额外对照 [docs/play.md](docs/play.md)：页面是否独立、是否走 `playAction`、浏览器是否调用了网关。
 
@@ -274,9 +274,9 @@ npm run test:browser
 
 ## 贡献玩法
 
-Pavilo 主线负责 **AI 网关**、**Play 宿主** 和一层薄契约。官方样例是文字狼人杀（状态机 + **自己的页面**）。启用一套玩法模块，再把频道的 `play` 指过去；进入该频道即加载玩法页，不要改聊天气泡流。
+Pavilo 主线负责 **AI 网关**、**Play 宿主** 和一层薄契约。官方样例是文字狼人杀（状态机 + **自己的页面**），目前仍为规划，与身份/组装/嵌入并行，目标 v1.6 完成、v2.0 前交付。启用一套玩法模块，再把频道的 `play` 指过去；进入该频道即加载玩法页，不要改聊天气泡流。对照夹具是 [`plays/echo/`](plays/echo/)。
 
-请先读 [docs/play.md](docs/play.md)、[ADR-0006](docs/adr/0006-play-contract.md)、对照夹具 [`plays/echo/`](plays/echo/)。不要提交「通用游戏平台」或往 `chat.css` 里塞玩法按钮。
+请先读 [docs/play.md](docs/play.md) 和 [ADR-0006](docs/adr/0006-play-contract.md)。不要提交「通用游戏平台」或往 `chat.css` 里塞玩法按钮。
 
 社区玩法默认只改 `plays/<id>/`。契约不够用先开 Issue，不要在玩法 PR 里默默改信封。
 
@@ -313,12 +313,12 @@ src/core
 
 ### 七大不变量
 
-1. **Ephemeral First** — 默认无数据库
-2. **One Mainline** — 只有一条版本主线
-3. **Optional Means Optional** — 可选功能默认关闭
-4. **Core Before Platform** — 核心保持小而确定
-5. **Compatibility Is a Feature** — 多类版本号独立演进
-6. **Safe by Construction** — 安全默认值
+1. **Ephemeral First** — 默认无数据库、无账号、无 AI 依赖；临时模式是完整产品模式
+2. **One Mainline** — 独立/嵌入是交付形态，不拆产品版本或维护两套内核
+3. **Optional Means Optional** — 能力按需启用，未开启时不强制外部依赖
+4. **Core Before Platform** — 网络、SQL、厂商调用和玩法规则留在适配层
+5. **Compatibility Is a Feature** — 应用、配置、协议、数据库及未来 SDK/扩展契约分别演进
+6. **Safe by Construction** — 身份、授权、内容治理各司其职；可嵌入不等于可裸露公网
 7. **No Premature Generalization** — 以真实宿主接入与官方狼人杀验证边界，不提前建设通用平台
 
 详见 [架构原则](docs/architecture/principles.md)。
