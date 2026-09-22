@@ -4,7 +4,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const DEFERRED_EVENTS = new Set(['presence', 'message', 'reaction', 'typing', 'channelOccupancy', 'playState', 'ack', 'error', 'moderation']);
+  const DEFERRED_EVENTS = new Set(['presence', 'message', 'messageRemoved', 'reaction', 'typing', 'channelOccupancy', 'playState', 'ack', 'error', 'moderation']);
   const EPOCH_ERROR = 'pending.epochRestarted';
   const TYPING_EXPIRY = 4_500;
   // Tombstones stay non-enumerable so the public sync shape remains backwards
@@ -47,7 +47,7 @@
   function createInitialState(options = {}) {
     return {
       connection: { status: 'idle', joined: false, attempt: 0, intentionalLeave: false },
-      room: { epoch: null, startedAt: null, latestSeq: 0, resumeToken: null, capabilities: [], features: null },
+      room: { epoch: null, startedAt: null, latestSeq: 0, resumeToken: null, capabilities: [], features: null, governance: false },
       self: null, selfMuted: false, channelId: null, channel: { switching: false, requestedId: null }, channels: [], channelOccupancy: {},
       users: [], messages: [], pending: {}, sync: emptySync(), typing: {}, unread: 0,
       historyPage: { loading: false, exhausted: true, hasPaged: false },
@@ -130,7 +130,8 @@
             startedAt: event.roomStartedAt ?? state.room.startedAt, latestSeq: Number(event.latestSeq) || 0,
             resumeToken: typeof event.resumeToken === 'string' && event.resumeToken ? event.resumeToken : state.room.resumeToken,
             capabilities: Array.isArray(event.capabilities) ? event.capabilities : state.room.capabilities || [],
-            features: event.features && typeof event.features === 'object' ? event.features : state.room.features },
+            features: event.features && typeof event.features === 'object' ? event.features : state.room.features,
+            governance: event.governance === true },
           connection: { ...state.connection, joined: false, status: 'syncing' },
           sync: makeSync({ active: true, epoch: event.roomEpoch || (switched ? null : state.room.epoch),
             messages: [], deferred: [], latestSeq: Number(event.latestSeq) || 0 }) };
@@ -179,6 +180,24 @@
       case 'presence':
         return { ...state, users: event.users || [],
           typing: event.action === 'leave' ? without(state.typing, event.userId) : state.typing };
+      case 'messageRemoved': {
+        if (!matchesEpoch(state, event) || typeof event.messageId !== 'string') return state;
+        const messageId = event.messageId;
+        const replacement = event.message && event.message.id === messageId ? event.message : { id: messageId, removed: true };
+        let changed = false;
+        const messages = state.messages.map((message) => {
+          if (message.id === messageId) {
+            changed = true;
+            return replacement;
+          }
+          if (message.replyTo?.id === messageId && message.replyTo.removed !== true) {
+            changed = true;
+            return { ...message, replyTo: { id: messageId, removed: true } };
+          }
+          return message;
+        });
+        return changed ? { ...state, messages } : state;
+      }
       case 'message': {
         if (!matchesEpoch(state, event) || !event.message || typeof event.message.id !== 'string') return state;
         const messages = pruneAndAppend(state, event.removedIds, event.message);
@@ -311,7 +330,8 @@
       }
       case 'connection/close': {
         if (event.code === 1001 && event.reason === 'server stopped') return reduce(state, { type: 'serviceStopped' });
-        if (event.terminal === 'kicked' || event.terminal === 'denied' || event.code === 4008 || event.code === 4009) {
+        if (event.terminal === 'kicked' || event.terminal === 'denied' || event.terminal === 'user'
+          || event.code === 4008 || event.code === 4009 || event.code === 4011) {
           return { ...state, users: [], pending: {}, typing: {}, unread: 0, sync: emptySync(), channelOccupancy: {},
             channel: { switching: false, requestedId: null },
             selfMuted: false,

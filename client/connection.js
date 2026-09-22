@@ -15,6 +15,7 @@
     if (code === 1001 && reason === 'server stopped') return 'stopped';
     if (code === 4008 && reason === 'kicked') return 'kicked';
     if (code === 4009 && reason === 'ip_denied') return 'denied';
+    if (code === 4011 && reason === 'user_denied') return 'user';
     if (code === 4010 && reason === 'identity_expired') return 'identity';
     return null;
   }

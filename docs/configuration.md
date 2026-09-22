@@ -382,6 +382,20 @@ moderation:
 - **说明**：这些地址不能 `join`。已在亭里的匹配连接会被请离。Schema v1 不能写这一段。
 - **注意**：IP 取自 socket 对端，当前版本不信任 `X-Forwarded-For`。反向代理后拉黑一条可能挡住所有走同一出口的人。值班台人员页保存后认领 `moderation` 段，规则见 [admin.md](admin.md)。
 
+#### `moderation.userDenyList`
+
+```yaml
+version: 1
+moderation:
+  userDenyList:
+    - user-1
+```
+
+- **默认值**：`[]`
+- **类型**：字符串数组，最多 64 条。每条是宿主 `sub`，字符集 `[A-Za-z0-9._:-]`，长度 1–128
+- **说明**：这些稳定身份不能 `join`，已在亭里的匹配席位会以 `4011 / user_denied` 离开。访客和玩法席没有 `userKey`，不受影响。这不是会员目录
+- **版本**：Schema v1 和 v2 都可以写。v1 不能同时写 `ipDenyList`。值班台保存 IP 名单或这份名单时，两份一起认领 `moderation` 段
+
 #### `room.exposeMemberIps`
 
 ```yaml

@@ -2,12 +2,12 @@
 
 const { cleanUsername, validateClientId } = require('./session');
 const { cleanText } = require('./messages');
-const { PROTOCOL_VERSION, REACTION_EMOJIS, publicMessage } = require('./events');
+const { PROTOCOL_VERSION, REACTION_EMOJIS, projectMessage } = require('./events');
 const { ipDenied } = require('../ip');
 const { effectiveFeatures } = require('./capabilities');
-const { authenticate, channelAllowed, identityStillValid } = require('../identity');
+const { authenticate, channelAllowed, identityStillValid, userDenied } = require('../identity');
 const serialize = (payload) => Buffer.from(JSON.stringify(payload));
-function createCommandHandler(config, rooms, sessionStore, messageStore, peerEffects, { now, randomId, randomAvatarSeed, cancel, store, playSlot }) {
+function createCommandHandler(config, rooms, sessionStore, messageStore, peerEffects, { now, randomId, randomAvatarSeed, cancel, store, playSlot, governance }) {
   const { resolveJoin, rosterUsers, nameIsFree, activeMembers, findById, findByActor } = sessionStore;
   const { parseImage, normalizeMentions, payloadFingerprint, findReply, messageByteSize, messageAck, reactionSummary } = messageStore;
   const { publicUser, sendError, sendJson, broadcast, broadcastOccupancy, sendInitialState, activateTyping, deactivateTyping, closeClient, handOffSession } = peerEffects;
@@ -24,11 +24,29 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     return effectiveFeatures(rooms.get(session.channelId)?.config);
   }
 
+  function present(channelId, message) {
+    if (!message) return message;
+    const quoted = message.replyTo?.id ? store.getMessage(channelId, message.replyTo.id) : null;
+    return projectMessage(message, { quotedRemoved: Boolean(quoted?.removedAt) });
+  }
+
   function refuseIfExpired(client) {
     if (identityStillValid(client.session, now())) return false;
     sendError(client, 'IDENTITY_EXPIRED', '身份凭证已过期。');
     closeClient(client, 4010, 'identity_expired');
     return true;
+  }
+
+  function refuseIfUserDenied(client) {
+    if (!userDenied(config.userDenyList, client.session?.userKey)) return false;
+    sendError(client, 'USER_DENIED', '这个身份不能进亭。');
+    closeClient(client, 4011, 'user_denied');
+    return true;
+  }
+
+  function cleanReason(value) {
+    if (typeof value !== 'string') return '';
+    return value.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, 200);
   }
 
   function handleJoin(client, command) {
@@ -51,6 +69,11 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     if (ipDenied(config.ipDenyList, client.ip)) {
       sendError(client, 'IP_DENIED', '这个网络不能进亭。');
       closeClient(client, 4009, 'ip_denied');
+      return;
+    }
+    if (userDenied(config.userDenyList, identity.userKey)) {
+      sendError(client, 'USER_DENIED', '这个身份不能进亭。');
+      closeClient(client, 4011, 'user_denied');
       return;
     }
     const requestedChannel = typeof command.channelId === 'string' && command.channelId
@@ -201,6 +224,14 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       return;
     }
 
+    if (typeof command.replyTo === 'string' && command.replyTo) {
+      const quoted = store.getMessage(channelId, command.replyTo);
+      if (quoted?.removedAt) {
+        sendError(client, 'MESSAGE_REMOVED', '这条内容已经移除。', clientMessageId);
+        return;
+      }
+    }
+
     const mentionSource = kind === 'text' ? text : caption;
     const mentions = mentionSource
       ? normalizeMentions(command.mentions, rosterUsers(client.session.channelId), mentionSource)
@@ -228,7 +259,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       sendError(client, 'ROOM_BUDGET_EXCEEDED', '这张图片超过了频道当前可用容量。', clientMessageId);
       return;
     }
-    const historyEnvelope = serialize({ type: 'history', roomEpoch: channel.epoch, messages: [publicMessage(message)] });
+    const historyEnvelope = serialize({ type: 'history', roomEpoch: channel.epoch, messages: [present(channelId, message)] });
     if (historyEnvelope.length > config.maxJsonBytes) {
       sendError(client, 'MESSAGE_TOO_LARGE', '这条内容超过单条历史容量，请压缩后再发送。', clientMessageId);
       return;
@@ -247,7 +278,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     client.session.messageCount = (client.session.messageCount || 0) + 1;
     client.session.lastSpokenAt = message.createdAt;
     sendJson(client, ack);
-    broadcast(channelId, { type: 'message', roomEpoch: channel.epoch, message: publicMessage(message), removedIds });
+    broadcast(channelId, { type: 'message', roomEpoch: channel.epoch, message: present(channelId, message), removedIds });
   }
 
   // Agents hold a channel seat but no peer, so a play host speaking on an
@@ -285,7 +316,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     };
     message.reactionUsers = new Map();
     message.byteSize = messageByteSize(message);
-    const historyEnvelope = serialize({ type: 'history', roomEpoch: channel.epoch, messages: [publicMessage(message)] });
+    const historyEnvelope = serialize({ type: 'history', roomEpoch: channel.epoch, messages: [present(channelId, message)] });
     if (message.byteSize > config.maxRoomBytes || historyEnvelope.length > config.maxJsonBytes) {
       return { ok: false, code: 'MESSAGE_TOO_LARGE' };
     }
@@ -295,7 +326,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     } catch {
       return { ok: false, code: 'STORAGE_UNAVAILABLE' };
     }
-    broadcast(channelId, { type: 'message', roomEpoch: channel.epoch, message: publicMessage(message), removedIds });
+    broadcast(channelId, { type: 'message', roomEpoch: channel.epoch, message: present(channelId, message), removedIds });
     return { ok: true, messageId: message.id, seq: message.seq };
   }
 
@@ -313,6 +344,11 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     }
     if (typeof command.messageId !== 'string' || !REACTION_EMOJIS.has(command.emoji) || typeof command.active !== 'boolean') {
       sendError(client, 'INVALID_REACTION', '不支持这个回应。');
+      return;
+    }
+    const existing = store.getMessage(channelId, command.messageId);
+    if (existing?.removedAt) {
+      sendError(client, 'MESSAGE_REMOVED', '这条内容已经移除。');
       return;
     }
     let result;
@@ -456,6 +492,50 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     broadcastOccupancy(client);
   }
 
+  function handleReport(client, command) {
+    if (!governance) {
+      sendError(client, 'GOVERNANCE_UNAVAILABLE', '这座亭没有值班台，不能举报。');
+      return;
+    }
+    if (typeof command.messageId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(command.messageId)) {
+      sendError(client, 'BAD_REQUEST', '举报的消息无效。');
+      return;
+    }
+    if (command.reason != null && typeof command.reason !== 'string') {
+      sendError(client, 'BAD_REQUEST', '举报说明无效。');
+      return;
+    }
+    const channelId = client.session.channelId;
+    const message = store.getMessage(channelId, command.messageId);
+    if (!message) {
+      sendError(client, 'MESSAGE_GONE', '这条消息已经不在了。');
+      return;
+    }
+    if (message.removedAt) {
+      sendError(client, 'MESSAGE_REMOVED', '这条内容已经移除。');
+      return;
+    }
+    if (!rateAllows(client, 'report', 5, 60_000)) {
+      sendError(client, 'RATE_LIMITED', '举报太快了，请稍后再试。');
+      return;
+    }
+    let report;
+    try {
+      report = governance.addReport({
+        channelId,
+        messageId: message.id,
+        reporterId: client.session.id,
+        reporterUserKey: client.session.userKey || null,
+        reporterUsername: client.session.username,
+        reason: cleanReason(command.reason)
+      });
+    } catch {
+      sendError(client, 'STORAGE_UNAVAILABLE', '举报未能保存，请重试。');
+      return;
+    }
+    sendJson(client, { type: 'reportReceived', messageId: message.id, reportId: report.id });
+  }
+
   function handleCommand(client, command) {
     if (client.closing) return;
     if (!command || typeof command !== 'object' || typeof command.type !== 'string') {
@@ -467,7 +547,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
       sendError(client, 'NOT_JOINED', '请先进入频道。');
       return;
     }
-    if (command.type !== 'leave' && refuseIfExpired(client)) return;
+    if (command.type !== 'leave' && (refuseIfExpired(client) || refuseIfUserDenied(client))) return;
     if (client.syncing && command.type !== 'leave') {
       // The correlation ID is what lets the sender turn this into a retryable
       // failure instead of leaving the message stuck as "unconfirmed".
@@ -491,6 +571,7 @@ function createCommandHandler(config, rooms, sessionStore, messageStore, peerEff
     if (command.type === 'playAction') return handlePlayAction(client, command);
     if (command.type === 'message') return handleMessage(client, command);
     if (command.type === 'reaction') return handleReaction(client, command);
+    if (command.type === 'report') return handleReport(client, command);
     if (command.type === 'leave') {
       client.intentionalLeave = true;
       closeClient(client, 1000, 'left');

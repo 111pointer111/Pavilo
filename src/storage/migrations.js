@@ -8,7 +8,8 @@ const MIGRATIONS = [
   { id: 2, file: '002-gateway.sql' },
   { id: 3, file: '003-play.sql' },
   { id: 4, file: '004-operator-config.sql' },
-  { id: 5, file: '005-operator-moderation.sql' }
+  { id: 5, file: '005-operator-moderation.sql' },
+  { id: 6, file: '006-governance.sql' }
 ];
 
 function applyMigrations(engine) {

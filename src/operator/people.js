@@ -12,6 +12,7 @@ function createPeopleController({ core, pavilion, now = Date.now }) {
   const log = [];
 
   function note(action, detail = {}) {
+    if (core.recordAction) core.recordAction(action, detail);
     log.unshift({ at: now(), action, ...detail });
     if (log.length > 20) log.length = 20;
   }
@@ -19,13 +20,15 @@ function createPeopleController({ core, pavilion, now = Date.now }) {
   function listing() {
     const snapshot = pavilion.snapshot();
     const seats = core.listSeats();
+    const persisted = core.listActions();
     return {
       ok: true,
       seats,
       moderation: snapshot.moderation,
       sources: snapshot.sources,
       updatedAt: snapshot.updatedAt,
-      log,
+      reports: core.listReports(),
+      log: Array.isArray(persisted) ? persisted : log,
       online: seats.filter((seat) => seat.status === 'connected').length,
       leased: seats.filter((seat) => seat.status === 'leased').length
     };
@@ -42,7 +45,7 @@ function createPeopleController({ core, pavilion, now = Date.now }) {
     if (seat.kind === 'agent') throw peopleError('AGENT_SEAT', '玩法席不能禁言。');
     const result = core.mute(id, active);
     if (!result.ok) throw peopleError(result.error, result.error === 'AGENT_SEAT' ? '玩法席不能禁言。' : '这一席已经不在了。');
-    note(active ? 'mute' : 'unmute', { id: seat.id, username: seat.username });
+    note(active ? 'mute' : 'unmute', { id: seat.id, name: seat.username });
     return { ok: true, seat: result.seat, ...listing() };
   }
 
@@ -57,11 +60,11 @@ function createPeopleController({ core, pavilion, now = Date.now }) {
         list.push(ip);
       }
       pavilion.saveModeration({ ipDenyList: list });
-      note('kick-deny', { id: seat.id, username: seat.username, ip });
+      note('kick-deny', { id: seat.id, name: seat.username, ip });
     } else {
       const result = core.kick(id);
       if (!result.ok) throw peopleError(result.error, '这一席已经不在了。');
-      note('kick', { id: seat.id, username: seat.username, ip: seat.ip || '' });
+      note('kick', { id: seat.id, name: seat.username, ip: seat.ip || '' });
     }
     return listing();
   }
@@ -74,8 +77,47 @@ function createPeopleController({ core, pavilion, now = Date.now }) {
   }
 
   function saveModeration(input) {
+    const before = pavilion.snapshot().moderation || {};
     pavilion.saveModeration(input);
-    note('deny-save', { count: (pavilion.snapshot().moderation.ipDenyList || []).length });
+    const after = pavilion.snapshot().moderation || {};
+    if (input && input.ipDenyList !== undefined
+      && JSON.stringify(before.ipDenyList || []) !== JSON.stringify(after.ipDenyList || [])) {
+      note('deny-save', { count: (after.ipDenyList || []).length });
+    }
+    if (input && input.userDenyList !== undefined
+      && JSON.stringify(before.userDenyList || []) !== JSON.stringify(after.userDenyList || [])) {
+      note('user-deny-save', { count: (after.userDenyList || []).length });
+    }
+    return listing();
+  }
+
+  function removeMessage(channelId, messageId) {
+    if (typeof channelId !== 'string' || typeof messageId !== 'string') {
+      throw peopleError('OPERATOR_BAD_REQUEST', '缺少频道或消息。');
+    }
+    const result = core.removeMessage(channelId, messageId);
+    if (!result.ok) {
+      throw peopleError(result.error === 'NOT_FOUND' ? 'NOT_FOUND' : 'OPERATOR_BAD_REQUEST',
+        result.error === 'NOT_FOUND' ? '这条内容已经不在了。' : '没能移除。');
+    }
+    if (!result.already) note('message-remove', { channel: channelId, messageId });
+    return listing();
+  }
+
+  function dismissReport(id) {
+    const report = core.resolveReport(id, 'dismissed');
+    if (!report) throw peopleError('NOT_FOUND', '这条举报已经不在了。');
+    note('report-dismiss', { messageId: report.messageId });
+    return listing();
+  }
+
+  function removeReport(id) {
+    const report = core.getReport(id);
+    if (!report || report.status !== 'open') throw peopleError('NOT_FOUND', '这条举报已经不在了。');
+    const removed = core.removeMessage(report.channelId, report.messageId);
+    if (!removed.ok && removed.error !== 'NOT_FOUND') throw peopleError('OPERATOR_BAD_REQUEST', '没能移除。');
+    if (!removed.ok) core.resolveReport(id, 'removed');
+    note('message-remove', { channel: report.channelId, messageId: report.messageId });
     return listing();
   }
 
@@ -85,7 +127,10 @@ function createPeopleController({ core, pavilion, now = Date.now }) {
     return listing();
   }
 
-  return { listing, mute, kick, messages, requireSeat, saveModeration, revertModeration };
+  return {
+    listing, mute, kick, messages, requireSeat, saveModeration, revertModeration,
+    removeMessage, dismissReport, removeReport
+  };
 }
 
 module.exports = { createPeopleController, peopleError, isIpAddress, normalizeIp };

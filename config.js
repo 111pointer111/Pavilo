@@ -74,6 +74,7 @@ const DEFAULTS = deepFreeze({
   },
   plays: [],
   ipDenyList: [],
+  userDenyList: [],
   identity: { guests: true, audience: 'pavilo', clockSkewSec: 60, issuers: [] },
   channels: [{
     id: 'general',
@@ -98,12 +99,15 @@ const DEFAULTS = deepFreeze({
   }]
 });
 
-const ROOT_KEYS_V1 = new Set(['version', 'server', 'room', 'channels', 'limits', 'timeouts', 'rateLimits', 'identity']);
-const ROOT_KEYS_V2 = new Set([...ROOT_KEYS_V1, 'storage', 'operator', 'plays', 'moderation']);
+const ROOT_KEYS_V1 = new Set(['version', 'server', 'room', 'channels', 'limits', 'timeouts', 'rateLimits', 'identity', 'moderation']);
+const ROOT_KEYS_V2 = new Set([...ROOT_KEYS_V1, 'storage', 'operator', 'plays']);
 const IDENTITY_KEYS = new Set(['guests', 'audience', 'clockSkewSec', 'issuers']);
 const ISSUER_KEYS = new Set(['id', 'alg', 'secret']);
 const ACCESS_MODES = new Set(['open', 'authenticated']);
-const MODERATION_KEYS = new Set(['ipDenyList']);
+const MODERATION_KEYS = new Set(['ipDenyList', 'userDenyList']);
+const MODERATION_KEYS_V1 = new Set(['userDenyList']);
+const MAX_USER_DENY_LIST = 64;
+const USER_KEY_RE = /^[A-Za-z0-9._:-]{1,128}$/;
 const STORAGE_KEYS = new Set(['driver', 'sqlite']);
 const OPERATOR_KEYS = new Set(['token']);
 const SQLITE_KEYS = new Set(['path', 'engine', 'retentionDays']);
@@ -441,28 +445,48 @@ function parseIpDenyList(value, field) {
   return list;
 }
 
+function parseUserDenyList(value, field) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) fail(field, '必须是数组');
+  if (value.length > MAX_USER_DENY_LIST) fail(field, `最多 ${MAX_USER_DENY_LIST} 条`);
+  const seen = new Set();
+  const list = [];
+  value.forEach((entry, index) => {
+    if (typeof entry !== 'string' || !USER_KEY_RE.test(entry)) fail(`${field}[${index}]`, '必须是稳定用户标识');
+    if (seen.has(entry)) return;
+    seen.add(entry);
+    list.push(entry);
+  });
+  return list;
+}
+
 function snapshotModerationSection(config) {
-  return { ipDenyList: [...(config.ipDenyList || [])] };
+  return {
+    ipDenyList: [...(config.ipDenyList || [])],
+    userDenyList: [...(config.userDenyList || [])]
+  };
 }
 
 function parseModerationOverlay(input) {
   const moderation = record(input, 'moderation');
   knownKeys(moderation, MODERATION_KEYS, 'moderation');
   if (moderation.ipDenyList === undefined) fail('moderation.ipDenyList', '管理页覆盖层缺少字段');
-  return { ipDenyList: parseIpDenyList(moderation.ipDenyList, 'moderation.ipDenyList') };
+  return {
+    ipDenyList: parseIpDenyList(moderation.ipDenyList, 'moderation.ipDenyList'),
+    userDenyList: parseUserDenyList(moderation.userDenyList, 'moderation.userDenyList')
+  };
 }
 
 function applyModerationOverlay(config, moderation) {
-  const parsed = moderation && Object.hasOwn(moderation, 'ipDenyList')
-    && Object.keys(moderation).every((key) => MODERATION_KEYS.has(key))
-    ? { ipDenyList: parseIpDenyList(moderation.ipDenyList, 'moderation.ipDenyList') }
-    : parseModerationOverlay(moderation);
+  const parsed = parseModerationOverlay(moderation);
   config.ipDenyList = parsed.ipDenyList;
+  config.userDenyList = parsed.userDenyList;
   return parsed;
 }
 
 function moderationSectionsEqual(left, right) {
-  return JSON.stringify(left?.ipDenyList || []) === JSON.stringify(right?.ipDenyList || []);
+  return JSON.stringify(left?.ipDenyList || []) === JSON.stringify(right?.ipDenyList || [])
+    && JSON.stringify(left?.userDenyList || []) === JSON.stringify(right?.userDenyList || []);
 }
 
 function validateDefaultChannel(config) {
@@ -515,7 +539,7 @@ function mergePavilionOverlay(config, overlay = {}) {
   if (overlay.moderation) {
     const moderation = parseModerationOverlay(overlay.moderation);
     if (!moderationSectionsEqual(yamlModeration, moderation)) {
-      warnings.push('IP 黑名单已由管理页接管，忽略配置文件中的 moderation');
+      warnings.push('门禁已由管理页接管，忽略配置文件中的 moderation');
     }
     applyModerationOverlay(config, moderation);
     sources.moderation = 'operator';
@@ -750,10 +774,16 @@ function normalizeConfig(document = {}, { requireVersion = false, baseDir = ROOT
   config.storage = schemaVersion >= 2 ? parseStorage(root.storage, baseDir) : { driver: 'memory' };
   if (schemaVersion >= 2) config.operator = parseOperator(root.operator);
   if (root.operator !== undefined) config._operatorDeclared = true;
-  if (schemaVersion >= 2 && root.moderation !== undefined) {
+  if (root.moderation !== undefined) {
     const moderation = record(root.moderation, 'moderation');
-    knownKeys(moderation, MODERATION_KEYS, 'moderation');
-    config.ipDenyList = parseIpDenyList(moderation.ipDenyList, 'moderation.ipDenyList');
+    if (schemaVersion >= 2) {
+      knownKeys(moderation, MODERATION_KEYS, 'moderation');
+      config.ipDenyList = parseIpDenyList(moderation.ipDenyList, 'moderation.ipDenyList');
+      config.userDenyList = parseUserDenyList(moderation.userDenyList, 'moderation.userDenyList');
+    } else {
+      knownKeys(moderation, MODERATION_KEYS_V1, 'moderation');
+      config.userDenyList = parseUserDenyList(moderation.userDenyList, 'moderation.userDenyList');
+    }
   }
   finalizeOperator(config);
   validateCrossConstraints(config);

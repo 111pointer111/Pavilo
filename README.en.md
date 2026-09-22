@@ -34,7 +34,8 @@ Current version: **v1.4.0** — ephemeral group chat by default; optional SQLite
 | Released: v1.2.0 | Ephemeral chat, optional SQLite retention, paging, backup, and storage operations |
 | Released: v1.3.0 | AI gateway, admin console, room/channel configuration, seat mute/kick and IP denylist, Play/Agent host, and echo fixture |
 | Released: v1.4.0 (latest stable) | Feature catalog, host JWT identity, and channel authorization |
-| Planned for v2.0 | Embedded page and integration SDK, basic governance workflow, and official Werewolf |
+| On main, not yet released | Governance loop: reports, tombstone removal, stable-user denylist, operator action log |
+| Planned for v2.0 | Embedded page and integration SDK, pre-commit text rules, and official Werewolf |
 
 **An embedding SDK is not available yet.** v1.4 adds a `join.identityToken` host-identity port. The v2.0 target is a standalone service plus a ready-made UI and integration SDK.
 

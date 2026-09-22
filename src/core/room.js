@@ -1,6 +1,6 @@
 'use strict';
 
-const { publicMessage } = require('./events');
+const { projectMessage } = require('./events');
 const serialize = (payload) => Buffer.from(JSON.stringify(payload));
 function createRoomStore(config, store) {
   const catalog = new Map(config.channels.map((channel) => [channel.id, channel]));
@@ -30,7 +30,8 @@ function createRoomStore(config, store) {
     let current = [];
     let currentSize = serialize({ type: 'history', roomEpoch: channel.epoch, messages: [] }).length;
     for (const message of snapshot) {
-      const publicEntry = publicMessage(message);
+      const quoted = message.replyTo?.id ? store.getMessage(channel.config.id, message.replyTo.id) : null;
+      const publicEntry = projectMessage(message, { quotedRemoved: Boolean(quoted?.removedAt) });
       const entrySize = Buffer.byteLength(JSON.stringify(publicEntry)) + (current.length ? 1 : 0);
       if (current.length && currentSize + entrySize > config.maxJsonBytes) {
         chunks.push(current);

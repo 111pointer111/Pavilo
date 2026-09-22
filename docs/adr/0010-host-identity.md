@@ -51,7 +51,7 @@ v1.4 只实现 **一个 issuer、配置钉死 `HS256`**。验签用配置里的 
 
 Pavilo 持有 HMAC 密钥因而也能签发；浏览器不得持有。生产若不愿共享签发权，后续在同一 `issuers[]` 加 Ed25519 公钥，不改 join 形状。
 
-值班台 v1.4 不做身份密钥 UI。YAML / env 为真源。人员页可只读显示席位是否有 `userKey`；禁言/请离仍针对这一席。稳定用户封禁是 v1.5。
+值班台 v1.4 不做身份密钥 UI。YAML / env 为真源。人员页可只读显示席位是否有 `userKey`；禁言/请离仍针对这一席。稳定用户拒绝不在本 ADR，见 [ADR-0011](0011-governance-loop.md)。
 
 ### 凭证 claims
 
@@ -99,7 +99,7 @@ Protocol v4 可选字段。独立 `/` 登录页保持用户名进亭；`guests: 
 ### 好的影响
 
 - 访客与宿主模式同一内核。
-- v1.5 嵌入只换传递通道，不换 claims。
+- 以后的嵌入只换传递通道，不换 claims。嵌入排在 v1.6。
 - memory 也可启用身份。
 
 ### 坏的影响 / 权衡
@@ -111,6 +111,6 @@ Protocol v4 可选字段。独立 `/` 登录页保持用户名进亭；`guests: 
 ### 未来工作
 
 - Ed25519 issuer。
-- 嵌入页用 postMessage 送同一 JWT（v1.5）。
-- 稳定用户封禁与治理记录（v1.5，sqlite）。
+- 嵌入页用 postMessage 送同一 JWT（v1.6）。
+- 稳定用户拒绝与治理记录见 [ADR-0011](0011-governance-loop.md)，主分支已实现，尚未发布。
 - 可选 `refreshIdentity` 命令，若再 join 不够用再加。

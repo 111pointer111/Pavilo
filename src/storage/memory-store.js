@@ -85,6 +85,18 @@ function createMemoryStore(config, runtime = {}) {
     return { removedIds };
   }
 
+  function reviseMessage(channelId, messageId, apply) {
+    const channel = requireChannel(channelId);
+    const message = channel.messages.find((item) => item.id === messageId);
+    if (!message) return null;
+    const oldSize = message.byteSize || 0;
+    apply(message);
+    channel.roomBytes += (message.byteSize || 0) - oldSize;
+    if (channel.roomBytes < 0) channel.roomBytes = 0;
+    const removedIds = evictWorkingSet(channel);
+    return { message, removedIds };
+  }
+
   function updateReactions(channelId, messageId, apply) {
     const channel = requireChannel(channelId);
     const message = channel.messages.find((item) => item.id === messageId);
@@ -178,6 +190,7 @@ function createMemoryStore(config, runtime = {}) {
     findIdempotent,
     incrementSeq,
     appendMessage,
+    reviseMessage,
     updateReactions,
     loadHistoryPage,
     listMessagesByAuthor,

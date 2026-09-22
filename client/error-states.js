@@ -6,7 +6,7 @@
 
   // 错误状态统一管理：为不同类型的错误提供一致的 UI 反馈
   // 文案全部走 i18n key，createErrorStates 内部维护一份类型表。
-  const ERROR_TYPE_KEYS = Object.freeze(['OFFLINE', 'CONNECTING', 'CONNECTION_FAILED', 'RECONNECTING', 'SERVICE_STOPPED', 'SERVICE_UNAVAILABLE', 'CHANNEL_SWITCHING', 'CHANNEL_FULL', 'CHANNEL_UNAVAILABLE', 'CONFIG_LOAD_FAILED', 'PROTOCOL_NOT_SUPPORTED', 'KICKED', 'IP_DENIED']);
+  const ERROR_TYPE_KEYS = Object.freeze(['OFFLINE', 'CONNECTING', 'CONNECTION_FAILED', 'RECONNECTING', 'SERVICE_STOPPED', 'SERVICE_UNAVAILABLE', 'CHANNEL_SWITCHING', 'CHANNEL_FULL', 'CHANNEL_UNAVAILABLE', 'CONFIG_LOAD_FAILED', 'PROTOCOL_NOT_SUPPORTED', 'KICKED', 'IP_DENIED', 'USER_DENIED']);
 
   function createErrorStates({ elements, toast, iconMarkup, escapeHtml, t = (key) => key }) {
     const { connectionDot, connectionText } = elements;
@@ -72,6 +72,11 @@
         level: 'error', recoverable: false, icon: 'circle-slash',
         messageKey: 'error.denied.message', detailKey: 'error.denied.detail',
         actionKey: 'error.denied.action',
+      },
+      USER_DENIED: {
+        level: 'error', recoverable: false, icon: 'circle-slash',
+        messageKey: 'error.userDenied.message', detailKey: 'error.userDenied.detail',
+        actionKey: 'error.userDenied.action',
       },
       IDENTITY_EXPIRED: {
         level: 'error', recoverable: false, icon: 'circle-slash',

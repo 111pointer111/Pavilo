@@ -85,6 +85,7 @@
 
     function renderReply(message) {
       if (!message.replyTo) return '';
+      if (message.replyTo.removed) return `<div class="reply-quote"><span>${escapeHtml(t('reply.removed'))}</span></div>`;
       return `<div class="reply-quote"><strong>${escapeHtml(t('reply.quote', { name: message.replyTo.username }))}</strong><span>${escapeHtml(message.replyTo.text)}</span></div>`;
     }
 
@@ -163,13 +164,20 @@
       return Boolean((state.channels || []).find((channel) => channel.id === state.channelId)?.readOnly);
     }
 
+    function governanceOn() {
+      return getState().room?.governance === true;
+    }
+
     function actionMarkup(messageId) {
       const features = roomFeatures();
       const reaction = features.reactions
         ? `<button class="message-action reaction-action" type="button" data-message-id="${escapeHtml(messageId)}" data-popover-align="right" aria-label="${escapeHtml(t('reaction.add'))}" title="${escapeHtml(t('reaction.add'))}"><span class="icon" data-icon="smile-plus" data-icon-size="16" aria-hidden="true"></span><span class="icon reaction-plus" data-icon="plus" data-icon-size="10" aria-hidden="true"></span></button>`
         : '';
       const reply = isReadOnlyChannel() || !features.replies ? '' : `<button class="message-action reply-action" type="button" data-message-id="${escapeHtml(messageId)}" aria-label="${escapeHtml(t('reaction.replyAria'))}" title="${escapeHtml(t('reaction.reply'))}"><span class="icon" data-icon="reply" data-icon-size="14" aria-hidden="true"></span></button>`;
-      return `<div class="message-actions">${reaction}${reply}</div>`;
+      const report = governanceOn()
+        ? `<button class="message-action report-action" type="button" data-message-id="${escapeHtml(messageId)}" aria-label="${escapeHtml(t('report.aria'))}" title="${escapeHtml(t('report.action'))}"><span class="icon" data-icon="flag" data-icon-size="14" aria-hidden="true"></span></button>`
+        : '';
+      return `<div class="message-actions">${reaction}${reply}${report}</div>`;
     }
 
     function timeMarkup(timestamp, className = 'message-time') {
@@ -189,7 +197,7 @@
       const self = getSelf();
       const author = message.author || self || { id: '', username: t('people.unknown'), avatarSeed: 0 };
       const article = document.createElement('article');
-      article.className = `message${author.id === self?.id ? ' self' : ''}${continued ? ' continued' : ''}`;
+      article.className = `message${author.id === self?.id ? ' self' : ''}${continued ? ' continued' : ''}${message.removed ? ' removed' : ''}`;
       article.dataset.messageId = message.id;
       const avatar = continued
         ? timeMarkup(message.createdAt, 'message-gutter-time')
@@ -197,7 +205,10 @@
       const meta = continued
         ? `<span class="visually-hidden">${escapeHtml(author.username)}</span>`
         : `<div class="message-meta"><span class="message-author">${escapeHtml(author.username)}</span>${timeMarkup(message.createdAt)}</div>`;
-      article.innerHTML = `<div class="message-avatar">${avatar}</div><div class="message-main">${meta}<div class="message-stack">${messageBubbleMarkup(message, author)}${actionMarkup(message.id)}</div></div>`;
+      const stack = message.removed
+        ? `<div class="message-bubble removed-note"><div class="message-body">${escapeHtml(t('message.removed'))}</div></div>`
+        : `${messageBubbleMarkup(message, author)}${actionMarkup(message.id)}`;
+      article.innerHTML = `<div class="message-avatar">${avatar}</div><div class="message-main">${meta}<div class="message-stack">${stack}</div></div>`;
       hydrateIcons(article);
       messageNodes.set(message.id, article);
       return article;
@@ -425,6 +436,8 @@
       if (avatar) { onAction({ type: 'profile', userId: avatar.dataset.userId, anchor: avatar }); return; }
       const reply = event.target.closest('.reply-action');
       if (reply) { onAction({ type: 'reply', messageId: reply.dataset.messageId }); return; }
+      const report = event.target.closest('.report-action');
+      if (report) { onAction({ type: 'report', messageId: report.dataset.messageId }); return; }
       const reactionAction = event.target.closest('.reaction-action');
       if (reactionAction) {
         // Mobile: 以消息气泡为锚点，让表情弹窗出现在气泡正下方

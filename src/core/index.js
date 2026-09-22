@@ -10,7 +10,7 @@ const events = require('./events');
 const { applyRoomOverlay, applyChannelsOverlay, applyModerationOverlay, validatePavilionConfig } = require('../../config');
 const { ipDenied } = require('../ip');
 const { effectiveFeatures, protocolCapabilities, actorKey } = require('./capabilities');
-const { guestsAllowed, publicChannels } = require('../identity');
+const { guestsAllowed, publicChannels, userDenied } = require('../identity');
 
 function pavilionError(code, message) {
   const error = new Error(message);
@@ -46,6 +46,7 @@ function createChatCore(config, runtime = {}) {
   const randomAvatarSeed = runtime.randomAvatarSeed || (() => crypto.randomInt(0, 0x7fffffff));
   const peers = new Map();
   const store = runtime.store || createConversationStore(config, { randomId, now, engine: runtime.engine });
+  const governance = runtime.governance || null;
   const rooms = createRoomStore(config, store);
   const publicUser = (session) => events.publicUser(session, config.exposeMemberIps);
   let effects = [];
@@ -116,6 +117,7 @@ function createChatCore(config, runtime = {}) {
       self: publicUser(session), users: sessionStore.rosterUsers(session.channelId), channelId: channel.config.id,
       occupancy: occupancySnapshot()
     };
+    if (governance) start.governance = true;
     if (session.muted) start.selfMuted = true;
     if (playId) start.play = { id: playId, page: `/plays/${playId}/` };
     const payloads = [start];
@@ -160,7 +162,7 @@ function createChatCore(config, runtime = {}) {
   }
   const handleCommand = createCommandHandler(config, rooms, sessionStore, messageStore,
     { publicUser, sendError, sendJson, broadcast, broadcastOccupancy, sendInitialState, activateTyping, deactivateTyping, closeClient, handOffSession },
-    { now, randomId, randomAvatarSeed, cancel, store, playSlot });
+    { now, randomId, randomAvatarSeed, cancel, store, playSlot, governance });
   const log = runtime.log || ((line) => { process.stdout.write(`${line}\n`); });
   const PRUNE_INTERVAL_MS = 60 * 60 * 1000;
   function runPrune() {
@@ -271,7 +273,8 @@ function createChatCore(config, runtime = {}) {
       channels: config.channels.map((channel) => ({ ...channel })),
       plays: [...(config.plays || [])],
       operator: config.operator ? { ...config.operator } : config.operator,
-      ipDenyList: [...(config.ipDenyList || [])]
+      ipDenyList: [...(config.ipDenyList || [])],
+      userDenyList: [...(config.userDenyList || [])]
     };
     if (room) applyRoomOverlay(trial, room);
     if (channels) applyChannelsOverlay(trial, channels);
@@ -290,6 +293,7 @@ function createChatCore(config, runtime = {}) {
     config.maxUsers = trial.maxUsers;
     config.channels = trial.channels;
     config.ipDenyList = [...(trial.ipDenyList || [])];
+    config.userDenyList = [...(trial.userDenyList || [])];
     rooms.replaceCatalog(trial.channels);
     if (moderation) {
       evictDeniedSeats();
@@ -325,16 +329,16 @@ function createChatCore(config, runtime = {}) {
     return result;
   }
 
-  function kickSeat(session) {
+  function kickSeat(session, options = {}) {
     if (!session || session.kind === 'agent') return false;
     const peer = session.client;
     const channelId = session.channelId;
     const userId = session.id;
     const username = session.username;
     if (peer) {
-      sendJson(peer, { type: 'moderation', action: 'kicked' });
+      sendJson(peer, options.error || { type: 'moderation', action: 'kicked' });
       peer.intentionalLeave = true;
-      closeClient(peer, 4008, 'kicked');
+      closeClient(peer, options.code || 4008, options.reason || 'kicked');
     }
     playSlot.runtime?.onLeave(session);
     sessionStore.evict(session);
@@ -347,6 +351,13 @@ function createChatCore(config, runtime = {}) {
     for (const { session } of sessionStore.listSeats()) {
       if (session.kind === 'agent') continue;
       if (ipDenied(config.ipDenyList, session.ip)) kickSeat(session);
+      else if (userDenied(config.userDenyList, session.userKey)) {
+        kickSeat(session, {
+          code: 4011,
+          reason: 'user_denied',
+          error: { type: 'error', code: 'USER_DENIED', message: '这个身份不能进亭。' }
+        });
+      }
     }
   }
 
@@ -397,12 +408,96 @@ function createChatCore(config, runtime = {}) {
         channelId: entry.channelId,
         createdAt: entry.message.createdAt,
         kind: entry.message.kind,
-        text: typeof entry.message.text === 'string' ? entry.message.text : '',
-        image: entry.message.kind === 'image' && entry.message.image
+        removed: Boolean(entry.message.removedAt),
+        text: entry.message.removedAt ? '' : (typeof entry.message.text === 'string' ? entry.message.text : ''),
+        image: !entry.message.removedAt && entry.message.kind === 'image' && entry.message.image
           ? { width: entry.message.image.width, height: entry.message.image.height }
           : null
       }))
     };
+  }
+
+  function presentStored(channelId, message) {
+    if (!message) return null;
+    const quoted = message.replyTo?.id ? store.getMessage(channelId, message.replyTo.id) : null;
+    return events.projectMessage(message, { quotedRemoved: Boolean(quoted?.removedAt) });
+  }
+
+  function removeMessage(channelId, messageId) {
+    const channel = rooms.get(channelId);
+    if (!channel || typeof messageId !== 'string') return { ok: false, error: 'NOT_FOUND' };
+    let already = false;
+    let result;
+    try {
+      result = store.reviseMessage(channelId, messageId, (message) => {
+        if (message.removedAt) {
+          already = true;
+          return;
+        }
+        message.removedAt = now();
+        delete message.text;
+        delete message.image;
+        delete message.mentions;
+        message.replyTo = null;
+        message.reactions = {};
+        message.reactionUsers = new Map();
+        message.byteSize = Buffer.byteLength(JSON.stringify(events.publicMessage(message)));
+      });
+    } catch {
+      return { ok: false, error: 'STORAGE_UNAVAILABLE' };
+    }
+    if (!result?.message) return { ok: false, error: 'NOT_FOUND' };
+    governance?.markMessageRemoved(channelId, messageId);
+    if (!already) {
+      broadcast(channelId, {
+        type: 'messageRemoved',
+        roomEpoch: channel.epoch,
+        channelId,
+        messageId,
+        message: presentStored(channelId, result.message)
+      });
+      flushEffects();
+    }
+    return { ok: true, already, message: presentStored(channelId, result.message) };
+  }
+
+  function listReports() {
+    if (!governance) return [];
+    return governance.listOpen().map((report) => {
+      const message = store.getMessage(report.channelId, report.messageId);
+      const removed = Boolean(message?.removedAt) || !message;
+      const text = !message || message.removedAt || typeof message.text !== 'string' ? '' : message.text;
+      return {
+        id: report.id,
+        channelId: report.channelId,
+        messageId: report.messageId,
+        reporterUsername: report.reporterUsername,
+        reporterUserKey: report.reporterUserKey,
+        reason: report.reason,
+        createdAt: report.createdAt,
+        status: report.status,
+        removed,
+        excerpt: text.slice(0, 80)
+      };
+    });
+  }
+
+  function getReport(id) {
+    return governance ? governance.getReport(id) : null;
+  }
+
+  function resolveReport(id, status) {
+    if (!governance) return null;
+    return governance.setStatus(id, status);
+  }
+
+  function recordAction(action, detail) {
+    governance?.appendAction(action, detail);
+  }
+
+  function listActions() {
+    if (!governance) return null;
+    return governance.listActions(50);
   }
 
   function attachPlayRuntime(playRuntime) {
@@ -470,7 +565,8 @@ function createChatCore(config, runtime = {}) {
     connect, dispatch, disconnect, connectionStatus, completeSync, markClosing, shutdown,
     state, health, roomInfo, storageInfo, pruneDedupe: store.pruneDedupe,
     drainEffects: takeEffects, attachPlayRuntime, roster, seatAgent, unseatAgent, deliverPlayEffects, postAsAgent,
-    occupancy, applyPavilionConfig, listSeats, getSeat, mute, kick, listSeatMessages
+    occupancy, applyPavilionConfig, listSeats, getSeat, mute, kick, listSeatMessages,
+    removeMessage, listReports, getReport, resolveReport, recordAction, listActions
   };
   Object.defineProperty(api, 'roomEpoch', { enumerable: true, get: () => rooms.epoch });
   return api;

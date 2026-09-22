@@ -47,7 +47,7 @@ test('UMD exposes matching browser/Node API without accessing DOM', () => {
 test('protocol version and frozen command/event names match wire contract', () => {
   assert.equal(PROTOCOL_VERSION, 4);
   assert.deepEqual(Object.values(COMMANDS), ['join', 'message', 'reaction', 'typing', 'switchChannel', 'historyPage', 'playAction', 'leave']);
-  assert.deepEqual(Object.values(EVENTS), ['stateStart', 'history', 'historyEnd', 'historyPageEnd', 'state', 'presence', 'message', 'reaction', 'prune', 'typing', 'channelOccupancy', 'playState', 'ack', 'error', 'moderation']);
+  assert.deepEqual(Object.values(EVENTS), ['stateStart', 'history', 'historyEnd', 'historyPageEnd', 'state', 'presence', 'message', 'messageRemoved', 'reaction', 'prune', 'typing', 'channelOccupancy', 'playState', 'ack', 'error', 'reportReceived', 'moderation']);
   assert.deepEqual(protocol.ACK_FIELDS, ['clientMessageId', 'messageId', 'seq', 'createdAt']);
   assert.deepEqual(protocol.ERROR_FIELDS, ['code', 'message', 'clientMessageId']);
   assert.deepEqual(protocol.SYNC_EVENTS, ['stateStart', 'history', 'historyEnd']);

@@ -198,6 +198,14 @@ COMMANDS = { JOIN: 'join', MESSAGE: 'message', REACTION: 'reaction',
 
 主动离开不创建断线租约，立即广播 `presence / leave`，随后连接以 `1000 / left` 关闭。`leave` 是同步阶段唯一允许执行的命令。
 
+### 7. `report` - 举报一条消息
+
+```json
+{ "type": "report", "messageId": "m100_4b8a1c2d3e5f6079", "reason": "可选，最多 200 字" }
+```
+
+只在有值班台时接受。成功只回给举报者：`{ "type": "reportReceived", "messageId", "reportId" }`。不广播，也不隐藏消息。没有值班台返回 `GOVERNANCE_UNAVAILABLE`。同一席对同一条未处理举报不重复入库。目标已移除返回 `MESSAGE_REMOVED`，已不在历史返回 `MESSAGE_GONE`。过快返回 `RATE_LIMITED`。
+
 ---
 
 ## 服务端事件
@@ -205,7 +213,7 @@ COMMANDS = { JOIN: 'join', MESSAGE: 'message', REACTION: 'reaction',
 服务端事件分为两组（`client/protocol.js`）：
 
 - **同步阶段事件** `SYNC_EVENTS`：`stateStart`、`history`、`historyEnd`；
-- **实时事件** `DEFERRED_EVENTS`：`presence`、`message`、`reaction`、`typing`、`channelOccupancy`、`playState`、`ack`、`error`、`moderation`。同步进行中到达的这些事件会被当前客户端暂存，收到 `historyEnd` 后再按序处理。`playState` 仅在当前频道绑定玩法时出现，信封见 [play.md](../play.md)。`moderation` 只发给当事席。
+- **实时事件** `DEFERRED_EVENTS`：`presence`、`message`、`messageRemoved`、`reaction`、`typing`、`channelOccupancy`、`playState`、`ack`、`error`、`moderation`。同步进行中到达的这些事件会被当前客户端暂存，收到 `historyEnd` 后再按序处理。`playState` 仅在当前频道绑定玩法时出现，信封见 [play.md](../play.md)。`moderation` 只发给当事席。`reportReceived` 也只发给举报者，不进这组暂存名单。
 
 同步期间，除 `leave` 外的客户端命令一律返回 `SYNC_IN_PROGRESS`。
 
@@ -257,6 +265,8 @@ COMMANDS = { JOIN: 'join', MESSAGE: 'message', REACTION: 'reaction',
 | `users` | array | 当前频道 roster |
 | `channelId` | string | 当前频道 ID |
 | `occupancy` | object | `{ "频道 ID": 在线人数 }` |
+| `features` | object | 可选。六个功能键的有效布尔值 |
+| `governance` | boolean | 可选。为 `true` 时客户端可以举报。没有值班台时省略 |
 
 公开用户对象固定含 `id/username/avatarSeed/joinedAt`，只有 `room.exposeMemberIps` 为 `true`（默认）时才含 `ip`。
 
@@ -350,6 +360,23 @@ COMMANDS = { JOIN: 'join', MESSAGE: 'message', REACTION: 'reaction',
 ```
 
 `removedIds` 是本次写入触发的 FIFO 淘汰 ID 列表。
+
+已移除的消息在历史和这条事件里都变成墓碑：`{ "id", "seq"?, "author", "createdAt", "removed": true }`，不再带正文、图片、提及或回应。引用它的 `replyTo` 变成 `{ "id", "removed": true }`。
+
+#### 4a. `messageRemoved` - 内容被移除
+
+只在值班台移除一条仍在的消息时广播给当前频道。
+
+```json
+{
+  "type": "messageRemoved",
+  "channelId": "general",
+  "messageId": "m100_4b8a1c2d3e5f6079",
+  "message": { "id": "m100_4b8a1c2d3e5f6079", "seq": 100, "author": {}, "createdAt": 1700001000000, "removed": true }
+}
+```
+
+客户端同时把本地 `replyTo.id` 等于 `messageId` 的预览改成已移除。这不是消息编辑。
 
 #### 5. `ack` - 消息确认
 
@@ -514,6 +541,9 @@ v4 专有，向所有已加入的 v4 客户端广播完整摘要；只含频道 
 | `IDENTITY_REQUIRED` | 关闭访客时 join 未带凭证 |
 | `IDENTITY_INVALID` | 宿主凭证无法验证 |
 | `IDENTITY_EXPIRED` | 宿主凭证过期（已加入后会以 `4010 / identity_expired` 关闭） |
+| `USER_DENIED` | 稳定用户在拒绝名单中（以 `4011 / user_denied` 关闭） |
+| `GOVERNANCE_UNAVAILABLE` | 没有值班台时发送了 `report` |
+| `MESSAGE_REMOVED` | 回应、引用或举报一条已经移除的消息 |
 
 ---
 
@@ -548,6 +578,7 @@ v4 专有，向所有已加入的 v4 客户端广播完整摘要；只含频道 
 | `4008` | `kicked` | 值班台结束了这一席 |
 | `4009` | `ip_denied` | 连接 IP 在黑名单中 |
 | `4010` | `identity_expired` | 宿主凭证过期 |
+| `4011` | `user_denied` | 稳定用户在拒绝名单中 |
 
 客户端应把下列关闭当作**不要自动重连**的终态，并清空恢复信息：
 
@@ -555,6 +586,7 @@ v4 专有，向所有已加入的 v4 客户端广播完整摘要；只含频道 
 - **`4008` + reason `kicked`**：被请离，回到进亭页
 - **`4009` + reason `ip_denied`**：这个网络不能进亭
 - **`4010` + reason `identity_expired`**：宿主凭证过期，需从宿主应用重新进入
+- **`4011` + reason `user_denied`**：这个稳定身份不能进亭，不自动重连
 
 其余断线按普通重连处理。请离前服务端会先发 `{ "type": "moderation", "action": "kicked" }`；禁言是 `{ "type": "moderation", "action": "muted" | "unmuted" }`，不关连接。其他人只看到普通 `presence / leave`，没有公开的踢人广播。
 

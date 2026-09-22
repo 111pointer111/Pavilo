@@ -11,6 +11,7 @@ const { openSqliteEngine } = require('./src/storage/sqlite-engine');
 const { applyMigrations } = require('./src/storage/migrations');
 const { createOperatorHttp, isAdminPath } = require('./src/operator/http');
 const { createOperatorConfigStore } = require('./src/operator/config-store');
+const { createGovernanceStore } = require('./src/operator/governance-store');
 const { createPavilionController } = require('./src/operator/pavilion');
 
 function createChatServer(options = {}) {
@@ -20,6 +21,7 @@ function createChatServer(options = {}) {
   config.gateway = { ...structuredClone(DEFAULTS.gateway), ...(options.gateway || {}) };
   config.plays = [...(options.plays || DEFAULTS.plays || [])];
   config.ipDenyList = [...(options.ipDenyList || DEFAULTS.ipDenyList || [])];
+  config.userDenyList = [...(options.userDenyList || DEFAULTS.userDenyList || [])];
   config.operator.enabled = operatorConsoleEnabled(config);
   const sqliteEngine = config.storage?.driver === 'sqlite' && config.storage.sqlite?.path
     ? openSqliteEngine(config.storage.sqlite)
@@ -40,7 +42,10 @@ function createChatServer(options = {}) {
     pavilionWarnings = merged.warnings;
   }
   let transport;
-  const core = createChatCore(config, { onEffects: (effects) => transport.deliver(effects), engine: sqliteEngine });
+  const governance = config.operator.enabled && sqliteEngine
+    ? createGovernanceStore(sqliteEngine, { now: options.now })
+    : null;
+  const core = createChatCore(config, { onEffects: (effects) => transport.deliver(effects), engine: sqliteEngine, governance });
   const gateway = createGateway(config, {
     engine: sqliteEngine,
     fetch: options.fetch,

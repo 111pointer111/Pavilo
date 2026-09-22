@@ -9,13 +9,13 @@
     TYPING: 'typing', SWITCH_CHANNEL: 'switchChannel', HISTORY_PAGE: 'historyPage', PLAY_ACTION: 'playAction', LEAVE: 'leave' });
   const EVENTS = Object.freeze({ STATE_START: 'stateStart', HISTORY: 'history', HISTORY_END: 'historyEnd',
     HISTORY_PAGE_END: 'historyPageEnd',
-    STATE: 'state', PRESENCE: 'presence', MESSAGE: 'message', REACTION: 'reaction', PRUNE: 'prune',
+    STATE: 'state', PRESENCE: 'presence', MESSAGE: 'message', MESSAGE_REMOVED: 'messageRemoved', REACTION: 'reaction', PRUNE: 'prune',
     TYPING: 'typing', CHANNEL_OCCUPANCY: 'channelOccupancy', PLAY_STATE: 'playState', ACK: 'ack', ERROR: 'error',
-    MODERATION: 'moderation' });
+    REPORT_RECEIVED: 'reportReceived', MODERATION: 'moderation' });
   const ACK_FIELDS = Object.freeze(['clientMessageId', 'messageId', 'seq', 'createdAt']);
   const ERROR_FIELDS = Object.freeze(['code', 'message', 'clientMessageId']);
   const SYNC_EVENTS = Object.freeze(['stateStart', 'history', 'historyEnd']);
-  const DEFERRED_EVENTS = Object.freeze(['presence', 'message', 'reaction', 'typing', 'channelOccupancy', 'playState', 'ack', 'error', 'moderation']);
+  const DEFERRED_EVENTS = Object.freeze(['presence', 'message', 'messageRemoved', 'reaction', 'typing', 'channelOccupancy', 'playState', 'ack', 'error', 'moderation']);
   const REACTION_EMOJIS = Object.freeze(['👍', '❤️', '😂', '🎉', '👀', '🔥']);
 
   function isRecord(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
@@ -47,10 +47,17 @@
       || !optional(message.clientMessageId, isClientMessageId)
       || !optional(message.mentions, isMentions)
       || !optional(message.reactions, isReactions)) return false;
-    if (message.replyTo !== undefined && message.replyTo !== null
-      && (!isRecord(message.replyTo) || !isId(message.replyTo.id)
-        || typeof message.replyTo.username !== 'string' || !['text', 'image'].includes(message.replyTo.kind)
-        || typeof message.replyTo.text !== 'string')) return false;
+    if (message.replyTo !== undefined && message.replyTo !== null) {
+      if (!isRecord(message.replyTo) || !isId(message.replyTo.id)) return false;
+      if (message.replyTo.removed === true) {
+        if (message.replyTo.username != null || message.replyTo.text != null || message.replyTo.kind != null) return false;
+      } else if (typeof message.replyTo.username !== 'string' || !['text', 'image'].includes(message.replyTo.kind)
+        || typeof message.replyTo.text !== 'string') return false;
+    }
+    if (message.removed === true) {
+      return message.kind == null && message.text == null && message.image == null
+        && message.replyTo == null && message.reactions == null && message.mentions == null;
+    }
     if (message.kind === 'text') return typeof message.text === 'string' && message.image == null;
     return message.kind === 'image' && isRecord(message.image) && typeof message.image.src === 'string'
       && Number.isFinite(message.image.width) && message.image.width > 0
@@ -84,6 +91,7 @@
           && optional(event.occupancy, isOccupancy)
           && optional(event.play, (value) => isRecord(value) && typeof value.id === 'string' && typeof value.page === 'string')
           && optional(event.selfMuted, (value) => typeof value === 'boolean')
+          && optional(event.governance, (value) => typeof value === 'boolean')
           && optional(event.features, (value) => isRecord(value) && ['images', 'replies', 'reactions', 'mentions', 'typing', 'history'].every((key) => typeof value[key] === 'boolean'))
           && optional(event.channels, (value) => Array.isArray(value) && value.every((channel) => isRecord(channel) && isChannelId(channel.id) && typeof channel.name === 'string'));
         break;
@@ -103,6 +111,11 @@
         break;
       case EVENTS.MESSAGE:
         valid = isMessage(event.message) && optional(event.removedIds, isRemovedIds); break;
+      case EVENTS.MESSAGE_REMOVED:
+        valid = isId(event.messageId) && isMessage(event.message) && event.message.removed === true
+          && event.message.id === event.messageId; break;
+      case EVENTS.REPORT_RECEIVED:
+        valid = isId(event.messageId) && isId(event.reportId); break;
       case EVENTS.REACTION:
         valid = isId(event.messageId) && isReactions(event.reactions) && optional(event.removedIds, isRemovedIds); break;
       case EVENTS.PRUNE: valid = isRemovedIds(event.removedIds); break;

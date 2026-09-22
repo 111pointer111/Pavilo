@@ -144,6 +144,10 @@ function channelAllowed(config, channelId, identity) {
   return { ok: true };
 }
 
+function userDenied(list, userKey) {
+  return typeof userKey === 'string' && userKey.length > 0 && Array.isArray(list) && list.includes(userKey);
+}
+
 function identityStillValid(session, now = Date.now()) {
   if (!session?.userKey) return true;
   if (!session.identityExpiresAt) return true;
@@ -169,5 +173,6 @@ module.exports = {
   authenticate,
   channelAllowed,
   identityStillValid,
+  userDenied,
   publicChannels
 };

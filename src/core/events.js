@@ -27,8 +27,27 @@ function publicMessage(message) {
   delete copy.reactionUsers;
   return copy;
 }
+function projectMessage(message, options = {}) {
+  if (!message) return null;
+  if (message.removedAt) {
+    const projected = {
+      id: message.id,
+      author: message.author,
+      createdAt: message.createdAt,
+      removed: true
+    };
+    if (Number.isSafeInteger(message.seq)) projected.seq = message.seq;
+    if (typeof message.clientMessageId === 'string') projected.clientMessageId = message.clientMessageId;
+    return projected;
+  }
+  const copy = publicMessage(message);
+  if (options.quotedRemoved && copy.replyTo && typeof copy.replyTo.id === 'string') {
+    copy.replyTo = { id: copy.replyTo.id, removed: true };
+  }
+  return copy;
+}
 function directed(peerId, payload) { return { kind: 'send', peerId, payload }; }
 function channelEvent(channelId, payload, peerIds) {
   return { kind: 'broadcast', channelId, payload, peerIds, transient: payload.type === 'typing' };
 }
-module.exports = { PROTOCOL_VERSION, REACTION_EMOJIS, publicChannel, publicChannelSummary, publicLimits, publicUser, publicMessage, directed, channelEvent };
+module.exports = { PROTOCOL_VERSION, REACTION_EMOJIS, publicChannel, publicChannelSummary, publicLimits, publicUser, publicMessage, projectMessage, directed, channelEvent };

@@ -263,6 +263,22 @@ function createOperatorHttp(config, { gateway, core, pavilion, root }) {
       return;
     }
 
+    const reportMatch = pathname.match(/^\/admin\/api\/reports\/([^/]+)\/(dismiss|remove)$/);
+    if (people && reportMatch && request.method === 'POST') {
+      requireOrigin(request, config);
+      const id = decodeURIComponent(reportMatch[1]);
+      const result = reportMatch[2] === 'dismiss' ? people.dismissReport(id) : people.removeReport(id);
+      sendJson(response, 200, result);
+      return;
+    }
+
+    if (people && request.method === 'POST' && pathname === '/admin/api/messages/remove') {
+      requireOrigin(request, config);
+      const body = await readJson(request);
+      sendJson(response, 200, people.removeMessage(body.channelId, body.messageId));
+      return;
+    }
+
     if (people && pathname === '/admin/api/moderation') {
       requireOrigin(request, config);
       if (request.method === 'PUT') {

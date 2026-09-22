@@ -612,6 +612,10 @@
       return;
     }
     if (action.type === 'reaction') return connection.send({ type: 'reaction', messageId: action.messageId, emoji: action.emoji, active: action.active });
+    if (action.type === 'report') {
+      connection.send({ type: 'report', messageId: action.messageId });
+      return;
+    }
     if (action.type === 'unread/clear') return notificationsController?.clearUnread();
     if (action.type === 'typing/stop') return composerController?.stopTyping();
   }
@@ -878,6 +882,10 @@
       pendingQueue.reconcile([event.message], { roomEpoch: after.room?.epoch });
       return;
     }
+    if (event.type === 'reportReceived') {
+      notificationsController.toast(t('toast.reported'));
+      return;
+    }
     if (event.type === 'error') {
       handleProtocolError(event, before);
       return;
@@ -937,8 +945,9 @@
       composerController.clearAttachment();
       showLogin();
       const type = event.reason === 'denied' ? 'IP_DENIED'
-        : event.reason === 'identity' ? 'IDENTITY_EXPIRED'
-          : 'KICKED';
+        : event.reason === 'user' ? 'USER_DENIED'
+          : event.reason === 'identity' ? 'IDENTITY_EXPIRED'
+            : 'KICKED';
       if (errorController.getCurrentError() !== type) {
         errorController.showErrorOverlay(type, { onAction: () => errorController.hideErrorOverlay() });
       }

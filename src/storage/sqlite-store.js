@@ -167,6 +167,27 @@ function createSqliteStore(config, runtime = {}) {
     return { removedIds: evictWorkingSet(channel) };
   }
 
+  function reviseMessage(channelId, messageId, apply) {
+    const channel = requireChannel(channelId);
+    let message = channel.messages.find((item) => item.id === messageId);
+    const inWorkingSet = Boolean(message);
+    if (!message) {
+      const row = selectMessageById.get(channelId, messageId);
+      if (!row) return null;
+      message = deserializeMessage(row.payload);
+    }
+    const oldSize = message.byteSize || 0;
+    apply(message);
+    engine.transaction(() => {
+      updateMessage.run(serializeMessage(message), channelId, messageId);
+    });
+    if (!inWorkingSet) return { message, removedIds: [] };
+    channel.roomBytes += (message.byteSize || 0) - oldSize;
+    if (channel.roomBytes < 0) channel.roomBytes = 0;
+    const removedIds = evictWorkingSet(channel);
+    return { message, removedIds };
+  }
+
   function updateReactions(channelId, messageId, apply) {
     const channel = requireChannel(channelId);
     let message = channel.messages.find((item) => item.id === messageId);
@@ -287,6 +308,7 @@ function createSqliteStore(config, runtime = {}) {
     findIdempotent,
     incrementSeq,
     appendMessage,
+    reviseMessage,
     updateReactions,
     loadHistoryPage,
     listMessagesByAuthor,

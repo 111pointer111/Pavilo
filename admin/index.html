@@ -153,10 +153,32 @@
           <p class="error" id="peopleLoadError" hidden></p>
           <div class="people-desk">
             <div class="paper people-main">
-              <p class="log-strip" id="peopleLog" hidden></p>
+              <div class="log-strip" id="peopleLog" hidden></div>
               <div class="people-toolbar" id="peopleToolbar"></div>
               <div id="peopleList"></div>
             </div>
+            <div class="paper deny-paper" id="reportsPaper">
+              <h2 data-i18n="people.reportsTitle">举报</h2>
+              <p class="hint" data-i18n="people.reportsHint">举报不会自动藏起内容。看过以后再决定移除或忽略。</p>
+              <div id="reportList"></div>
+            </div>
+            <form class="editor paper deny-paper" id="userDenyForm">
+              <fieldset>
+                <legend>
+                  <span data-i18n="people.userDenyTitle">进不来的身份</span>
+                  <span class="source-badge" id="userDenySource" hidden></span>
+                </legend>
+                <p class="hint" data-i18n="people.userDenyHint">稳定用户标识，不是会员名录。访客没有这个标识。它和 IP 名单是同一段，恢复时一起回到配置文件。</p>
+                <div id="userDenyList"></div>
+                <div class="deny-add">
+                  <label>
+                    <span data-i18n="people.userDenyKey">标识</span>
+                    <input name="userKey" autocomplete="off" maxlength="128" spellcheck="false">
+                  </label>
+                  <button type="submit" id="userDenyAddButton" data-i18n="people.denyAdd">加入</button>
+                </div>
+              </fieldset>
+            </form>
             <form class="editor paper deny-paper" id="denyForm">
             <fieldset>
               <legend>

@@ -6,6 +6,15 @@ Pavilo 的重要变更都记在这份文件里。
 
 ## [Unreleased]
 
+治理闭环，尚未发布。Protocol v4 不升号。不做嵌入，也不做提交前审核。
+
+### Added
+- 墓碑式移除：正文、图片和引用预览不再发给客户端；在线客户端收到 `messageRemoved`。[ADR-0011](docs/adr/0011-governance-loop.md)
+- `report`：有值班台时可以举报。同一席对同一条未处理举报不重复入库。没有值班台返回 `GOVERNANCE_UNAVAILABLE`
+- `moderation.userDenyList`：稳定用户拒绝名单，和 IP 黑名单同一段。命中后 `USER_DENIED`，关闭码 `4011 / user_denied`。Schema v1 只能写这份名单
+- SQLite migration 006：`reports`、`operator_actions`
+- 值班台人员页：待处理举报、身份拒绝名单、最近操作记录。席位发言可以移除
+
 ## [1.4.0] - 2026-09-21
 
 功能目录与宿主身份。默认 memory 仍全开、无账号。Protocol v4 不升号。官方狼人杀尚未实现。值班台不提供 `features` / `access` / 身份密钥的编辑页。

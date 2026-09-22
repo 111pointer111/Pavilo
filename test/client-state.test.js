@@ -32,7 +32,7 @@ test('initial state is complete, isolated per call, and honors a positive messag
   const first = createInitialState({ maxMessages: 2 });
   const second = createInitialState({ maxMessages: -1 });
   assert.deepEqual(first.connection, { status: 'idle', joined: false, attempt: 0, intentionalLeave: false });
-  assert.deepEqual(first.room, { epoch: null, startedAt: null, latestSeq: 0, resumeToken: null, capabilities: [], features: null });
+  assert.deepEqual(first.room, { epoch: null, startedAt: null, latestSeq: 0, resumeToken: null, capabilities: [], features: null, governance: false });
   assert.deepEqual(first.channel, { switching: false, requestedId: null });
   assert.deepEqual(first.channelOccupancy, {});
   const occupancy = reduce(first, { type: 'channelOccupancy', occupancy: { general: 2, games: 0 } });

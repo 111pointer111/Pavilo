@@ -798,6 +798,12 @@ button, .channel, .person, .avatar, .top-action, .reaction-button, .composer-but
   cursor: zoom-in;
 }
 
+.message.removed .removed-note {
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink-soft);
+}
+
 .message-actions {
   position: absolute;
   z-index: 2;

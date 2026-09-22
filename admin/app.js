@@ -73,6 +73,10 @@
   const denyList = document.getElementById('denyList');
   const denySource = document.getElementById('denySource');
   const denyRevertButton = document.getElementById('denyRevertButton');
+  const userDenyForm = document.getElementById('userDenyForm');
+  const userDenyList = document.getElementById('userDenyList');
+  const userDenySource = document.getElementById('userDenySource');
+  const reportList = document.getElementById('reportList');
   const seatPaper = document.getElementById('seatPaper');
   const DEEPSEEK_BASE = 'https://api.deepseek.com/v1';
   const DEEPSEEK_MODEL = 'deepseek-chat';
@@ -90,7 +94,7 @@
   let dirty = false;
   let lastHash = location.hash;
   let ignoreHash = false;
-  let peopleState = { seats: [], moderation: { ipDenyList: [] }, sources: {}, log: [], online: 0, leased: 0 };
+  let peopleState = { seats: [], moderation: { ipDenyList: [], userDenyList: [] }, reports: [], sources: {}, log: [], online: 0, leased: 0 };
   let peopleFilter = { channel: '', leased: false };
   let peopleTimer = 0;
   let seatHistory = { messages: [], exhausted: true };
@@ -492,7 +496,8 @@
   function acceptPeople(payload) {
     peopleState = {
       seats: Array.isArray(payload.seats) ? payload.seats : [],
-      moderation: payload.moderation || { ipDenyList: [] },
+      moderation: payload.moderation || { ipDenyList: [], userDenyList: [] },
+      reports: Array.isArray(payload.reports) ? payload.reports : [],
       sources: payload.sources || {},
       updatedAt: payload.updatedAt || {},
       log: Array.isArray(payload.log) ? payload.log : [],
@@ -838,13 +843,15 @@
   }
 
   function renderPeopleList() {
-    const log = peopleState.log[0];
-    if (log) {
+    const logs = (peopleState.log || []).slice(0, 8);
+    peopleLog.replaceChildren();
+    if (logs.length) {
       peopleLog.hidden = false;
-      peopleLog.textContent = `${formatClock(log.at)} · ${peopleLogLine(log)}`;
+      for (const entry of logs) {
+        peopleLog.append(el('p', 'log-line', `${formatClock(entry.at)} · ${peopleLogLine(entry)}`));
+      }
     } else {
       peopleLog.hidden = true;
-      peopleLog.textContent = '';
     }
 
     peopleToolbar.replaceChildren();
@@ -949,6 +956,146 @@
     denyRevertButton.hidden = source !== 'operator' || !writable();
     denyForm.querySelector('[name=ip]').disabled = !writable();
     document.getElementById('denyAddButton').disabled = !writable();
+    renderUserDeny(source);
+    renderReports();
+  }
+
+  function renderUserDeny(source) {
+    if (source) {
+      userDenySource.hidden = false;
+      paintSource(userDenySource, source);
+    } else {
+      userDenySource.hidden = true;
+    }
+    const keys = peopleState.moderation.userDenyList || [];
+    userDenyList.replaceChildren();
+    if (!keys.length) {
+      userDenyList.append(el('p', 'hint', t('people.userDenyEmpty')));
+    } else {
+      for (const key of keys) {
+        const row = el('div', 'deny-row');
+        row.append(el('code', '', key));
+        const remove = el('button', 'ghost', t('channel.delete'));
+        remove.type = 'button';
+        remove.disabled = !writable();
+        remove.addEventListener('click', async () => {
+          try {
+            acceptPeople(await api('/admin/api/moderation', {
+              method: 'PUT',
+              body: JSON.stringify({ userDenyList: keys.filter((item) => item !== key) })
+            }));
+            showToast(t('people.userDenyRemoved'));
+            renderPeopleList();
+          } catch (error) {
+            showToast(error.message, 'err');
+          }
+        });
+        row.append(remove);
+        userDenyList.append(row);
+      }
+    }
+    userDenyForm.querySelector('[name=userKey]').disabled = !writable();
+    document.getElementById('userDenyAddButton').disabled = !writable();
+  }
+
+  async function denyUserKey(userKey) {
+    const list = [...(peopleState.moderation.userDenyList || [])];
+    if (!list.includes(userKey)) list.push(userKey);
+    acceptPeople(await api('/admin/api/moderation', {
+      method: 'PUT',
+      body: JSON.stringify({ userDenyList: list })
+    }));
+  }
+
+  function renderReports() {
+    const reports = peopleState.reports || [];
+    reportList.replaceChildren();
+    if (!reports.length) {
+      reportList.append(el('p', 'hint', t('people.reportsEmpty')));
+      return;
+    }
+    for (const report of reports) {
+      const row = el('div', 'history-row');
+      const meta = el('div', 'history-meta', `${formatClock(report.createdAt)} · ${channelLabel(report.channelId)} · ${report.reporterUsername}`);
+      row.append(meta);
+      const body = el('div', 'history-text', report.removed
+        ? t('people.removed')
+        : (report.excerpt || t('people.removed')));
+      if (report.reason) body.append(el('div', 'hint', report.reason));
+      row.append(body);
+      const actions = el('div', 'actions');
+      const remove = el('button', 'ghost danger', t('people.reportRemove'));
+      remove.type = 'button';
+      remove.disabled = !writable();
+      remove.addEventListener('click', async () => {
+        try {
+          acceptPeople(await api(`/admin/api/reports/${encodeURIComponent(report.id)}/remove`, { method: 'POST', body: '{}' }));
+          showToast(t('people.removed'));
+          renderPeopleList();
+        } catch (error) {
+          showToast(error.message, 'err');
+        }
+      });
+      const dismiss = el('button', 'ghost', t('people.reportDismiss'));
+      dismiss.type = 'button';
+      dismiss.disabled = !writable();
+      dismiss.addEventListener('click', async () => {
+        try {
+          acceptPeople(await api(`/admin/api/reports/${encodeURIComponent(report.id)}/dismiss`, { method: 'POST', body: '{}' }));
+          renderPeopleList();
+        } catch (error) {
+          showToast(error.message, 'err');
+        }
+      });
+      actions.append(remove, dismiss);
+      if (report.reporterUserKey) {
+        const deny = el('button', 'ghost', t('people.reportDeny'));
+        deny.type = 'button';
+        deny.disabled = !writable();
+        deny.addEventListener('click', async () => {
+          try {
+            await denyUserKey(report.reporterUserKey);
+            showToast(t('people.userDenyAdded'));
+            renderPeopleList();
+          } catch (error) {
+            showToast(error.message, 'err');
+          }
+        });
+        actions.append(deny);
+      }
+      row.append(actions);
+      reportList.append(row);
+    }
+  }
+
+  function historyRow(message) {
+    const row = el('div', 'history-row');
+    row.append(el('div', 'history-meta', `${formatClock(message.createdAt)} · ${channelLabel(message.channelId)}`));
+    const text = message.removed
+      ? t('people.removed')
+      : (message.kind === 'image'
+        ? `${t('people.image')}${message.text ? ` · ${message.text}` : ''}`
+        : (message.text || ''));
+    row.append(el('div', 'history-text', text));
+    if (!message.removed && writable()) {
+      const remove = el('button', 'ghost danger', t('people.reportRemove'));
+      remove.type = 'button';
+      remove.addEventListener('click', async () => {
+        try {
+          acceptPeople(await api('/admin/api/messages/remove', {
+            method: 'POST',
+            body: JSON.stringify({ channelId: message.channelId, messageId: message.id })
+          }));
+          showToast(t('people.removed'));
+          remove.disabled = true;
+          row.querySelector('.history-text').textContent = t('people.removed');
+        } catch (error) {
+          showToast(error.message, 'err');
+        }
+      });
+      row.append(remove);
+    }
+    return row;
   }
 
   function seatField(label, value) {
@@ -1079,15 +1226,7 @@
       if (!page.messages.length) {
         historyBox.append(el('p', 'hint', t('people.historyEmpty')));
       } else {
-        for (const message of page.messages) {
-          const row = el('div', 'history-row');
-          row.append(el('div', 'history-meta', `${formatClock(message.createdAt)} · ${channelLabel(message.channelId)}`));
-          const body = el('div', 'history-text', message.kind === 'image'
-            ? `${t('people.image')}${message.text ? ` · ${message.text}` : ''}`
-            : (message.text || ''));
-          row.append(body);
-          historyBox.append(row);
-        }
+        for (const message of page.messages) historyBox.append(historyRow(message));
         if (!page.exhausted && page.messages.length) {
           const more = el('button', 'ghost', t('people.historyMore'));
           more.type = 'button';
@@ -1095,14 +1234,7 @@
             const last = page.messages[page.messages.length - 1];
             const next = await api(`/admin/api/people/${encodeURIComponent(id)}/messages?limit=50&beforeCreatedAt=${last.createdAt}&beforeChannelId=${encodeURIComponent(last.channelId)}&beforeId=${encodeURIComponent(last.id)}`);
             more.remove();
-            for (const message of next.messages) {
-              const row = el('div', 'history-row');
-              row.append(el('div', 'history-meta', `${formatClock(message.createdAt)} · ${channelLabel(message.channelId)}`));
-              row.append(el('div', 'history-text', message.kind === 'image'
-                ? `${t('people.image')}${message.text ? ` · ${message.text}` : ''}`
-                : (message.text || '')));
-              historyBox.append(row);
-            }
+            for (const message of next.messages) historyBox.append(historyRow(message));
           });
           historyBox.append(more);
         }
@@ -1309,6 +1441,20 @@
 
   bindReveal(tokenReveal, tokenInput);
   bindReveal(keyReveal, form.apiKey);
+
+  userDenyForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const userKey = userDenyForm.userKey.value.trim();
+    if (!userKey) return;
+    try {
+      await denyUserKey(userKey);
+      userDenyForm.userKey.value = '';
+      showToast(t('people.userDenyAdded'));
+      renderPeopleList();
+    } catch (error) {
+      showToast(error.message, 'err');
+    }
+  });
 
   denyForm.addEventListener('submit', async (event) => {
     event.preventDefault();

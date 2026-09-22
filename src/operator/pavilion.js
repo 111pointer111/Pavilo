@@ -81,7 +81,12 @@ function createPavilionController({ config, baseline, store, core }) {
   }
 
   function saveModeration(input) {
-    const moderation = parseModerationOverlay(input);
+    const current = snapshotModerationSection(config);
+    const body = input && typeof input === 'object' ? input : {};
+    const moderation = parseModerationOverlay({
+      ipDenyList: body.ipDenyList !== undefined ? body.ipDenyList : current.ipDenyList,
+      userDenyList: body.userDenyList !== undefined ? body.userDenyList : current.userDenyList
+    });
     core.applyPavilionConfig({ moderation });
     store.save('moderation', snapshotModerationSection(config));
     return snapshot();
