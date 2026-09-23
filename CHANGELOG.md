@@ -10,6 +10,7 @@ Pavilo 的重要变更都记在这份文件里。
 
 ### Fixed
 - 人员页「这一席留在库里的发言」在未传分页时间时不再被当成 `beforeCreatedAt: 0`，有发言时能列出来
+- 发言记录、举报和用量改用同一张记录表
 
 ### Added
 - 墓碑式移除：正文、图片和引用预览不再发给客户端；在线客户端收到 `messageRemoved`。[ADR-0011](docs/adr/0011-governance-loop.md)

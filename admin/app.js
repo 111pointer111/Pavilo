@@ -6,6 +6,7 @@
     try { return localStorage.getItem(i18nFactory.STORAGE_KEY); } catch { return null; }
   })();
   const i18n = i18nFactory.createI18n(stored || 'zh-CN');
+  const createRecordList = globalThis.PaviloAdminList.createRecordList;
 
   const loginScreen = document.getElementById('loginScreen');
   const desk = document.getElementById('desk');
@@ -801,31 +802,29 @@
     const tokens = usage.rows.reduce((sum, row) => sum + (row.promptTokens || 0) + (row.completionTokens || 0), 0);
     const errors = usage.rows.reduce((sum, row) => sum + (row.errors || 0), 0);
     usageBox.append(el('p', 'usage-summary', t('usage.summary', { requests, tokens, errors })));
-    const wrap = el('div', 'table-wrap');
-    const table = document.createElement('table');
-    const thead = document.createElement('thead');
-    const head = document.createElement('tr');
-    for (const key of ['usage.day', 'usage.channel', 'usage.requests', 'usage.tokens', 'usage.errors']) {
-      head.append(el('th', '', t(key)));
-    }
-    thead.append(head);
-    table.append(thead);
-    const tbody = document.createElement('tbody');
-    for (const row of usage.rows) {
-      const tr = document.createElement('tr');
-      const err = el('td', row.errors ? 'num warn' : 'num', String(row.errors || 0));
-      tr.append(
-        el('td', '', row.day),
-        el('td', '', row.channelId),
-        el('td', 'num', String(row.requests)),
-        el('td', 'num', String((row.promptTokens || 0) + (row.completionTokens || 0))),
-        err
-      );
-      tbody.append(tr);
-    }
-    table.append(tbody);
-    wrap.append(table);
-    usageBox.append(wrap);
+    usageBox.append(createRecordList({
+      columns: [
+        { id: 'day', label: t('usage.day'), className: 'record-when' },
+        { id: 'channel', label: t('usage.channel') },
+        { id: 'requests', label: t('usage.requests'), align: 'end' },
+        { id: 'tokens', label: t('usage.tokens'), align: 'end' },
+        { id: 'errors', label: t('usage.errors'), align: 'end', className: 'record-errors' }
+      ],
+      rows: usage.rows.map((row) => {
+        const errors = document.createElement('span');
+        errors.textContent = String(row.errors || 0);
+        if (row.errors) errors.className = 'warn';
+        return {
+          cells: {
+            day: row.day,
+            channel: row.channelId,
+            requests: String(row.requests || 0),
+            tokens: String((row.promptTokens || 0) + (row.completionTokens || 0)),
+            errors
+          }
+        };
+      })
+    }));
   }
 
   function filteredSeats() {
@@ -1008,93 +1007,130 @@
     }));
   }
 
+  function recordActions(buttons) {
+    const bar = el('div', 'record-action-bar');
+    for (const button of buttons) bar.append(button);
+    return bar;
+  }
+
+  function messageBody(message) {
+    if (message.removed) return t('people.removed');
+    if (message.kind === 'image') return `${t('people.image')}${message.text ? ` · ${message.text}` : ''}`;
+    return message.text || '';
+  }
+
   function renderReports() {
     const reports = peopleState.reports || [];
     reportCount.textContent = reports.length ? t('people.reportCount', { count: reports.length }) : '';
-    reportList.replaceChildren();
-    if (!reports.length) {
-      reportList.append(el('p', 'report-empty', t('people.reportsEmpty')));
-      return;
-    }
-    for (const report of reports) {
-      const row = el('div', 'report-row');
-      const main = el('div', 'report-main');
-      main.append(el('div', 'report-kicker', `${formatClock(report.createdAt)} · ${channelLabel(report.channelId)} · ${report.reporterUsername}`));
-      main.append(el('div', 'report-excerpt', report.removed ? t('people.removed') : (report.excerpt || t('people.removed'))));
-      if (report.reason) main.append(el('div', 'report-reason', report.reason));
-      const actions = el('div', 'report-actions');
-      const remove = el('button', 'ghost danger', t('people.reportRemove'));
-      remove.type = 'button';
-      remove.disabled = !writable();
-      remove.addEventListener('click', async () => {
-        try {
-          acceptPeople(await api(`/admin/api/reports/${encodeURIComponent(report.id)}/remove`, { method: 'POST', body: '{}' }));
-          showToast(t('people.removed'));
-          renderPeopleList();
-        } catch (error) {
-          showToast(error.message, 'err');
-        }
-      });
-      const dismiss = el('button', 'ghost', t('people.reportDismiss'));
-      dismiss.type = 'button';
-      dismiss.disabled = !writable();
-      dismiss.addEventListener('click', async () => {
-        try {
-          acceptPeople(await api(`/admin/api/reports/${encodeURIComponent(report.id)}/dismiss`, { method: 'POST', body: '{}' }));
-          renderPeopleList();
-        } catch (error) {
-          showToast(error.message, 'err');
-        }
-      });
-      actions.append(remove, dismiss);
-      if (report.reporterUserKey) {
-        const deny = el('button', 'ghost', t('people.reportDeny'));
-        deny.type = 'button';
-        deny.disabled = !writable();
-        deny.addEventListener('click', async () => {
+    reportList.replaceChildren(createRecordList({
+      empty: t('people.reportsEmpty'),
+      columns: [
+        { id: 'when', label: t('people.colWhen'), className: 'record-when' },
+        { id: 'who', label: t('people.colWho'), className: 'record-who' },
+        { id: 'channel', label: t('people.colChannel'), className: 'record-channel' },
+        { id: 'body', label: t('people.colBody'), className: 'record-body' }
+      ],
+      rows: reports.map((report) => {
+        const body = el('div', 'record-stack');
+        body.append(el('div', '', report.removed ? t('people.removed') : (report.excerpt || t('people.removed'))));
+        if (report.reason) body.append(el('div', 'record-note', report.reason));
+        return {
+          muted: report.removed,
+          report,
+          cells: {
+            when: formatClock(report.createdAt),
+            who: report.reporterUsername,
+            channel: channelLabel(report.channelId),
+            body
+          }
+        };
+      }),
+      actions(row) {
+        const report = row.report;
+        const remove = el('button', 'ghost danger', t('people.reportRemove'));
+        remove.type = 'button';
+        remove.disabled = !writable();
+        remove.addEventListener('click', async () => {
           try {
-            await denyUserKey(report.reporterUserKey);
-            showToast(t('people.userDenyAdded'));
+            acceptPeople(await api(`/admin/api/reports/${encodeURIComponent(report.id)}/remove`, { method: 'POST', body: '{}' }));
+            showToast(t('people.removed'));
             renderPeopleList();
           } catch (error) {
             showToast(error.message, 'err');
           }
         });
-        actions.append(deny);
+        const dismiss = el('button', 'ghost', t('people.reportDismiss'));
+        dismiss.type = 'button';
+        dismiss.disabled = !writable();
+        dismiss.addEventListener('click', async () => {
+          try {
+            acceptPeople(await api(`/admin/api/reports/${encodeURIComponent(report.id)}/dismiss`, { method: 'POST', body: '{}' }));
+            renderPeopleList();
+          } catch (error) {
+            showToast(error.message, 'err');
+          }
+        });
+        const buttons = [remove, dismiss];
+        if (report.reporterUserKey) {
+          const deny = el('button', 'ghost', t('people.reportDeny'));
+          deny.type = 'button';
+          deny.disabled = !writable();
+          deny.addEventListener('click', async () => {
+            try {
+              await denyUserKey(report.reporterUserKey);
+              showToast(t('people.userDenyAdded'));
+              renderPeopleList();
+            } catch (error) {
+              showToast(error.message, 'err');
+            }
+          });
+          buttons.push(deny);
+        }
+        return recordActions(buttons);
       }
-      row.append(main, actions);
-      reportList.append(row);
-    }
+    }));
   }
 
-  function historyRow(message) {
-    const row = el('div', 'history-row');
-    row.append(el('div', 'history-meta', `${formatClock(message.createdAt)} · ${channelLabel(message.channelId)}`));
-    const text = message.removed
-      ? t('people.removed')
-      : (message.kind === 'image'
-        ? `${t('people.image')}${message.text ? ` · ${message.text}` : ''}`
-        : (message.text || ''));
-    row.append(el('div', 'history-text', text));
-    if (!message.removed && writable()) {
-      const remove = el('button', 'ghost danger', t('people.reportRemove'));
-      remove.type = 'button';
-      remove.addEventListener('click', async () => {
-        try {
-          acceptPeople(await api('/admin/api/messages/remove', {
-            method: 'POST',
-            body: JSON.stringify({ channelId: message.channelId, messageId: message.id })
-          }));
-          showToast(t('people.removed'));
-          remove.disabled = true;
-          row.querySelector('.history-text').textContent = t('people.removed');
-        } catch (error) {
-          showToast(error.message, 'err');
+  function seatHistoryList(messages) {
+    return createRecordList({
+      empty: t('people.historyEmpty'),
+      columns: [
+        { id: 'when', label: t('people.colWhen'), className: 'record-when' },
+        { id: 'channel', label: t('people.colChannel'), className: 'record-channel' },
+        { id: 'body', label: t('people.colBody'), className: 'record-body' }
+      ],
+      rows: messages.map((message) => ({
+        muted: Boolean(message.removed),
+        message,
+        cells: {
+          when: formatClock(message.createdAt),
+          channel: channelLabel(message.channelId),
+          body: messageBody(message)
         }
-      });
-      row.append(remove);
-    }
-    return row;
+      })),
+      actions(row, tr) {
+        const message = row.message;
+        if (message.removed || !writable()) return null;
+        const remove = el('button', 'ghost danger', t('people.reportRemove'));
+        remove.type = 'button';
+        remove.addEventListener('click', async () => {
+          try {
+            acceptPeople(await api('/admin/api/messages/remove', {
+              method: 'POST',
+              body: JSON.stringify({ channelId: message.channelId, messageId: message.id })
+            }));
+            showToast(t('people.removed'));
+            message.removed = true;
+            tr.classList.add('is-muted');
+            tr.querySelector('[data-cell="body"]').textContent = t('people.removed');
+            remove.remove();
+          } catch (error) {
+            showToast(error.message, 'err');
+          }
+        });
+        return recordActions([remove]);
+      }
+    });
   }
 
   function seatField(label, value) {
@@ -1210,7 +1246,7 @@
     danger.append(actions);
     paper.append(danger);
 
-    const historyPaper = el('div', 'paper');
+    const historyPaper = el('div', 'paper record-paper');
     const history = document.createElement('fieldset');
     history.append(el('legend', '', t('people.groupHistory')));
     const historyBox = el('div', 'history-list');
@@ -1219,25 +1255,30 @@
     stack.append(paper, historyPaper);
     seatPaper.append(stack);
 
+    function paintSeatHistory() {
+      historyBox.replaceChildren(seatHistoryList(seatHistory.messages));
+      if (!seatHistory.exhausted && seatHistory.messages.length) {
+        const more = el('button', 'ghost record-more', t('people.historyMore'));
+        more.type = 'button';
+        more.addEventListener('click', async () => {
+          const last = seatHistory.messages[seatHistory.messages.length - 1];
+          try {
+            const next = await api(`/admin/api/people/${encodeURIComponent(id)}/messages?limit=50&beforeCreatedAt=${last.createdAt}&beforeChannelId=${encodeURIComponent(last.channelId)}&beforeId=${encodeURIComponent(last.id)}`);
+            seatHistory.messages.push(...(next.messages || []));
+            seatHistory.exhausted = Boolean(next.exhausted);
+            paintSeatHistory();
+          } catch (error) {
+            showToast(error.message, 'err');
+          }
+        });
+        historyBox.append(more);
+      }
+    }
+
     try {
       const page = await api(`/admin/api/people/${encodeURIComponent(id)}/messages?limit=50`);
-      seatHistory = page;
-      if (!page.messages.length) {
-        historyBox.append(el('p', 'hint', t('people.historyEmpty')));
-      } else {
-        for (const message of page.messages) historyBox.append(historyRow(message));
-        if (!page.exhausted && page.messages.length) {
-          const more = el('button', 'ghost', t('people.historyMore'));
-          more.type = 'button';
-          more.addEventListener('click', async () => {
-            const last = page.messages[page.messages.length - 1];
-            const next = await api(`/admin/api/people/${encodeURIComponent(id)}/messages?limit=50&beforeCreatedAt=${last.createdAt}&beforeChannelId=${encodeURIComponent(last.channelId)}&beforeId=${encodeURIComponent(last.id)}`);
-            more.remove();
-            for (const message of next.messages) historyBox.append(historyRow(message));
-          });
-          historyBox.append(more);
-        }
-      }
+      seatHistory = { messages: page.messages || [], exhausted: Boolean(page.exhausted) };
+      paintSeatHistory();
     } catch (error) {
       historyBox.append(el('p', 'hint', error.message));
     }

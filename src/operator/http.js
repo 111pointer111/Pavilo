@@ -12,7 +12,8 @@ const ADMIN_FILES = new Map([
   ['/admin/index.html', 'index.html'],
   ['/admin/admin.css', 'admin.css'],
   ['/admin/app.js', 'app.js'],
-  ['/admin/i18n.js', 'i18n.js']
+  ['/admin/i18n.js', 'i18n.js'],
+  ['/admin/list.js', 'list.js']
 ]);
 
 const MIME = {
