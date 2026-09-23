@@ -52,8 +52,18 @@
   const composerPicker = $('#composerPicker');
   const copyLinkButton = $('#copyLinkButton');
   const leaveButton = $('#leaveButton');
+  const embedMode = PaviloEmbed.isEmbedDocument(window.location.pathname);
+  let embedBridge = null;
 
   function storage() {
+    if (embedMode) {
+      const data = new Map();
+      return {
+        getItem(key) { return data.has(key) ? data.get(key) : null; },
+        setItem(key, value) { data.set(key, String(value)); },
+        removeItem(key) { data.delete(key); },
+      };
+    }
     try { return sessionStorage; } catch { return null; }
   }
 
@@ -166,12 +176,16 @@
 
   function applyStaticCopy() {
     document.documentElement.lang = t('html.lang');
-    document.title = t('brand.title');
+    if (!embedMode) document.title = t('brand.title');
     const picker = $('#composerPicker');
     if (picker) picker.setAttribute('locale', i18n.language === 'en' ? 'en' : 'zh');
     const guests = roomInfo?.identity?.guests !== false;
     for (const node of document.querySelectorAll('[data-i18n]')) {
       if (node.id === 'messageCount' || node.id === 'connectionText') continue;
+      if (node.id === 'loginCopy' && embedMode) {
+        node.textContent = t('login.embedCopy');
+        continue;
+      }
       if (node.id === 'loginCopy' && !guests) {
         node.textContent = t('login.hostRequired');
         continue;
@@ -256,6 +270,13 @@
   function setConnection(online, key, variant = 'default', vars) {
     lastConnection = { online, key, variant, vars };
     errorController.setConnectionStatus(online, t(key, vars), variant);
+    if (!embedMode || !embedBridge) return;
+    const status = online ? 'online'
+      : key === 'status.reconnecting' ? 'reconnecting'
+        : key === 'status.offline' ? 'offline'
+          : variant === 'connecting' ? 'connecting'
+            : 'offline';
+    embedBridge.post('connection', { status });
   }
 
   // Reveal the destination, move focus, then aria-hide the source. Chrome
@@ -275,7 +296,26 @@
     document.body.classList.add('chat-active');
   }
 
+  function showEmbedWaiting(message = '') {
+    loginForm.hidden = true;
+    copyLinkButton.hidden = true;
+    $('#notifyButton').hidden = true;
+    $('#loginTitle').dataset.i18nHtml = 'login.embedTitle';
+    $('#loginTitle').innerHTML = t('login.embedTitle');
+    $('#loginCopy').textContent = message || t('login.embedCopy');
+    loginScreen.hidden = false;
+    loginScreen.setAttribute('aria-hidden', 'false');
+    document.body.classList.remove('chat-active', 'sheet-open', 'viewer-open');
+    moveFocusFrom(appShell);
+    appShell.hidden = true;
+    appShell.setAttribute('aria-hidden', 'true');
+  }
+
   function showLogin(message = '', focus = true) {
+    if (embedMode) {
+      showEmbedWaiting(message);
+      return;
+    }
     loginScreen.hidden = false;
     loginScreen.setAttribute('aria-hidden', 'false');
     document.body.classList.remove('chat-active', 'sheet-open', 'viewer-open');
@@ -521,6 +561,16 @@
   }) });
 
   function identityForJoin() {
+    if (embedMode && embedBridge) {
+      const current = embedBridge.current();
+      const joined = {
+        username: current.username || '',
+        resumeToken: current.resumeToken || undefined,
+        channelId: PaviloEmbed.channelFromSearch(window.location.search) || current.channelId || selectedChannelId || roomInfo?.defaultChannelId,
+      };
+      if (current.identityToken) joined.identityToken = current.identityToken;
+      return joined;
+    }
     const state = store.getState();
     const current = state.self || identity || {};
     return {
@@ -662,8 +712,12 @@
   let notificationsController = PaviloNotifications.createNotifications({
     elements: controllerElements,
     getState: () => store.getState(),
-    onAction: (action) => store.dispatch(action),
+    onAction: (action) => {
+      if (embedMode && action?.type === 'unread') embedBridge?.post('unread', { count: action.count });
+      else store.dispatch(action);
+    },
     iconMarkup, escapeHtml, t,
+    embed: embedMode,
   });
   errorController = PaviloErrorStates.createErrorStates({
     elements: { connectionDot, connectionText, errorOverlay: controllerElements.errorOverlay },
@@ -771,6 +825,7 @@
       resumeToken = event.resumeToken;
       identity = { ...(identity || {}), resumeToken };
       connection.setSession({ token: resumeToken, username: event.self.username });
+      embedBridge?.setResumeToken(resumeToken);
     }
     if (state.channelId) selectedChannelId = state.channelId;
   }
@@ -787,6 +842,12 @@
   }
 
   function handleProtocolError(event, before) {
+    if (embedMode && !before.connection.joined) {
+      embedBridge?.post('error', { code: event.code });
+      connection.close({ intentional: true });
+      showEmbedWaiting(event.message || '');
+      return;
+    }
     if (event.code === 'PROTOCOL_NOT_SUPPORTED') {
       errorController.showErrorOverlay('PROTOCOL_NOT_SUPPORTED', {
         onAction: () => window.location.reload(),
@@ -863,6 +924,7 @@
     if (event.type === 'stateStart') {
       persistJoin(event, after);
       showChat();
+      if (embedMode) embedBridge?.post('ready', { channelId: event.channelId });
       return;
     }
     if (event.type === 'historyEnd') {
@@ -941,6 +1003,12 @@
       connection.clearChannelId();
       resumeToken = null;
       identity = null;
+      if (embedMode && event.reason === 'identity') {
+        embedBridge?.clear();
+        embedBridge?.post('identity-expired');
+        showEmbedWaiting(t('login.embedCopy'));
+        return;
+      }
       composerController.clearReply();
       composerController.clearAttachment();
       showLogin();
@@ -969,17 +1037,25 @@
   });
 
   function playPageUrl(channel) {
+    if (embedMode) return PaviloEmbed.playEmbedUrl(channel.play, channel.id);
     return `/plays/${channel.play}/?channel=${encodeURIComponent(channel.id)}`;
+  }
+
+  function leaveForNavigation() {
+    if (connection.getSocket()?.readyState === WebSocket.OPEN) connection.sendRaw({ type: 'leave' });
+    connection.close({ intentional: true });
   }
 
   function redirectIfPlayChannel(channelId) {
     const channel = channelById(channelId);
     if (!channel?.play) return false;
+    if (embedMode) leaveForNavigation();
     window.location.replace(playPageUrl(channel));
     return true;
   }
 
   function consumePlayNext() {
+    if (embedMode) return false;
     try {
       const next = sessionStorage.getItem('pavilo.next');
       if (next && next.startsWith('/plays/')) {
@@ -996,6 +1072,7 @@
     const state = store.getState();
     if (!channel || channel.id === state.channelId) { renderChannels(state); return; }
     if (channel.play) {
+      if (embedMode) leaveForNavigation();
       window.location.assign(playPageUrl(channel));
       return;
     }
@@ -1086,6 +1163,12 @@
     selectedChannelId = roomInfo?.defaultChannelId || null;
     composerText.value = '';
     store.dispatch({ type: 'connection/leave' });
+    if (embedMode) {
+      embedBridge?.clear();
+      embedBridge?.post('left');
+      showEmbedWaiting('');
+      return;
+    }
     showLogin('');
     usernameInput.value = '';
   }
@@ -1144,7 +1227,13 @@
     connection.handleOffline();
     errorController.handleError('OFFLINE', { statusText: t('status.offline'), showToast: false });
   });
-  window.addEventListener('pagehide', () => composerController.stopTyping());
+  window.addEventListener('pagehide', () => {
+    composerController.stopTyping();
+    if (embedMode) connection.close({ intentional: true });
+  });
+  window.addEventListener('pageshow', (event) => {
+    if (embedMode && event.persisted) embedBridge?.hello();
+  });
   languageButton?.addEventListener('click', () => {
     i18n.setLanguage(i18n.language === 'en' ? 'zh-CN' : 'en');
   });
@@ -1191,6 +1280,41 @@
     notificationsController?.refreshCopy?.();
   });
   applyStaticCopy();
+  if (embedMode) {
+    embedBridge = PaviloEmbed.createEmbedBridge({
+      window,
+      parent: window.parent,
+      ancestors: PaviloEmbed.ancestorsFrom(window),
+    });
+    embedBridge.subscribe((event) => {
+      if (event.type !== 'identity') return;
+      const next = event.identity;
+      if (!next.username && !next.identityToken) return;
+      const previousToken = identity?.identityToken || '';
+      if (previousToken && previousToken !== (next.identityToken || '')) {
+        resumeToken = null;
+        connection.clearSession();
+        connection.close({ intentional: true });
+      }
+      identity = {
+        username: next.username,
+        channelId: PaviloEmbed.channelFromSearch(window.location.search) || next.channelId,
+        identityToken: next.identityToken,
+        resumeToken: previousToken && previousToken === next.identityToken ? (resumeToken || '') : '',
+      };
+      if (identity.resumeToken) embedBridge.setResumeToken(identity.resumeToken);
+      selectedChannelId = identity.channelId || selectedChannelId;
+      usernameInput.value = identity.username;
+      loadRoomInfo().then((info) => {
+        if (!info) return;
+        connection.connect(identity);
+      });
+    });
+    window.addEventListener('message', (event) => embedBridge.handleMessage(event));
+    showEmbedWaiting('');
+    finishResume();
+    embedBridge.hello();
+  } else {
   const savedResume = connection.readSession();
   if (savedResume) {
     resumeWatchdog = window.setTimeout(() => {
@@ -1212,6 +1336,7 @@
     usernameInput.focus();
     finishResume();
     loadRoomInfo();
+  }
   }
 
   // The composition root imports these alongside the parser so ownership of the

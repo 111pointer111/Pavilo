@@ -60,15 +60,43 @@ async function encodedBodyFor(request, etag, type, data) {
 }
 
 
-const CHAT_CLIENT_FILES = new Set(['protocol', 'state', 'performance', 'connection', 'pending', 'images', 'messages', 'overlays', 'mentions', 'composer', 'notifications', 'error-states', 'i18n', 'app'].map((name) => `/client/${name}.js`));
-const PLAY_CLIENT_FILES = new Set(['/client/play.js']);
+const CHAT_CLIENT_FILES = new Set(['protocol', 'state', 'performance', 'connection', 'pending', 'images', 'messages', 'overlays', 'mentions', 'composer', 'notifications', 'error-states', 'i18n', 'embed', 'app'].map((name) => `/client/${name}.js`));
+const PLAY_CLIENT_FILES = new Set(['/client/play.js', '/client/embed.js']);
 const CLIENT_FILES = new Set([...CHAT_CLIENT_FILES, ...PLAY_CLIENT_FILES]);
+const APP_CSP = "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:;";
+
 function localAddresses() {
   const addresses = [];
   for (const entries of Object.values(os.networkInterfaces())) for (const entry of entries || []) if (entry.family === 'IPv4' && !entry.internal) addresses.push(entry.address);
   return [...new Set(addresses)];
 }
 function createHttpHandler(config, core, address, ROOT, extras = {}) {
+  function embedAncestorList() {
+    return Array.isArray(config.embedAncestors) ? config.embedAncestors : [];
+  }
+
+  function frameHeaders(embeddable) {
+    const headers = {
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+    };
+    if (!embeddable) headers['X-Frame-Options'] = 'DENY';
+    return headers;
+  }
+
+  function contentSecurityPolicy(embeddable) {
+    const ancestors = embedAncestorList();
+    if (!embeddable || !ancestors.length) return APP_CSP;
+    return `${APP_CSP} frame-ancestors ${ancestors.join(' ')};`;
+  }
+
+  function embedBoot(html) {
+    const ancestors = embedAncestorList();
+    if (!ancestors.length || !html.includes('</head>')) return html;
+    const script = `<script>window.__PAVILO_EMBED__=${JSON.stringify({ ancestors })};</script>`;
+    return html.replace('</head>', `${script}</head>`);
+  }
+
   async function serveVendorFile(request, response, pathname, headOnly = false) {
     const relative = pathname.slice('/vendor/'.length);
     if (relative.startsWith('/') || relative.includes('..') || relative.includes('\0')) {
@@ -157,15 +185,45 @@ function createHttpHandler(config, core, address, ROOT, extras = {}) {
         'Cache-Control': 'no-cache',
         ETag: etag,
         Vary: 'Accept-Encoding',
-        'X-Content-Type-Options': 'nosniff',
-        'X-Frame-Options': 'DENY',
-        'Referrer-Policy': 'strict-origin-when-cross-origin',
-        'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:;"
+        ...frameHeaders(false),
+        'Content-Security-Policy': contentSecurityPolicy(false),
       };
       if (encoded.encoding) headers['Content-Encoding'] = encoded.encoding;
       response.writeHead(200, headers);
       response.end(headOnly ? undefined : encoded.body);
     });
+  }
+
+  async function serveEmbedDocument(request, response, headOnly = false) {
+    if (!embedAncestorList().length) {
+      response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+      response.end(headOnly ? undefined : 'Not found');
+      return;
+    }
+    let raw;
+    try {
+      raw = await fs.promises.readFile(path.join(ROOT, 'index.html'));
+    } catch {
+      response.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+      response.end(headOnly ? undefined : 'index.html is missing');
+      return;
+    }
+    const data = Buffer.from(embedBoot(raw.toString('utf8')));
+    const type = 'text/html; charset=utf-8';
+    const etag = `"embed-${data.length.toString(16)}-${crypto.createHash('sha1').update(data).digest('hex').slice(0, 16)}"`;
+    const encoded = await encodedBodyFor(request, etag, type, data);
+    const headers = {
+      'Content-Type': type,
+      'Content-Length': encoded.contentLength,
+      'Cache-Control': 'no-cache',
+      ETag: etag,
+      Vary: 'Accept-Encoding',
+      ...frameHeaders(true),
+      'Content-Security-Policy': contentSecurityPolicy(true),
+    };
+    if (encoded.encoding) headers['Content-Encoding'] = encoded.encoding;
+    response.writeHead(200, headers);
+    response.end(headOnly ? undefined : encoded.body);
   }
 
   function jsonResponse(response, status, payload, headOnly = false) {
@@ -207,6 +265,10 @@ function createHttpHandler(config, core, address, ROOT, extras = {}) {
     }
     if ((request.method === 'GET' || isHead) && (requestUrl.pathname === '/' || requestUrl.pathname === '/index.html' || requestUrl.pathname === '/chat')) {
       serveAppFile(request, response, 'index.html', isHead);
+      return;
+    }
+    if ((request.method === 'GET' || isHead) && (requestUrl.pathname === '/embed' || requestUrl.pathname === '/embed/')) {
+      serveEmbedDocument(request, response, isHead);
       return;
     }
     if ((request.method === 'GET' || isHead) && requestUrl.pathname === '/chat.css') {
@@ -272,7 +334,10 @@ function createHttpHandler(config, core, address, ROOT, extras = {}) {
       if (!areaReal.startsWith(`${playRoot}${path.sep}`) && areaReal !== playRoot) throw new Error('Not public');
       const target = await fs.promises.realpath(path.join(areaRoot, filename));
       if (!target.startsWith(`${areaReal}${path.sep}`) && target !== areaReal) throw new Error('Not public');
-      const data = await fs.promises.readFile(target);
+      const embeddable = embedAncestorList().length > 0;
+      let bytes = await fs.promises.readFile(target);
+      if (embeddable && extension === '.html') bytes = Buffer.from(embedBoot(bytes.toString('utf8')));
+      const data = bytes;
       const type = MIME_TYPES[extension] || 'application/octet-stream';
       const etag = `"play-${data.length.toString(16)}-${crypto.createHash('sha1').update(data).digest('hex').slice(0, 16)}"`;
       const encoded = await encodedBodyFor(request, etag, type, data);
@@ -282,10 +347,8 @@ function createHttpHandler(config, core, address, ROOT, extras = {}) {
         'Cache-Control': 'no-cache',
         ETag: etag,
         Vary: 'Accept-Encoding',
-        'X-Content-Type-Options': 'nosniff',
-        'X-Frame-Options': 'DENY',
-        'Referrer-Policy': 'strict-origin-when-cross-origin',
-        'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:;"
+        ...frameHeaders(embeddable),
+        'Content-Security-Policy': contentSecurityPolicy(embeddable),
       };
       if (encoded.encoding) headers['Content-Encoding'] = encoded.encoding;
       response.writeHead(200, headers);

@@ -22,6 +22,7 @@ function createChatServer(options = {}) {
   config.plays = [...(options.plays || DEFAULTS.plays || [])];
   config.ipDenyList = [...(options.ipDenyList || DEFAULTS.ipDenyList || [])];
   config.userDenyList = [...(options.userDenyList || DEFAULTS.userDenyList || [])];
+  config.embedAncestors = [...(options.embedAncestors || DEFAULTS.embedAncestors || [])];
   config.operator.enabled = operatorConsoleEnabled(config);
   const sqliteEngine = config.storage?.driver === 'sqlite' && config.storage.sqlite?.path
     ? openSqliteEngine(config.storage.sqlite)
@@ -129,6 +130,9 @@ if (require.main === module) {
       process.stdout.write(`✓ Storage mode: sqlite (engine=${storage.engine}, path=${storage.path}, retentionDays=${retention})\n`);
     } else {
       process.stdout.write(`✓ Storage mode: memory\n`);
+    }
+    if (config.embedAncestors?.length) {
+      process.stdout.write(`✓ Embed: /embed for ${config.embedAncestors.join(', ')}\n`);
     }
     const operatorNotice = sqliteOperatorNotice(config);
     if (operatorNotice) {

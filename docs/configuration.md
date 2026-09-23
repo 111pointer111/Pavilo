@@ -1,6 +1,6 @@
 # 配置指南
 
-> 本文对应当前稳定版 v1.5.0 配置。`identity` / `channels[].features` / `channels[].access` 已随 v1.4 发布；`moderation.userDenyList` 已随 v1.5 发布。默认省略则与上一版行为一致。嵌入字段见 [集成设计（规划中）](integration.md)，不要提前写入。
+> 本文对应当前稳定版 v1.6.0 配置。`identity` / `channels[].features` / `channels[].access` 已随 v1.4 发布；`moderation.userDenyList` 已随 v1.5 发布；`embed.ancestors` 已随 v1.6 发布。省略 `embed` 则与 v1.5 一样不能被嵌。接入 SDK 仍见 [集成设计（规划中）](integration.md)，不要提前写入。
 
 本文档逐项说明 Pavilo 的全部配置项。
 
@@ -336,7 +336,22 @@ server:
 - **类型**：字符串数组
 - **说明**：允许的跨域 Origin 列表（不含路径）。同源请求始终允许，无需配置
 - **用途**：反向代理场景列出外部域名
-- **重要**：这只校验 WebSocket 的浏览器 Origin，**不是用户认证或访问控制**
+- **重要**：这只校验 WebSocket 的浏览器 Origin，**不是用户认证或访问控制**，也不是谁可以把页面嵌进 iframe
+
+#### `embed.ancestors`
+
+```yaml
+embed:
+  ancestors:
+    - http://127.0.0.1:4174
+    - http://localhost:4174
+```
+
+- **默认值**：省略或空数组。此时没有 `/embed`，所有页面仍带 `X-Frame-Options: DENY`
+- **类型**：字符串数组，最多 16 个。每项是不含路径的 `http://` 或 `https://` 源。拒绝通配
+- **版本**：Schema v1 和 v2 都可以写。不要求 SQLite
+- **说明**：这些源可以用 iframe 打开 `/embed` 和已启用玩法的页面。`/` 和 `/admin` 仍然拒绝被嵌。这张名单不代替 `server.allowedOrigins`：嵌入页自己连接 WebSocket，Origin 是 Pavilo
+- **状态**：已随 v1.6.0 发布。消息桥字段见 [v1.6 设计](v1.6-design.md) 与 [examples/host-embed/](../examples/host-embed/)
 
 ---
 

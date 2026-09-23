@@ -21,7 +21,7 @@
     return Math.max(2400, Math.min(6000, 1500 + message.length * 95));
   }
 
-  function createNotifications({ elements, getState, onAction, iconMarkup, escapeHtml, t = (key) => key }) {
+  function createNotifications({ elements, getState, onAction, iconMarkup, escapeHtml, t = (key) => key, embed = false }) {
     const { toastRegion, messageScroll, newMessageJump, newMessageCount,
       notifyButton, appFavicon } = elements;
     const document = toastRegion.ownerDocument;
@@ -250,6 +250,10 @@
       const badge = count > 99 ? '99+' : String(count);
       newMessageJump.hidden = count === 0;
       newMessageCount.textContent = badge;
+      if (embed) {
+        onAction?.({ type: 'unread', count });
+        return;
+      }
       document.title = count ? t('brand.titleUnread', { badge }) : t('brand.title');
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="18" fill="#dceee9"/><g transform="scale(.25)"><path fill="#0f7772" d="M127 46C119 47 113 61 105 69C87 87 66 99 37 108C30 110 32 119 40 124L51 129V199C51 205 56 210 63 210H84L98 189C87 186 81 180 81 171V142C81 133 86 129 95 122C111 111 122 101 129 89C137 103 147 113 161 122C171 129 175 135 175 143V171C175 183 168 190 156 192H116C108 194 102 201 96 207C92 210 94 210 101 210H193C200 210 205 205 205 198V129L217 123C225 119 225 110 219 108C187 98 166 84 152 70L134 48C132 45 130 45 127 46Z"/>${count ? `<circle cx="200" cy="56" r="48" fill="#e86f57"/><text x="200" y="72" text-anchor="middle" font-size="40" font-family="sans-serif" font-weight="700" fill="white">${badge}</text>` : '<circle cx="196.7" cy="71.7" r="15.1" fill="#e86f57"/>'}</g></svg>`;
       appFavicon.href = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
@@ -282,6 +286,7 @@
       if (message.author?.id === state.self?.id || canMarkRead()) return;
       const mentioned = message.mentions?.some((mention) => mention.id === state.self?.id);
       if (mentioned) createToast(t('notify.mention', { name: message.author.username }), { title: t('notify.mentionTitle') });
+      if (embed) return;
       const Notification = window.Notification;
       if (typeof Notification !== 'function' || Notification.permission !== 'granted'
         || !document.hidden && document.hasFocus()) return;

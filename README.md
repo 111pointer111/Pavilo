@@ -11,13 +11,13 @@
 Pavilo（**Pavilion + Local**）是浏览器即用、默认临时、可自托管、可按需组装的轻量聊天工具，也在向方便接入已有产品的聊天与玩法能力演进。像一座随处可搭的小亭：启动 Node.js 进程，同一局域网里的人打开网页就能交谈；默认内存模式下，服务停止后聊天记录回到空白。
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.5.0-0f7772">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.6.0-0f7772">
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-0f7772">
   <img alt="Node.js" src="https://img.shields.io/badge/node-%3E%3D22-0f7772">
   <img alt="Protocol v4" src="https://img.shields.io/badge/protocol-v4-0f7772">
 </p>
 
-当前版本 **v1.5.0**：默认仍是无数据库的临时群聊；可用 Config Schema v2 可选启用 SQLite（默认留存 30 天，支持历史分页与备份）。sqlite 下可打开 `/admin` 值班台、可选 AI 网关与 Play 宿主，并可按频道开关功能、接入宿主 JWT 身份。有值班台时可以举报、墓碑移除内容，并拒绝稳定用户。界面提供简体中文与英语，WebSocket 协议只接受 v4。适合可信局域网、私有网络或 VPN 环境。
+当前版本 **v1.6.0**：默认仍是无数据库的临时群聊；可用 Config Schema v2 可选启用 SQLite（默认留存 30 天，支持历史分页与备份）。sqlite 下可打开 `/admin` 值班台、可选 AI 网关与 Play 宿主，并可按频道开关功能、接入宿主 JWT 身份。有值班台时可以举报、墓碑移除内容，并拒绝稳定用户。配了 `embed.ancestors` 后，宿主可以用 iframe 打开 `/embed`。界面提供简体中文与英语，WebSocket 协议只接受 v4。适合可信局域网、私有网络或 VPN 环境。
 
 <p align="center">
   <img src="docs/screenshots/overview.png" width="880" alt="Pavilo 界面预览：桌面聊天、登录页与移动端">
@@ -26,7 +26,7 @@ Pavilo（**Pavilion + Local**）是浏览器即用、默认临时、可自托管
 ## 面向谁，以及正在走向哪里
 
 - **独立使用者**：给局域网、活动或私有团队一间浏览器即用的聊天室，默认不持久化，也可显式开启 SQLite。
-- **个人开发者与小型社区维护者**：未来复用宿主登录，将现成聊天界面接入产品，按需开启聊天功能、治理与玩法。
+- **个人开发者与小型社区维护者**：复用宿主登录，把 `/embed` 嵌进已有页面；正式接入 SDK 仍在后面。
 - **玩法和扩展贡献者**：按照主线提供的契约开发 Play、Agent、审核策略与事件扩展；官方维护基础设施和完整参考玩法。
 
 | 状态 | 能力 |
@@ -34,10 +34,11 @@ Pavilo（**Pavilion + Local**）是浏览器即用、默认临时、可自托管
 | 已发布：v1.2.0 | 临时聊天、可选 SQLite 留存与分页/备份等运维能力 |
 | 已发布：v1.3.0 | AI 网关、管理后台、房间/频道配置、席位禁言/请离/IP 黑名单、Play/Agent 宿主和 echo 夹具 |
 | 已发布：v1.4.0 | 功能目录、宿主 JWT 身份与频道授权 |
-| 已发布：v1.5.0（最新稳定版） | 治理闭环：举报、墓碑移除、稳定用户拒绝、操作记录 |
-| 计划中，v2.0 目标 | 嵌入页面及接入 SDK、提交前文本规则、官方狼人杀 |
+| 已发布：v1.5.0 | 治理闭环：举报、墓碑移除、稳定用户拒绝、操作记录 |
+| 已发布：v1.6.0（最新稳定版） | 嵌入预览：宿主 iframe 打开 `/embed`，玩法留在嵌入区域。不是正式 SDK |
+| 计划中，v2.0 目标 | 接入 SDK、提交前文本规则、官方狼人杀 |
 
-**当前还没有可直接使用的嵌入 SDK。** v1.4 提供 `join.identityToken` 宿主身份端口。v1.5 在有值班台时提供举报、墓碑移除和稳定用户拒绝。v2.0 以独立服务＋现成界面＋接入 SDK 为主要交付形态。
+**当前还没有可直接使用的嵌入 SDK。** v1.6 提供的是可选 iframe 预览，见 [examples/host-embed/](examples/host-embed/)。v2.0 以独立服务＋现成界面＋接入 SDK 为主要交付形态。
 
 默认临时模式始终保留；狼人杀作为官方完整 Play 示例，与基础设施并行开发，并在 v2.0 前完成。阶段与暂缓范围见 [路线图](ROADMAP.md)，接口边界见 [集成设计（规划中）](docs/integration.md)。本文配置和能力说明以当前稳定版为准。
 

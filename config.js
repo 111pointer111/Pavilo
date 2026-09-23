@@ -76,6 +76,7 @@ const DEFAULTS = deepFreeze({
   ipDenyList: [],
   userDenyList: [],
   identity: { guests: true, audience: 'pavilo', clockSkewSec: 60, issuers: [] },
+  embedAncestors: [],
   channels: [{
     id: 'general',
     name: '闲聊',
@@ -99,13 +100,15 @@ const DEFAULTS = deepFreeze({
   }]
 });
 
-const ROOT_KEYS_V1 = new Set(['version', 'server', 'room', 'channels', 'limits', 'timeouts', 'rateLimits', 'identity', 'moderation']);
+const ROOT_KEYS_V1 = new Set(['version', 'server', 'room', 'channels', 'limits', 'timeouts', 'rateLimits', 'identity', 'moderation', 'embed']);
 const ROOT_KEYS_V2 = new Set([...ROOT_KEYS_V1, 'storage', 'operator', 'plays']);
 const IDENTITY_KEYS = new Set(['guests', 'audience', 'clockSkewSec', 'issuers']);
 const ISSUER_KEYS = new Set(['id', 'alg', 'secret']);
 const ACCESS_MODES = new Set(['open', 'authenticated']);
 const MODERATION_KEYS = new Set(['ipDenyList', 'userDenyList']);
 const MODERATION_KEYS_V1 = new Set(['userDenyList']);
+const EMBED_KEYS = new Set(['ancestors']);
+const MAX_EMBED_ANCESTORS = 16;
 const MAX_USER_DENY_LIST = 64;
 const USER_KEY_RE = /^[A-Za-z0-9._:-]{1,128}$/;
 const STORAGE_KEYS = new Set(['driver', 'sqlite']);
@@ -251,6 +254,20 @@ function parseIdentitySecret(value, field) {
     fail(field, `长度必须是 ${MIN_IDENTITY_SECRET_LENGTH}–${MAX_IDENTITY_SECRET_LENGTH} 个字符`);
   }
   return secret;
+}
+
+function parseEmbed(value) {
+  if (value === undefined) return [];
+  const embed = record(value, 'embed');
+  knownKeys(embed, EMBED_KEYS, 'embed');
+  if (embed.ancestors === undefined) return [];
+  if (!Array.isArray(embed.ancestors)) fail('embed.ancestors', '必须是 URL 数组');
+  if (embed.ancestors.length > MAX_EMBED_ANCESTORS) fail('embed.ancestors', `最多 ${MAX_EMBED_ANCESTORS} 个来源`);
+  const origins = parseOrigins(embed.ancestors, 'embed.ancestors');
+  for (const origin of origins) {
+    if (origin.includes('*')) fail('embed.ancestors', '不能使用通配');
+  }
+  return origins;
 }
 
 function parseIdentity(value) {
@@ -771,6 +788,7 @@ function normalizeConfig(document = {}, { requireVersion = false, baseDir = ROOT
   }
   validateDefaultChannel(config);
   config.identity = parseIdentity(root.identity);
+  config.embedAncestors = parseEmbed(root.embed);
   config.storage = schemaVersion >= 2 ? parseStorage(root.storage, baseDir) : { driver: 'memory' };
   if (schemaVersion >= 2) config.operator = parseOperator(root.operator);
   if (root.operator !== undefined) config._operatorDeclared = true;

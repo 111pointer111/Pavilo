@@ -423,7 +423,7 @@ docker compose up -d
 
 ```bash
 docker pull ghcr.io/caigg188/pavilo:latest
-# 或钉死版本：ghcr.io/caigg188/pavilo:1.5.0
+# 或钉死版本：ghcr.io/caigg188/pavilo:1.6.0
 
 # 停止旧容器
 docker stop pavilo

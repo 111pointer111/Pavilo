@@ -1,8 +1,8 @@
 # 产品集成设计（规划中）
 
-> 状态：嵌入与 SDK 仍是规划，不是当前教程。治理闭环已随 v1.5.0 发布，字段以 [ADR-0011](adr/0011-governance-loop.md) 为准，不要从本文抄未来的嵌入配置。
+> 状态：嵌入预览已随 v1.6.0 发布，用法见 [v1.6 设计](v1.6-design.md) 与 [examples/host-embed/](../examples/host-embed/)。SDK 仍是规划，不要把本文后面的 SDK 表当成可调用接口。治理闭环已随 v1.5.0 发布，字段以 [ADR-0011](adr/0011-governance-loop.md) 为准。
 
-当前最新稳定版为 v1.5.0。还没有嵌入入口或公开接入 SDK。现有聊天/玩法响应包含 `X-Frame-Options: DENY`，客户端进玩法仍是整页跳转。仅删除响应头不能完成本设计。阶段见 [路线图](../ROADMAP.md)，决策见 [ADR-0008](adr/0008-embeddable-composable-chat.md)。
+当前最新稳定版为 v1.6.0。还没有公开接入 SDK。未配置 `embed.ancestors` 时，聊天页、玩法页和后台仍是 `X-Frame-Options: DENY`。配了来源之后，只有 `/embed` 和已启用玩法页可以被那些源嵌进 iframe；独立页进玩法仍是整页跳转。阶段见 [路线图](../ROADMAP.md)，决策见 [ADR-0008](adr/0008-embeddable-composable-chat.md)。
 
 ## 交付形态与接入流程
 

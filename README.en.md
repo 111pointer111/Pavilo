@@ -11,13 +11,13 @@
 Pavilo (**Pavilion + Local**) is a lightweight, self-hosted chat tool that runs in the browser, is ephemeral by default, and is evolving toward composable chat and play capabilities that developers can embed in their products. Like a small pavilion you can put up anywhere: start a Node.js process, and anyone on the same local network can open a web page and talk. In the default memory mode, chat history disappears when the service stops.
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.5.0-0f7772">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.6.0-0f7772">
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-0f7772">
   <img alt="Node.js" src="https://img.shields.io/badge/node-%3E%3D22-0f7772">
   <img alt="Protocol v4" src="https://img.shields.io/badge/protocol-v4-0f7772">
 </p>
 
-Current version: **v1.5.0** — ephemeral group chat by default; optional SQLite via Config Schema v2 (30-day retention, history paging, backup). With sqlite you can open `/admin`, an optional AI gateway, and the Play host, plus per-channel feature flags and host JWT identity. With the operator console, people can report messages, operators can tombstone them, and stable users can be denied. Simplified Chinese and English UI, WebSocket Protocol v4 only. Built for trusted LANs, private networks, and VPNs.
+Current version: **v1.6.0** — ephemeral group chat by default; optional SQLite via Config Schema v2 (30-day retention, history paging, backup). With sqlite you can open `/admin`, an optional AI gateway, and the Play host, plus per-channel feature flags and host JWT identity. With the operator console, people can report messages, operators can tombstone them, and stable users can be denied. With `embed.ancestors` set, a host page can iframe `/embed`. Simplified Chinese and English UI, WebSocket Protocol v4 only. Built for trusted LANs, private networks, and VPNs.
 
 <p align="center">
   <img src="docs/screenshots/overview.png" width="880" alt="Pavilo preview: desktop chat, login, and mobile">
@@ -26,7 +26,7 @@ Current version: **v1.5.0** — ephemeral group chat by default; optional SQLite
 ## Who it serves and where it is going
 
 - **Standalone users**: a browser-ready chat room for a LAN, event, or private team, with no persistence by default and optional SQLite retention.
-- **Independent developers and small community maintainers**: planned integration with existing sign-in, a ready-made chat UI, and optional chat features, governance, and plays.
+- **Independent developers and small community maintainers**: reuse your own sign-in and iframe `/embed` into an existing page. A stable integration SDK is still ahead.
 - **Play and extension contributors**: contracts for Play, Agent, moderation policies, and event extensions; maintainers provide infrastructure and a complete reference play.
 
 | Status | Capabilities |
@@ -34,10 +34,11 @@ Current version: **v1.5.0** — ephemeral group chat by default; optional SQLite
 | Released: v1.2.0 | Ephemeral chat, optional SQLite retention, paging, backup, and storage operations |
 | Released: v1.3.0 | AI gateway, admin console, room/channel configuration, seat mute/kick and IP denylist, Play/Agent host, and echo fixture |
 | Released: v1.4.0 | Feature catalog, host JWT identity, and channel authorization |
-| Released: v1.5.0 (latest stable) | Governance loop: reports, tombstone removal, stable-user denylist, operator action log |
-| Planned for v2.0 | Embedded page and integration SDK, pre-commit text rules, and official Werewolf |
+| Released: v1.5.0 | Governance loop: reports, tombstone removal, stable-user denylist, operator action log |
+| Released: v1.6.0 (latest stable) | Embed preview: a host page iframes `/embed`, and play stays in that frame. Not a stable SDK |
+| Planned for v2.0 | Integration SDK, pre-commit text rules, and official Werewolf |
 
-**An embedding SDK is not available yet.** v1.4 adds a `join.identityToken` host-identity port. v1.5 adds reports, tombstone removal, and a stable-user denylist when the operator console is on. The v2.0 target is a standalone service plus a ready-made UI and integration SDK.
+**An embedding SDK is not available yet.** v1.6 ships an optional iframe preview; see [examples/host-embed/](examples/host-embed/). The v2.0 target is a standalone service plus a ready-made UI and integration SDK.
 
 The default ephemeral mode remains a first-class mode. Official Werewolf is planned as a complete Play reference, developed alongside the infrastructure and required before v2.0. See the [roadmap](ROADMAP.md) and [integration design (planned)](docs/integration.md) for milestones and boundaries. Configuration and capabilities below describe the current stable release.
 

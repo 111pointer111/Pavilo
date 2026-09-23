@@ -22,11 +22,20 @@
     const location = options.location || globalThis.location;
     const storage = options.storage === undefined ? globalThis.sessionStorage : options.storage;
     const fetchImpl = options.fetch || globalThis.fetch;
+    const EmbedApi = globalThis.PaviloEmbed;
+    const embedded = EmbedApi?.isEmbedPlay?.(location?.search || '') || false;
+    const memory = new Map();
+    const embedStorage = {
+      getItem(key) { return memory.has(key) ? memory.get(key) : null; },
+      setItem(key, value) { memory.set(key, String(value)); },
+      removeItem(key) { memory.delete(key); },
+    };
     const connection = Connection.createConnection({
       WebSocket: options.WebSocket,
       location,
-      storage,
-      timers: options.timers
+      storage: embedded ? embedStorage : storage,
+      timers: options.timers,
+      getIdentity: () => identity || {},
     });
     const listeners = new Set();
     let channels = [];
@@ -84,7 +93,16 @@
     function switchToChannel(channel) {
       if (!channel || !channel.enabled) return false;
       if (channel.play) {
-        location.assign(playPageUrl(channel.play, channel.id));
+        if (embedded) connection.close({ intentional: true });
+        location.assign(embedded ? EmbedApi.playEmbedUrl(channel.play, channel.id) : playPageUrl(channel.play, channel.id));
+        return true;
+      }
+      if (embedded) {
+        if (connection.getSocket()?.readyState === (options.WebSocket || globalThis.WebSocket)?.OPEN) {
+          connection.sendRaw({ type: 'leave' });
+        }
+        connection.close({ intentional: true });
+        location.assign(EmbedApi.embedReturnUrl(channel.id));
         return true;
       }
       connection.writeChannelId(channel.id);
@@ -127,9 +145,55 @@
       return info;
     }
 
+    function bindPayloads() {
+      connection.subscribe((event) => {
+        if (event.type === 'payload') handlePayload(event.payload);
+        else emit(event);
+      });
+    }
+
+    async function startEmbedded() {
+      const Embed = EmbedApi;
+      if (!Embed) return { redirected: false, embedded: true };
+      desiredChannelId = channelIdFromStart || Embed.channelFromSearch(location.search || '');
+      const bridge = Embed.createEmbedBridge({
+        window: globalThis,
+        parent: globalThis.parent,
+        ancestors: Embed.ancestorsFrom(globalThis),
+        location,
+      });
+      globalThis.addEventListener?.('message', (event) => bridge.handleMessage(event));
+      globalThis.addEventListener?.('pagehide', () => connection.close({ intentional: true }));
+      globalThis.addEventListener?.('pageshow', (event) => {
+        if (event.persisted) bridge.hello();
+      });
+      bridge.subscribe(async (event) => {
+        if (event.type !== 'identity') return;
+        const next = event.identity;
+        if (!next.username && !next.identityToken) return;
+        identity = {
+          username: next.username,
+          channelId: desiredChannelId || next.channelId,
+          identityToken: next.identityToken || undefined,
+          resumeToken: next.resumeToken || undefined,
+        };
+        if (!roomInfo) {
+          try { await loadRoomInfo(); } catch { return; }
+          bindPayloads();
+        }
+        connection.connect(identity);
+      });
+      bridge.hello();
+      return { redirected: false, embedded: true, bridge };
+    }
+
+    let channelIdFromStart = '';
+
     async function start({ channelId } = {}) {
       if (started) return;
       started = true;
+      channelIdFromStart = channelId || '';
+      if (embedded) return startEmbedded();
       desiredChannelId = channelId || new URLSearchParams(location.search || '').get('channel') || connection.readChannelId();
       const saved = connection.readSession();
       if (!saved) {
@@ -146,10 +210,7 @@
         resumeToken: saved.token,
         channelId: connection.readChannelId() || desiredChannelId || roomInfo.defaultChannelId
       };
-      connection.subscribe((event) => {
-        if (event.type === 'payload') handlePayload(event.payload);
-        else emit(event);
-      });
+      bindPayloads();
       connection.connect(identity);
       return { redirected: false, roomInfo, channels };
     }
@@ -167,7 +228,16 @@
       get channels() { return channels; },
       get roomInfo() { return roomInfo; },
       get identity() { return identity; },
-      currentChannel
+      currentChannel,
+      embedReturnUrl: () => {
+        if (!embedded) return '/';
+        const current = channels.find((item) => item.id === desiredChannelId);
+        const channelId = current?.play
+          ? (roomInfo?.defaultChannelId || '')
+          : (desiredChannelId || roomInfo?.defaultChannelId || '');
+        return EmbedApi.embedReturnUrl(channelId);
+      },
+      embedded: () => embedded,
     };
   }
 

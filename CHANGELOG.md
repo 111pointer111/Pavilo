@@ -6,6 +6,19 @@ Pavilo 的重要变更都记在这份文件里。
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-09-23
+
+嵌入预览。不写 `embed.ancestors` 时没有 `/embed`，页面仍拒绝被嵌，行为与 v1.5.0 相同。Protocol v4 不升号。不是 npm SDK，也不是原生或小程序插件。官方狼人杀尚未实现。
+
+### Added
+- `embed.ancestors`：只对这些源放开 `/embed` 和已启用玩法页的 `frame-ancestors`。省略时 `/embed` 为 404，`/` 与 `/admin` 仍是 `X-Frame-Options: DENY`。[v1.6 设计](docs/v1.6-design.md)
+- 宿主模式：`/embed` 不读 `sessionStorage`，凭证经 `postMessage` 进入，不放进 URL。玩法往返停在同一个 iframe，离开玩法回到 `/embed`
+- [`examples/host-embed/`](examples/host-embed/)：宿主页面只嵌 iframe，不自己开 WebSocket
+- 浏览器验收改为阻塞发布。Node 24/26 仍允许失败
+
+### Tests
+- 2026-09-23 发布验证（本机 Node v26.5.0）：`npm test` 426 个，425 通过、1 跳过（`SYNC_IN_PROGRESS` 集成窗口）；`npm run test:browser` 20 通过；`npm audit --audit-level=high` 无漏洞。未在本机跑 Node 22/24。浏览器检查从本版起挡住发布。源码镜像未配置嵌入时 `/healthz` 为 200、`/embed` 为 404、`/` 为 `X-Frame-Options: DENY`，镜像内含玩法页面。GHCR 由标签工作流构建，发布前未拉取远端镜像
+
 ## [1.5.0] - 2026-09-23
 
 治理闭环。默认 memory 仍无值班台、无举报库。不写 `userDenyList` 时，行为与 v1.4.0 相同。Protocol v4 不升号。不做嵌入，也不做提交前审核。官方狼人杀尚未实现。
@@ -442,6 +455,7 @@ SQLite 运维：历史分页、备份/恢复、完整性检查与 healthz 库存
 
 ## 版本摘要
 
+- **v1.6.0** — 嵌入预览：宿主 iframe、`/embed`、玩法留在嵌入区域
 - **v1.5.0** — 举报、墓碑移除、稳定用户拒绝、操作记录
 - **v1.4.0** — 功能目录与宿主 JWT 身份
 - **v1.3.0** — 可选网关、值班台、人员治理与 Play 宿主

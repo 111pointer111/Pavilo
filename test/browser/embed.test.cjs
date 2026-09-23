@@ -1,0 +1,194 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const { test } = require('node:test');
+const { spawn } = require('node:child_process');
+const http = require('node:http');
+const { mkdtemp, writeFile, rm } = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
+
+const ROOT = path.resolve(__dirname, '../..');
+
+function loadPlaywright() {
+  try {
+    return require(process.env.PAVILO_PLAYWRIGHT_PATH || 'playwright');
+  } catch (cause) {
+    throw new Error('Browser tests need Playwright and Google Chrome. Set PAVILO_PLAYWRIGHT_PATH to an installed playwright package.', { cause });
+  }
+}
+
+const SERVER_BOOT = `
+  const { loadConfig } = require(process.env.PAVILO_ROOT + '/config.js');
+  const { createChatServer } = require(process.env.PAVILO_ROOT + '/server.js');
+  const app = createChatServer(loadConfig({ env: { PAVILO_CONFIG: process.env.PAVILO_CONFIG } }).config);
+  let stopping = false;
+  async function stop() {
+    if (stopping) return;
+    stopping = true;
+    try { await app.stop(); process.exit(0); }
+    catch (error) { process.stderr.write(error.stack + '\\n'); process.exit(1); }
+  }
+  process.on('message', (message) => { if (message === 'stop') stop(); });
+  process.on('disconnect', stop);
+  app.listen(0, '127.0.0.1')
+    .then((address) => process.send({ port: address.port }))
+    .catch((error) => { console.error(error); process.exit(1); });
+`;
+
+function startPavilo(configPath) {
+  const child = spawn(process.execPath, ['-e', SERVER_BOOT], {
+    cwd: ROOT,
+    env: { ...process.env, PAVILO_ROOT: ROOT, PAVILO_CONFIG: configPath },
+    stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+  });
+  let output = '';
+  child.stderr.on('data', (chunk) => { output += chunk; });
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`pavilo did not listen\n${output}`)), 15_000);
+    child.once('message', (message) => {
+      clearTimeout(timer);
+      resolve({
+        port: message.port,
+        baseUrl: `http://127.0.0.1:${message.port}`,
+        stop() {
+          return new Promise((done) => {
+            const killTimer = setTimeout(() => child.kill('SIGKILL'), 5_000);
+            child.once('exit', () => { clearTimeout(killTimer); done(); });
+            try { child.send('stop'); } catch { child.kill('SIGTERM'); }
+          });
+        },
+      });
+    });
+    child.once('exit', (code) => {
+      clearTimeout(timer);
+      reject(new Error(`pavilo exited ${code}\n${output}`));
+    });
+  });
+}
+
+function startStatic() {
+  let html = '<!doctype html><title>empty</title>';
+  const server = http.createServer((_request, response) => {
+    response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    response.end(html);
+  });
+  return new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address();
+      resolve({
+        origin: `http://127.0.0.1:${port}`,
+        setHtml(next) { html = next; },
+        close() { return new Promise((done) => server.close(() => done())); },
+      });
+    });
+  });
+}
+
+function hostPage(paviloUrl, { answer = true } = {}) {
+  return `<!doctype html><meta charset="utf-8"><title>host</title>
+<iframe id="room" title="Pavilo" style="width:1200px;height:800px;border:0"></iframe>
+<script>
+  const pavilo = ${JSON.stringify(paviloUrl)};
+  const origin = new URL(pavilo).origin;
+  const iframe = document.getElementById('room');
+  const answer = ${answer ? 'true' : 'false'};
+  window.__events = [];
+  let instance = '';
+  window.addEventListener('message', (event) => {
+    if (event.origin !== origin || event.source !== iframe.contentWindow) return;
+    const data = event.data;
+    if (!data || data.v !== 1 || data.source !== 'pavilo-embed') return;
+    window.__events.push(data);
+    if (!answer || data.type !== 'hello') return;
+    instance = data.instance;
+    iframe.contentWindow.postMessage({
+      v: 1, source: 'pavilo-host', type: 'identity', instance,
+      channelId: 'general', username: 'Ada'
+    }, origin);
+    iframe.contentWindow.postMessage({
+      v: 1, source: 'pavilo-host', type: 'identity', instance: 'stale',
+      channelId: 'table', username: 'Eve', identityToken: 'super-secret-token'
+    }, origin);
+  });
+  iframe.src = pavilo + '/embed';
+</script>`;
+}
+
+test('a configured host can embed chat and return from a play without leaving the page', { timeout: 60_000 }, async (t) => {
+  const { chromium } = loadPlaywright();
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'pavilo-embed-browser-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const host = await startStatic();
+  const stranger = await startStatic();
+  t.after(() => host.close());
+  t.after(() => stranger.close());
+  const configPath = path.join(directory, 'pavilo.yaml');
+  await writeFile(configPath, `version: 2
+storage:
+  driver: sqlite
+  sqlite:
+    path: ${JSON.stringify(path.join(directory, 'pavilo.db')).slice(1, -1)}
+    engine: node
+embed:
+  ancestors:
+    - ${host.origin}
+room:
+  title: Embed preview
+  defaultChannel: general
+  exposeLanUrls: false
+channels:
+  - id: general
+    name: 闲聊
+  - id: table
+    name: 回声
+    play: echo
+plays:
+  - echo
+`);
+  const pavilo = await startPavilo(configPath);
+  t.after(() => pavilo.stop());
+  host.setHtml(hostPage(pavilo.baseUrl));
+  stranger.setHtml(hostPage(pavilo.baseUrl, { answer: false }));
+
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  page.setDefaultTimeout(15_000);
+  await page.goto(host.origin);
+  const frame = page.frameLocator('#room');
+  await frame.locator('#composerText').waitFor();
+  const href = await frame.locator('body').evaluate(() => location.href);
+  assert.equal(href.includes('super-secret-token'), false);
+  assert.equal(href.includes('identityToken'), false);
+  assert.equal(new URL(page.url()).origin, host.origin);
+
+  await frame.locator('#composerText').fill('嵌进来了');
+  await frame.locator('#composerText').press('Enter');
+  await frame.locator('#messageList .message-body', { hasText: '嵌进来了' }).waitFor();
+
+  await frame.locator('#channelList .channel').filter({ hasText: '· table' }).click();
+  await frame.locator('#echoText').waitFor();
+  assert.equal(new URL(page.url()).origin, host.origin);
+  await frame.locator('#leave').click();
+  await frame.locator('#composerText').waitFor();
+  assert.equal(new URL(page.url()).pathname, '/');
+
+  const during = await fetch(`${pavilo.baseUrl}/healthz`).then((response) => response.json());
+  assert.equal(during.clients >= 1, true);
+  await page.locator('#room').evaluate((node) => node.remove());
+  let clients = during.clients;
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    clients = (await fetch(`${pavilo.baseUrl}/healthz`).then((response) => response.json())).clients;
+    if (clients === 0) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  assert.equal(clients, 0);
+
+  const blocked = await browser.newPage();
+  blocked.setDefaultTimeout(15_000);
+  await blocked.goto(stranger.origin);
+  await blocked.waitForTimeout(800);
+  const visible = await blocked.frameLocator('#room').locator('#composerText').count();
+  assert.equal(visible, 0);
+});

@@ -11,7 +11,11 @@
     // Runs in <head>, before the first paint: when this load may be a reload of a
     // page that still holds a room identity, mark the document so the login overlay
     // never flashes while the socket reattaches. The boot script clears it.
-    try { if (sessionStorage.getItem('pavilo.resume')) document.documentElement.classList.add('resuming'); } catch {}
+    try {
+      var embedPath = location.pathname === '/embed' || location.pathname === '/embed/';
+      if (embedPath) document.documentElement.classList.add('embed-pending');
+      else if (sessionStorage.getItem('pavilo.resume')) document.documentElement.classList.add('resuming');
+    } catch {}
   </script>
   <link rel="stylesheet" href="/chat.css">
 </head>
@@ -292,6 +296,7 @@
   <script src="/client/notifications.js"></script>
   <script src="/client/error-states.js"></script>
   <script src="/client/i18n.js"></script>
+  <script src="/client/embed.js"></script>
   <script src="/client/app.js"></script>
   <script type="module">
     import '/vendor/emoji-picker/index.js';

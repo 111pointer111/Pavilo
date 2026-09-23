@@ -1566,6 +1566,9 @@ button, .channel, .person, .avatar, .top-action, .reaction-button, .composer-but
    identity, so the login overlay never takes part in the first paint. The
    boot script drops it once the room answers or gives up. */
 html.resuming .login-screen { visibility: hidden; }
+html.embed-pending #loginForm,
+html.embed-pending #copyLinkButton,
+html.embed-pending #notifyButton { display: none; }
 .login-screen {
   position: fixed;
   z-index: 20;

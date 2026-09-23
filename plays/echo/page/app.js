@@ -8,6 +8,11 @@
   const channelsEl = document.getElementById('channels');
   const params = new URLSearchParams(location.search);
   const channelId = params.get('channel');
+  const embedded = params.get('embed') === '1';
+  if (embedded) {
+    const home = document.querySelector('.mark');
+    if (home) home.setAttribute('href', '/embed');
+  }
 
   function log(line) {
     const item = document.createElement('li');
@@ -50,7 +55,7 @@
   document.getElementById('summon').addEventListener('click', () => play.playAction('summon', {}));
   document.getElementById('leave').addEventListener('click', () => {
     play.leave();
-    location.assign('/');
+    location.assign(play.embedReturnUrl());
   });
 
   play.start({ channelId });
