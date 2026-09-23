@@ -89,6 +89,9 @@ test('operator pages are served only when enabled, and traversal stays 404', asy
   const css = await fetch(`${origin}/admin/admin.css`);
   assert.equal(css.status, 200);
   assert.match(await css.text(), /\[hidden\]\s*\{\s*display:\s*none\s*!important/);
+  const chartJs = await fetch(`${origin}/admin/chart.js`);
+  assert.equal(chartJs.status, 200);
+  assert.match(await chartJs.text(), /createChart/);
   const appJs = await (await fetch(`${origin}/admin/app.js`)).text();
   assert.match(appJs, /if \(!response\.ok\) \{/);
   assert.doesNotMatch(appJs, /!response\.ok && payload\.ok === false/);

@@ -13,6 +13,7 @@ Pavilo 的重要变更都记在这份文件里。
 - 发言记录、举报和用量改用同一张记录表
 
 ### Added
+- 值班台图表：用量页用平滑曲线看近 7 日 tokens（左轴），用柱看请求（右轴），停在某一天看失败和渠道；两条及以上渠道再加横向条形图。总览在有记录时只画 token 折线
 - 墓碑式移除：正文、图片和引用预览不再发给客户端；在线客户端收到 `messageRemoved`。[ADR-0011](docs/adr/0011-governance-loop.md)
 - `report`：有值班台时可以举报。同一席对同一条未处理举报不重复入库。没有值班台返回 `GOVERNANCE_UNAVAILABLE`
 - `moderation.userDenyList`：稳定用户拒绝名单，和 IP 黑名单同一段。命中后 `USER_DENIED`，关闭码 `4011 / user_denied`。Schema v1 只能写这份名单

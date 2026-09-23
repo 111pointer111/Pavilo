@@ -16,7 +16,7 @@ Pavilo 提供以下 HTTP 端点。默认 memory 模式下数据只在进程内�
 | `/favicon.ico` | GET, HEAD | 返回 `204 No Content`，无响应体 |
 | `/ws` | WebSocket | WebSocket 连接升级 |
 | `/admin`、`/admin/`、`/admin/index.html` | GET, HEAD | 管理页。仅 sqlite + `operator.token`；否则 404 |
-| `/admin/admin.css`、`/admin/app.js`、`/admin/i18n.js` | GET, HEAD | 管理页静态资源（精确白名单） |
+| `/admin/admin.css`、`/admin/app.js`、`/admin/i18n.js`、`/admin/list.js`、`/admin/chart.js` | GET, HEAD | 管理页静态资源（精确白名单） |
 | `/admin/api/*` | 见下 | 管理页 JSON API；未启用时同样 404 |
 
 公开聊天路由在 `src/transport/http.js`。`/admin` 在 `src/operator/http.js`，由 `server.js` 按路径分流。未匹配的路径返回 404；服务端**没有实现 405**，因此对 `/room-info` 之类的端点使用 POST 等不支持的方法时同样返回 404，也不会带 `Allow` 响应头。

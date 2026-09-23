@@ -7,6 +7,7 @@
   })();
   const i18n = i18nFactory.createI18n(stored || 'zh-CN');
   const createRecordList = globalThis.PaviloAdminList.createRecordList;
+  const { createChart, foldUsage } = globalThis.PaviloAdminChart;
 
   const loginScreen = document.getElementById('loginScreen');
   const desk = document.getElementById('desk');
@@ -25,6 +26,7 @@
   const menuButton = document.getElementById('menuButton');
   const railBackdrop = document.getElementById('railBackdrop');
   const overviewSheets = document.getElementById('overviewSheets');
+  const overviewTrend = document.getElementById('overviewTrend');
   const gatewaySheets = document.getElementById('gatewaySheets');
   const gatewayLedger = document.getElementById('gatewayLedger');
   const channelList = document.getElementById('channelList');
@@ -583,6 +585,16 @@
     );
 
     overviewSheets.replaceChildren(duty, people, chat, gateway);
+    overviewTrend.replaceChildren();
+    if (!usage.rows.length) return;
+    const folded = foldUsage(usage.rows, { days: 7 });
+    const total = folded.days.reduce((sum, day) => sum + day.tokens, 0);
+    const paper = el('div', 'paper usage-trend');
+    const head = el('a', 'usage-trend-head');
+    head.href = '#/gateway/usage';
+    head.append(el('p', 'kicker', t('usage.trend')), el('strong', '', formatCount(total)));
+    paper.append(head, tokenChart(folded.days, { height: 96, yAxis: false }));
+    overviewTrend.append(paper);
   }
 
   function modelChannelRow(channel) {
@@ -790,6 +802,56 @@
     trackForm(form);
   }
 
+  function formatCount(value) {
+    return Number(value || 0).toLocaleString(i18n.language() === 'en' ? 'en' : 'zh-CN');
+  }
+
+  function usagePoint(label, count) {
+    return t('usage.point', { label, count: formatCount(count) });
+  }
+
+  function usageTip(entry, channels) {
+    const lines = [
+      entry.label || entry.id,
+      t('usage.tipTokens', { count: formatCount(entry.tokens) }),
+      t('usage.tipMeta', { requests: formatCount(entry.requests), errors: formatCount(entry.errors) })
+    ];
+    if (channels && channels.length > 1) {
+      for (const channel of channels) lines.push({ text: channel.id, value: formatCount(channel.tokens) });
+    }
+    return lines;
+  }
+
+  function tokenChart(days, { height, yAxis, requests = false }) {
+    const series = [{ id: 'tokens', label: requests ? t('usage.tokens') : '', values: days.map((day) => day.tokens) }];
+    if (requests) {
+      series.push({
+        id: 'requests',
+        label: t('usage.requests'),
+        values: days.map((day) => day.requests),
+        axis: 'end',
+        mark: 'bar'
+      });
+    }
+    return createChart({
+      kind: 'line',
+      categories: days.map((day) => ({ id: day.day, label: day.label, marker: day.errors > 0 })),
+      series,
+      height,
+      yAxis,
+      label: t(requests ? 'usage.trendBoth' : 'usage.trend'),
+      formatValue: formatCount,
+      pointLabel: (index) => (requests
+        ? t('usage.pointBoth', {
+          label: days[index].label,
+          tokens: formatCount(days[index].tokens),
+          requests: formatCount(days[index].requests)
+        })
+        : usagePoint(days[index].label, days[index].tokens)),
+      tooltip: (index) => usageTip(days[index], days[index].channels)
+    });
+  }
+
   function renderUsage() {
     usageBox.replaceChildren();
     if (!usage.rows.length) {
@@ -798,10 +860,33 @@
       usageBox.append(empty);
       return;
     }
-    const requests = usage.rows.reduce((sum, row) => sum + (row.requests || 0), 0);
-    const tokens = usage.rows.reduce((sum, row) => sum + (row.promptTokens || 0) + (row.completionTokens || 0), 0);
-    const errors = usage.rows.reduce((sum, row) => sum + (row.errors || 0), 0);
-    usageBox.append(el('p', 'usage-summary', t('usage.summary', { requests, tokens, errors })));
+    const folded = foldUsage(usage.rows, { days: 7 });
+    const requests = folded.days.reduce((sum, day) => sum + day.requests, 0);
+    const tokens = folded.days.reduce((sum, day) => sum + day.tokens, 0);
+    const errors = folded.days.reduce((sum, day) => sum + day.errors, 0);
+    usageBox.append(el('p', 'usage-summary', t('usage.summary', {
+      requests: formatCount(requests),
+      tokens: formatCount(tokens),
+      errors: formatCount(errors)
+    })));
+    const trend = el('div', 'chart-block');
+    trend.append(el('p', 'kicker', t('usage.trendBoth')));
+    trend.append(tokenChart(folded.days, { height: 160, yAxis: true, requests: true }));
+    usageBox.append(trend);
+    if (folded.channels.length >= 2) {
+      const byChannel = el('div', 'chart-block');
+      byChannel.append(el('p', 'kicker', t('usage.byChannel')));
+      byChannel.append(createChart({
+        kind: 'bar',
+        categories: folded.channels.map((channel) => ({ id: channel.id, label: channel.id })),
+        series: [{ id: 'tokens', values: folded.channels.map((channel) => channel.tokens) }],
+        label: t('usage.byChannel'),
+        formatValue: formatCount,
+        pointLabel: (index) => usagePoint(folded.channels[index].id, folded.channels[index].tokens),
+        tooltip: (index) => usageTip(folded.channels[index])
+      }));
+      usageBox.append(byChannel);
+    }
     usageBox.append(createRecordList({
       columns: [
         { id: 'day', label: t('usage.day'), className: 'record-when' },
