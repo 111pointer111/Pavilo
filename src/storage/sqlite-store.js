@@ -210,7 +210,8 @@ function createSqliteStore(config, runtime = {}) {
 
   function listMessagesByAuthor(authorId, { beforeCreatedAt, beforeChannelId, beforeId, limit = 50 } = {}) {
     const cap = Math.min(Math.max(1, Number(limit) || 50), 100);
-    const rows = Number.isFinite(beforeCreatedAt)
+    const paging = Number.isFinite(beforeCreatedAt) && beforeCreatedAt > 0;
+    const rows = paging
       ? selectAuthorPage.all(authorId, beforeCreatedAt, beforeCreatedAt, beforeChannelId || '', beforeChannelId || '', beforeId || '', cap + 1)
       : selectAuthorFirst.all(authorId, cap + 1);
     return {

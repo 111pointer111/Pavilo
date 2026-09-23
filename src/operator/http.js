@@ -230,9 +230,10 @@ function createOperatorHttp(config, { gateway, core, pavilion, root }) {
     const seatMessagesMatch = pathname.match(/^\/admin\/api\/people\/([^/]+)\/messages$/);
     if (people && seatMessagesMatch && request.method === 'GET') {
       const query = new URL(request.url, 'http://localhost').searchParams;
-      const beforeCreatedAt = Number(query.get('beforeCreatedAt'));
+      const rawBefore = query.get('beforeCreatedAt');
+      const beforeCreatedAt = rawBefore == null || rawBefore === '' ? undefined : Number(rawBefore);
       sendJson(response, 200, people.messages(decodeURIComponent(seatMessagesMatch[1]), {
-        beforeCreatedAt: Number.isFinite(beforeCreatedAt) ? beforeCreatedAt : undefined,
+        beforeCreatedAt: Number.isFinite(beforeCreatedAt) && beforeCreatedAt > 0 ? beforeCreatedAt : undefined,
         beforeChannelId: query.get('beforeChannelId') || undefined,
         beforeId: query.get('beforeId') || undefined,
         limit: Number(query.get('limit') || 50)

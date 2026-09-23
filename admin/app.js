@@ -77,6 +77,7 @@
   const userDenyList = document.getElementById('userDenyList');
   const userDenySource = document.getElementById('userDenySource');
   const reportList = document.getElementById('reportList');
+  const reportCount = document.getElementById('reportCount');
   const seatPaper = document.getElementById('seatPaper');
   const DEEPSEEK_BASE = 'https://api.deepseek.com/v1';
   const DEEPSEEK_MODEL = 'deepseek-chat';
@@ -1009,21 +1010,19 @@
 
   function renderReports() {
     const reports = peopleState.reports || [];
+    reportCount.textContent = reports.length ? t('people.reportCount', { count: reports.length }) : '';
     reportList.replaceChildren();
     if (!reports.length) {
-      reportList.append(el('p', 'hint', t('people.reportsEmpty')));
+      reportList.append(el('p', 'report-empty', t('people.reportsEmpty')));
       return;
     }
     for (const report of reports) {
-      const row = el('div', 'history-row');
-      const meta = el('div', 'history-meta', `${formatClock(report.createdAt)} · ${channelLabel(report.channelId)} · ${report.reporterUsername}`);
-      row.append(meta);
-      const body = el('div', 'history-text', report.removed
-        ? t('people.removed')
-        : (report.excerpt || t('people.removed')));
-      if (report.reason) body.append(el('div', 'hint', report.reason));
-      row.append(body);
-      const actions = el('div', 'actions');
+      const row = el('div', 'report-row');
+      const main = el('div', 'report-main');
+      main.append(el('div', 'report-kicker', `${formatClock(report.createdAt)} · ${channelLabel(report.channelId)} · ${report.reporterUsername}`));
+      main.append(el('div', 'report-excerpt', report.removed ? t('people.removed') : (report.excerpt || t('people.removed'))));
+      if (report.reason) main.append(el('div', 'report-reason', report.reason));
+      const actions = el('div', 'report-actions');
       const remove = el('button', 'ghost danger', t('people.reportRemove'));
       remove.type = 'button';
       remove.disabled = !writable();
@@ -1063,7 +1062,7 @@
         });
         actions.append(deny);
       }
-      row.append(actions);
+      row.append(main, actions);
       reportList.append(row);
     }
   }

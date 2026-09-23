@@ -157,9 +157,11 @@
               <div class="people-toolbar" id="peopleToolbar"></div>
               <div id="peopleList"></div>
             </div>
-            <div class="paper deny-paper" id="reportsPaper">
-              <h2 data-i18n="people.reportsTitle">举报</h2>
-              <p class="hint" data-i18n="people.reportsHint">举报不会自动藏起内容。看过以后再决定移除或忽略。</p>
+            <div class="paper report-paper" id="reportsPaper">
+              <div class="report-head">
+                <h2 data-i18n="people.reportsTitle">举报</h2>
+                <span id="reportCount"></span>
+              </div>
               <div id="reportList"></div>
             </div>
             <form class="editor paper deny-paper" id="userDenyForm">

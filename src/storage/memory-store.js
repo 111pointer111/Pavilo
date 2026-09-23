@@ -114,7 +114,7 @@ function createMemoryStore(config, runtime = {}) {
     for (const channel of channels.values()) {
       for (const message of channel.messages) {
         if (message.author?.id !== authorId) continue;
-        if (Number.isFinite(beforeCreatedAt)) {
+        if (Number.isFinite(beforeCreatedAt) && beforeCreatedAt > 0) {
           if (message.createdAt > beforeCreatedAt) continue;
           if (message.createdAt === beforeCreatedAt) {
             if (beforeChannelId && channel.id > beforeChannelId) continue;

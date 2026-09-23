@@ -8,6 +8,9 @@ Pavilo 的重要变更都记在这份文件里。
 
 治理闭环，尚未发布。Protocol v4 不升号。不做嵌入，也不做提交前审核。
 
+### Fixed
+- 人员页「这一席留在库里的发言」在未传分页时间时不再被当成 `beforeCreatedAt: 0`，有发言时能列出来
+
 ### Added
 - 墓碑式移除：正文、图片和引用预览不再发给客户端；在线客户端收到 `messageRemoved`。[ADR-0011](docs/adr/0011-governance-loop.md)
 - `report`：有值班台时可以举报。同一席对同一条未处理举报不重复入库。没有值班台返回 `GOVERNANCE_UNAVAILABLE`

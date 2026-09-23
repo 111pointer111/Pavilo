@@ -182,6 +182,9 @@ test('the operator console closes a report by removing the message', async (t) =
   const headers = { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json' };
   const people = await (await fetch(`${origin}/admin/api/people`, { headers })).json();
   assert.equal(people.reports.length, 1);
+  const stored = await (await fetch(`${origin}/admin/api/people/${encodeURIComponent(start.self.id)}/messages?limit=50`, { headers })).json();
+  assert.equal(stored.messages.length, 1);
+  assert.equal(stored.messages[0].text, '请删掉');
   assert.equal(people.reports[0].excerpt, '请删掉');
   assert.equal(people.reports[0].reporterUserKey, 'user-9');
 

@@ -866,7 +866,7 @@ button, .channel, .person, .avatar, .top-action, .reaction-button, .composer-but
 }
 .message-action:hover { background: var(--teal-pale); color: var(--teal-deep); transform: translateY(-1px); }
 .message-action:active { transform: translateY(0) scale(.96); }
-.message-action .icon { width: 14px; height: 14px; }
+.message-action .icon { width: 16px; height: 16px; }
 @media (hover: none), (pointer: coarse) {
   .message-stack::before { display: none; }
   .message-actions {

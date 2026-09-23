@@ -173,7 +173,7 @@
       const reaction = features.reactions
         ? `<button class="message-action reaction-action" type="button" data-message-id="${escapeHtml(messageId)}" data-popover-align="right" aria-label="${escapeHtml(t('reaction.add'))}" title="${escapeHtml(t('reaction.add'))}"><span class="icon" data-icon="smile-plus" data-icon-size="16" aria-hidden="true"></span><span class="icon reaction-plus" data-icon="plus" data-icon-size="10" aria-hidden="true"></span></button>`
         : '';
-      const reply = isReadOnlyChannel() || !features.replies ? '' : `<button class="message-action reply-action" type="button" data-message-id="${escapeHtml(messageId)}" aria-label="${escapeHtml(t('reaction.replyAria'))}" title="${escapeHtml(t('reaction.reply'))}"><span class="icon" data-icon="reply" data-icon-size="14" aria-hidden="true"></span></button>`;
+      const reply = isReadOnlyChannel() || !features.replies ? '' : `<button class="message-action reply-action" type="button" data-message-id="${escapeHtml(messageId)}" aria-label="${escapeHtml(t('reaction.replyAria'))}" title="${escapeHtml(t('reaction.reply'))}"><span class="icon" data-icon="corner-up-left" data-icon-size="16" aria-hidden="true"></span></button>`;
       const report = governanceOn()
         ? `<button class="message-action report-action" type="button" data-message-id="${escapeHtml(messageId)}" aria-label="${escapeHtml(t('report.aria'))}" title="${escapeHtml(t('report.action'))}"><span class="icon" data-icon="flag" data-icon-size="14" aria-hidden="true"></span></button>`
         : '';
