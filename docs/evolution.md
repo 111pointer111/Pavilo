@@ -9,7 +9,7 @@
 | v1.2.0 已发布 | 无网络聊天 core、HTTP/WS transport、客户端 protocol/connection/state/pending 分层、memory/sqlite ConversationStore、SQLite 运维 |
 | v1.3.0 已发布 | 进程内 Gateway、operator 后台与配置覆盖层、席位禁言/请离/IP 黑名单、Play/Agent 宿主及 echo 夹具 |
 | v1.4.0 已发布 | 功能目录、宿主 JWT 身份与频道授权 |
-| 主分支已实现，尚未发布 | 治理闭环：举报、墓碑移除、稳定 `userKey` 拒绝、操作记录。[ADR-0011](adr/0011-governance-loop.md) |
+| v1.5.0 已发布 | 治理闭环：举报、墓碑移除、稳定 `userKey` 拒绝、操作记录。[ADR-0011](adr/0011-governance-loop.md) |
 | 计划中 | 嵌入页/SDK、提交前文本规则、通用 Policy/Event 扩展、官方狼人杀 |
 
 当前 `server.js` 组合各模块，导入不会监听端口或注册信号。`createChatServer` 是现有工厂入口，不等于已经交付可安装到任意 Node 应用的后端 SDK。现有前端连接和页面跳转以独立站点为中心，响应禁止 iframe 嵌入。稳定用户拒绝是一份 `userKey` 名单，不是账号表；访客仍然没有可封禁的稳定身份。

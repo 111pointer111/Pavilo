@@ -1,6 +1,6 @@
 # 配置指南
 
-> 本文对应当前稳定版 v1.4.0 配置。`identity` / `channels[].features` / `channels[].access` 已随 v1.4 发布；默认省略则与 v1.3 行为一致。嵌入字段见 [集成设计（规划中）](integration.md)，不要提前写入。
+> 本文对应当前稳定版 v1.5.0 配置。`identity` / `channels[].features` / `channels[].access` 已随 v1.4 发布；`moderation.userDenyList` 已随 v1.5 发布。默认省略则与上一版行为一致。嵌入字段见 [集成设计（规划中）](integration.md)，不要提前写入。
 
 本文档逐项说明 Pavilo 的全部配置项。
 

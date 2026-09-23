@@ -6,11 +6,11 @@ Pavilo 的重要变更都记在这份文件里。
 
 ## [Unreleased]
 
-治理闭环，尚未发布。Protocol v4 不升号。不做嵌入，也不做提交前审核。
+## [1.5.0] - 2026-09-23
 
-### Fixed
-- 人员页「这一席留在库里的发言」在未传分页时间时不再被当成 `beforeCreatedAt: 0`，有发言时能列出来
-- 发言记录、举报和用量改用同一张记录表
+治理闭环。默认 memory 仍无值班台、无举报库。不写 `userDenyList` 时，行为与 v1.4.0 相同。Protocol v4 不升号。不做嵌入，也不做提交前审核。官方狼人杀尚未实现。
+
+从 v1.4 升级会在启动 SQLite 时自动执行 migration 006。回滚到 v1.4 要用升级前的备份恢复，不要把已经跑过 006 的库交给旧进程。
 
 ### Added
 - 值班台图表：用量页用平滑曲线看近 7 日 tokens（左轴），用柱看请求（右轴），停在某一天看失败和渠道；两条及以上渠道再加横向条形图。总览在有记录时只画 token 折线
@@ -19,6 +19,14 @@ Pavilo 的重要变更都记在这份文件里。
 - `moderation.userDenyList`：稳定用户拒绝名单，和 IP 黑名单同一段。命中后 `USER_DENIED`，关闭码 `4011 / user_denied`。Schema v1 只能写这份名单
 - SQLite migration 006：`reports`、`operator_actions`
 - 值班台人员页：待处理举报、身份拒绝名单、最近操作记录。席位发言可以移除
+
+### Fixed
+- 人员页「这一席留在库里的发言」在未传分页时间时不再被当成 `beforeCreatedAt: 0`，有发言时能列出来
+- 发言记录、举报和用量改用同一张记录表
+- 官方镜像补上 `admin/`。此前容器里即使配了 operator token，`/admin` 也找不到页面
+
+### Tests
+- 2026-09-23 发布验证（本机 Node v26.5.0）：`npm test` 421 个，420 通过、1 跳过（`SYNC_IN_PROGRESS` 集成窗口；`better-sqlite3` 已安装并计入通过）；`npm run test:browser` 19 通过；`npm audit --audit-level=high` 无漏洞。两份示例配置由 `test/config-example.test.js` 解析通过。只含 migration 001–005 的库打开后补上 006。源码镜像本地启停：默认内存模式 `/healthz` 为 200、`/admin` 为 404；挂上 sqlite 与 operator token 后 `/admin` 为 200。未在本机跑 Node 22/24。GHCR 由标签工作流构建，发布前未拉取远端镜像
 
 ## [1.4.0] - 2026-09-21
 
@@ -434,6 +442,7 @@ SQLite 运维：历史分页、备份/恢复、完整性检查与 healthz 库存
 
 ## 版本摘要
 
+- **v1.5.0** — 举报、墓碑移除、稳定用户拒绝、操作记录
 - **v1.4.0** — 功能目录与宿主 JWT 身份
 - **v1.3.0** — 可选网关、值班台、人员治理与 Play 宿主
 - **v1.0.0** — Ephemeral Stable

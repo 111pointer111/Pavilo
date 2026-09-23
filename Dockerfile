@@ -36,6 +36,7 @@ COPY --chown=pavilo:pavilo package*.json ./
 COPY --chown=pavilo:pavilo server.js config.js ./
 COPY --chown=pavilo:pavilo src ./src
 COPY --chown=pavilo:pavilo client ./client
+COPY --chown=pavilo:pavilo admin ./admin
 COPY --chown=pavilo:pavilo vendor ./vendor
 COPY --chown=pavilo:pavilo index.html chat.css ./
 

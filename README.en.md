@@ -11,13 +11,13 @@
 Pavilo (**Pavilion + Local**) is a lightweight, self-hosted chat tool that runs in the browser, is ephemeral by default, and is evolving toward composable chat and play capabilities that developers can embed in their products. Like a small pavilion you can put up anywhere: start a Node.js process, and anyone on the same local network can open a web page and talk. In the default memory mode, chat history disappears when the service stops.
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.4.0-0f7772">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.5.0-0f7772">
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-0f7772">
   <img alt="Node.js" src="https://img.shields.io/badge/node-%3E%3D22-0f7772">
   <img alt="Protocol v4" src="https://img.shields.io/badge/protocol-v4-0f7772">
 </p>
 
-Current version: **v1.4.0** — ephemeral group chat by default; optional SQLite via Config Schema v2 (30-day retention, history paging, backup). With sqlite you can open `/admin`, an optional AI gateway, and the Play host, plus per-channel feature flags and host JWT identity. Simplified Chinese and English UI, WebSocket Protocol v4 only. Built for trusted LANs, private networks, and VPNs.
+Current version: **v1.5.0** — ephemeral group chat by default; optional SQLite via Config Schema v2 (30-day retention, history paging, backup). With sqlite you can open `/admin`, an optional AI gateway, and the Play host, plus per-channel feature flags and host JWT identity. With the operator console, people can report messages, operators can tombstone them, and stable users can be denied. Simplified Chinese and English UI, WebSocket Protocol v4 only. Built for trusted LANs, private networks, and VPNs.
 
 <p align="center">
   <img src="docs/screenshots/overview.png" width="880" alt="Pavilo preview: desktop chat, login, and mobile">
@@ -33,11 +33,11 @@ Current version: **v1.4.0** — ephemeral group chat by default; optional SQLite
 | --- | --- |
 | Released: v1.2.0 | Ephemeral chat, optional SQLite retention, paging, backup, and storage operations |
 | Released: v1.3.0 | AI gateway, admin console, room/channel configuration, seat mute/kick and IP denylist, Play/Agent host, and echo fixture |
-| Released: v1.4.0 (latest stable) | Feature catalog, host JWT identity, and channel authorization |
-| On main, not yet released | Governance loop: reports, tombstone removal, stable-user denylist, operator action log |
+| Released: v1.4.0 | Feature catalog, host JWT identity, and channel authorization |
+| Released: v1.5.0 (latest stable) | Governance loop: reports, tombstone removal, stable-user denylist, operator action log |
 | Planned for v2.0 | Embedded page and integration SDK, pre-commit text rules, and official Werewolf |
 
-**An embedding SDK is not available yet.** v1.4 adds a `join.identityToken` host-identity port. The v2.0 target is a standalone service plus a ready-made UI and integration SDK.
+**An embedding SDK is not available yet.** v1.4 adds a `join.identityToken` host-identity port. v1.5 adds reports, tombstone removal, and a stable-user denylist when the operator console is on. The v2.0 target is a standalone service plus a ready-made UI and integration SDK.
 
 The default ephemeral mode remains a first-class mode. Official Werewolf is planned as a complete Play reference, developed alongside the infrastructure and required before v2.0. See the [roadmap](ROADMAP.md) and [integration design (planned)](docs/integration.md) for milestones and boundaries. Configuration and capabilities below describe the current stable release.
 
@@ -91,14 +91,14 @@ The default ephemeral mode remains a first-class mode. Official Werewolf is plan
 **Admin, gateway, and plays (optional, off by default)**
 
 - `/admin` exists when sqlite is on and `operator.token` is at least 16 characters: overview, room, chat channels, seats, and the AI gateway
-- Room, chat-channel, and IP-denylist saves take effect immediately; claimed YAML sections are ignored until reverted. Open chat tabs need a refresh
-- The people page manages ephemeral seats in this process: mute, kick, IP denylist. It is not a member directory or host identity
+- Room, chat-channel, IP-denylist, and stable-user denylist saves take effect immediately; claimed YAML sections are ignored until reverted. Open chat tabs need a refresh
+- The people page manages ephemeral seats in this process: mute, kick, IP denylist, open reports, identity denial, and the recent action log. It is not a member directory or host identity. An operator can tombstone a seat's messages
 - Model channels and API keys are configured only in Admin → AI gateway, never in YAML; the chat core does not depend on AI
 - Optional `plays` and `channels[].play` (sqlite required) open a dedicated play page. In-repo `echo` is a contract fixture and should stay off by default; official Werewolf is still being built by a collaborator
 
 **Current read-only boundaries**
 
-- Messages cannot be edited or deleted after sending; reactions are the only way to respond
+- People in the room cannot edit or delete a sent message; reactions are how they respond. With the operator console, an operator can tombstone a message: the body, images, and reply previews are no longer shown, but the row remains. Memory mode has no report or removal console
 - History persistence is off by default (optional SQLite via Config Schema v2, 30-day retention); no direct messages, search, accounts, or role permissions
 - Channels with `enabled: false` cannot be joined at all; `readOnly: true` channels can be joined, read, and reacted to, but nobody can post (no exceptions, no admin bypass)
 - Read-only channels are for deployer-maintained announcements; YAML changes need a restart, admin channel saves apply immediately (open tabs still need a refresh)

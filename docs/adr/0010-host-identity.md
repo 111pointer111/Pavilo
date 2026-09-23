@@ -112,5 +112,5 @@ Protocol v4 可选字段。独立 `/` 登录页保持用户名进亭；`guests: 
 
 - Ed25519 issuer。
 - 嵌入页用 postMessage 送同一 JWT（v1.6）。
-- 稳定用户拒绝与治理记录见 [ADR-0011](0011-governance-loop.md)，主分支已实现，尚未发布。
+- 稳定用户拒绝与治理记录已随 v1.5.0 发布，见 [ADR-0011](0011-governance-loop.md)。
 - 可选 `refreshIdentity` 命令，若再 join 不够用再加。
